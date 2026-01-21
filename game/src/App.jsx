@@ -1,21 +1,16 @@
 import React, { useState, useEffect } from 'react';
-// DIESE ZEILE FEHLT BEI DIR WAHRSCHEINLICH:
-import { createClient } from '@supabase/supabase-js'; 
+import { createClient } from '@supabase/supabase-js';
 import { Zap, Trophy, Clock, User, Plus, Swords, RefreshCw, Copy, Check, ExternalLink, AlertTriangle, Loader2, LogOut, Fingerprint, Flame, History, Coins } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { QRCodeCanvas } from 'qrcode.react';
 
-// --- KONFIGURATION (Laden aus .env) ---
+// --- KONFIGURATION ---
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_KEY;
-
 const LNBITS_URL = import.meta.env.VITE_LNBITS_URL;
 const INVOICE_KEY = import.meta.env.VITE_INVOICE_KEY;
 const ADMIN_KEY = import.meta.env.VITE_ADMIN_KEY;
 
-// ... Rest des Codes ...
-
-// EINSTELLUNG: Wieviel % behält das Haus?
 const HOUSE_FEE_PERCENT = 10; 
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -33,35 +28,37 @@ const ALL_QUESTIONS = [
 
 const getRandomQuestions = () => [...ALL_QUESTIONS].sort(() => 0.5 - Math.random()).slice(0, 5);
 
-// --- UI COMPONENTS (JETZT AUSSERHALB DER APP, DAMIT DER FOKUS BLEIBT) ---
+// --- DESIGN COMPONENTS (NEU GESTYLT) ---
 
 const PlayerName = ({ name, large = false }) => {
   if (!name) return null;
   if (name.includes('#')) {
     const [n, tag] = name.split('#');
     return (
-      <span>
-        {n}<span className={`${large ? 'text-lg' : 'text-xs'} text-neutral-500 font-mono`}>#{tag}</span>
+      <span className="font-mono tracking-tight">
+        {n}<span className={`${large ? 'text-lg' : 'text-xs'} text-neutral-500 opacity-70`}>#{tag}</span>
       </span>
     );
   }
   return <span>{name}</span>;
 };
 
+// Neue "Glass" Karte
 const Card = ({ children, className = "" }) => (
-  <div className={`bg-neutral-900 border border-neutral-800 rounded-xl p-4 shadow-xl ${className}`}>
+  <div className={`glass-panel rounded-2xl p-5 ${className} transition-all duration-300 hover:border-orange-500/30`}>
     {children}
   </div>
 );
 
+// Neuer "Shiny" Button
 const Button = ({ children, onClick, className = "", variant = "primary" }) => {
-  const base = "w-full py-4 rounded-xl font-bold transition-all active:scale-[0.98] flex items-center justify-center gap-2";
+  const base = "btn-shine w-full py-4 rounded-xl font-bold tracking-wide transition-all active:scale-[0.98] flex items-center justify-center gap-2 uppercase text-sm";
   const variants = {
-    primary: "bg-orange-500 hover:bg-orange-400 text-black shadow-lg shadow-orange-900/20",
-    secondary: "bg-neutral-800 hover:bg-neutral-700 text-neutral-200 border border-neutral-700",
-    nostr: "bg-purple-600 hover:bg-purple-500 text-white shadow-lg shadow-purple-900/20",
+    primary: "bg-gradient-to-r from-orange-600 to-orange-500 hover:to-orange-400 text-white shadow-[0_0_20px_rgba(234,88,12,0.3)] border border-orange-400/50",
+    secondary: "bg-neutral-800/80 hover:bg-neutral-700 text-neutral-200 border border-white/10 backdrop-blur",
+    nostr: "bg-gradient-to-r from-purple-700 to-indigo-600 hover:to-indigo-500 text-white shadow-lg border border-purple-500/50",
     danger: "bg-red-500/10 text-red-500 border border-red-500/50 hover:bg-red-500/20",
-    success: "bg-green-500 hover:bg-green-400 text-black shadow-lg shadow-green-900/20"
+    success: "bg-gradient-to-r from-green-600 to-emerald-500 text-white shadow-[0_0_20px_rgba(34,197,94,0.3)] border border-green-400/50"
   };
   return (
     <button onClick={onClick} className={`${base} ${variants[variant]} ${className}`}>
@@ -240,11 +237,8 @@ export default function App() {
   const handleManualLogin = (e) => {
     e.preventDefault();
     if (!loginName.trim()) return;
-
-    // Gamertag Logik
     const randomTag = Math.floor(1000 + Math.random() * 9000);
     const uniqueName = `${loginName.trim()}#${randomTag}`;
-
     const newUser = { name: uniqueName, pubkey: null };
     setUser(newUser);
     localStorage.setItem('satoshi_user', JSON.stringify(newUser));
@@ -329,15 +323,10 @@ export default function App() {
     setView('result_final');
     const oppScore = myRole === 'creator' ? duel.challenger_score : duel.creator_score;
     const oppTime = myRole === 'creator' ? duel.challenger_time : duel.creator_time;
-    
     let won = false;
     if (myScore > oppScore) won = true;
     else if (myScore === oppScore && myTime < oppTime) won = true;
-    
-    if (won) { 
-      confetti(); 
-      await createWithdrawLink(duel.amount || 500); 
-    }
+    if (won) { confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } }); await createWithdrawLink(duel.amount || 500); }
   };
 
   const createWithdrawLink = async (duelAmount) => {
@@ -345,7 +334,6 @@ export default function App() {
     if (!ADMIN_KEY) { setWithdrawError("Kein Admin Key!"); return; }
     setWithdrawError(''); 
     
-    // Fee Logik
     const totalPot = duelAmount * 2;
     const fee = Math.floor(totalPot * (HOUSE_FEE_PERCENT / 100));
     const prize = totalPot - fee;
@@ -369,135 +357,164 @@ export default function App() {
     } catch(e) { setWithdrawError("Netzwerkfehler: " + e.message); }
   };
 
-  // --- VIEWS ---
+  // --- BACKGROUND WRAPPER ---
+  const Background = ({ children }) => (
+    <div className="min-h-screen bg-neutral-950 text-white font-sans overflow-hidden relative selection:bg-orange-500 selection:text-black">
+      {/* Animiertes Grid */}
+      <div className="absolute inset-0 bg-grid opacity-20 pointer-events-none"></div>
+      
+      {/* Weicher Glow Oben/Unten */}
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[500px] h-[300px] bg-orange-600/20 blur-[120px] rounded-full pointer-events-none"></div>
+      <div className="absolute bottom-0 right-0 w-[400px] h-[300px] bg-purple-600/10 blur-[100px] rounded-full pointer-events-none"></div>
 
-  if (view === 'login') return (
-    <div className="min-h-screen bg-neutral-950 flex flex-col items-center justify-center p-6 font-sans text-neutral-200">
-      <div className="w-full max-w-sm flex flex-col gap-6">
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-orange-500/10 border border-orange-500/30 mb-4 shadow-[0_0_40px_rgba(249,115,22,0.1)]">
-            <Zap size={40} className="text-orange-500 fill-orange-500" />
-          </div>
-          <h1 className="text-4xl font-black text-white tracking-tight">SATOSHI<span className="text-orange-500">DUELL</span></h1>
-          <p className="text-neutral-500 font-medium">Lightning Quiz PvP</p>
-        </div>
-
-        <Button variant="nostr" onClick={handleNostrLogin}>
-           <Fingerprint size={20}/> Login mit Nostr
-        </Button>
-
-        <div className="relative py-2">
-          <div className="absolute inset-0 flex items-center"><span className="w-full border-t border-neutral-800"></span></div>
-          <div className="relative flex justify-center text-xs uppercase"><span className="bg-neutral-950 px-2 text-neutral-600">Oder</span></div>
-        </div>
-
-        <form onSubmit={handleManualLogin} className="flex flex-col gap-3">
-          <input 
-            type="text" 
-            placeholder="Spielername eingeben..." 
-            value={loginName}
-            onChange={(e) => setLoginName(e.target.value)}
-            className="w-full p-4 rounded-xl bg-neutral-900 border border-neutral-800 text-white placeholder-neutral-600 focus:border-orange-500 focus:ring-1 focus:ring-orange-500 outline-none transition-all text-center font-bold"
-          />
-          <Button variant="secondary" onClick={handleManualLogin}>Starten</Button>
-        </form>
+      <div className="relative z-10 p-4 h-full flex flex-col items-center justify-center min-h-screen">
+         {children}
       </div>
     </div>
   );
 
+  // --- VIEWS ---
+
+  if (view === 'login') return (
+    <Background>
+      <div className="w-full max-w-sm flex flex-col gap-8 animate-float">
+        <div className="text-center">
+          <div className="inline-flex items-center justify-center w-24 h-24 rounded-full bg-orange-500/10 border border-orange-500/30 mb-6 shadow-[0_0_50px_rgba(249,115,22,0.2)] animate-neon">
+            <Zap size={48} className="text-orange-500 fill-orange-500 drop-shadow-md" />
+          </div>
+          <h1 className="text-5xl font-black text-transparent bg-clip-text bg-gradient-to-br from-white via-neutral-200 to-neutral-500 tracking-tighter mb-2">
+            SATOSHI<span className="text-orange-500">DUELL</span>
+          </h1>
+          <p className="text-neutral-400 font-medium tracking-wide text-sm uppercase">Lightning Quiz PvP</p>
+        </div>
+
+        <div className="flex flex-col gap-4">
+          <Button variant="nostr" onClick={handleNostrLogin}>
+             <Fingerprint size={20}/> Login mit Nostr
+          </Button>
+
+          <div className="relative py-2">
+            <div className="absolute inset-0 flex items-center"><span className="w-full border-t border-white/10"></span></div>
+            <div className="relative flex justify-center text-xs uppercase font-bold tracking-widest"><span className="bg-neutral-950 px-3 text-neutral-600">Oder</span></div>
+          </div>
+
+          <form onSubmit={handleManualLogin} className="flex flex-col gap-3">
+            <input 
+              type="text" 
+              placeholder="DEIN NAME..." 
+              value={loginName}
+              onChange={(e) => setLoginName(e.target.value)}
+              className="w-full p-4 rounded-xl bg-neutral-900/50 border border-white/10 text-white placeholder-neutral-600 focus:border-orange-500 focus:ring-1 focus:ring-orange-500 outline-none transition-all text-center font-bold uppercase tracking-wider backdrop-blur-sm"
+            />
+            <Button variant="secondary" onClick={handleManualLogin}>Starten</Button>
+          </form>
+          <p className="text-[10px] text-center text-neutral-600 font-mono">ID wird automatisch generiert • Keine Anmeldung nötig</p>
+        </div>
+      </div>
+    </Background>
+  );
+
   if (view === 'dashboard') return (
-    <div className="min-h-screen bg-neutral-950 p-4 font-sans text-neutral-200">
-      <div className="max-w-md mx-auto flex flex-col h-full gap-4">
+    <Background>
+      <div className="w-full max-w-md flex flex-col h-[85vh] gap-4">
         
-        <Card className="flex justify-between items-center bg-neutral-900/80 backdrop-blur">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-orange-500 flex items-center justify-center font-black text-black">
+        <Card className="flex justify-between items-center border-orange-500/20 bg-orange-900/5">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-xl bg-gradient-to-tr from-orange-500 to-yellow-500 flex items-center justify-center font-black text-black text-xl shadow-lg shadow-orange-900/40">
               {user.name.charAt(0).toUpperCase()}
             </div>
             <div>
-               <p className="font-bold text-white leading-none"><PlayerName name={user.name}/></p>
-               <p className="text-xs text-green-500 font-mono mt-1">● ONLINE</p>
+               <p className="font-bold text-white text-lg leading-none mb-1"><PlayerName name={user.name} large/></p>
+               <div className="flex items-center gap-2">
+                 <span className="relative flex h-2 w-2">
+                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                   <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+                 </span>
+                 <span className="text-xs text-green-400 font-bold tracking-wider">ONLINE</span>
+               </div>
             </div>
           </div>
-          <button onClick={handleLogout} className="p-2 hover:bg-neutral-800 rounded-lg text-neutral-500 transition-colors"><LogOut size={20}/></button>
+          <button onClick={handleLogout} className="p-3 hover:bg-white/5 rounded-xl text-neutral-400 hover:text-red-400 transition-colors border border-transparent hover:border-white/10"><LogOut size={20}/></button>
         </Card>
 
         <div className="grid grid-cols-2 gap-3">
-          <Card className="flex flex-col items-center justify-center gap-1 bg-green-900/10 border-green-500/20">
-            <span className="text-xs font-bold text-green-500 uppercase">Siege</span>
-            <span className="text-3xl font-mono font-black text-white">{stats.wins}</span>
+          <Card className="flex flex-col items-center justify-center gap-1 bg-green-500/5 border-green-500/10 hover:border-green-500/30">
+            <span className="text-[10px] font-black text-green-500 uppercase tracking-widest">Siege</span>
+            <span className="text-3xl font-mono font-black text-white drop-shadow-[0_0_10px_rgba(34,197,94,0.5)]">{stats.wins}</span>
           </Card>
-          <Card className="flex flex-col items-center justify-center gap-1 bg-red-900/10 border-red-500/20">
-             <span className="text-xs font-bold text-red-500 uppercase">Niederlagen</span>
-             <span className="text-3xl font-mono font-black text-white">{stats.losses}</span>
+          <Card className="flex flex-col items-center justify-center gap-1 bg-red-500/5 border-red-500/10 hover:border-red-500/30">
+             <span className="text-[10px] font-black text-red-500 uppercase tracking-widest">Niederlagen</span>
+             <span className="text-3xl font-mono font-black text-white drop-shadow-[0_0_10px_rgba(239,68,68,0.5)]">{stats.losses}</span>
           </Card>
-          <Card className="col-span-2 flex justify-between items-center bg-orange-500/5 border-orange-500/20">
-             <div className="flex items-center gap-2 text-orange-500">
-               <Trophy size={18}/> <span className="text-xs font-bold uppercase">Gewinn (Total)</span>
+          <Card className="col-span-2 flex justify-between items-center bg-gradient-to-r from-orange-500/10 to-transparent border-orange-500/20">
+             <div className="flex items-center gap-3 text-orange-400">
+               <div className="bg-orange-500/20 p-2 rounded-lg"><Trophy size={18}/></div>
+               <span className="text-xs font-bold uppercase tracking-wider">Total Gewinn</span>
              </div>
-             <span className="text-2xl font-mono font-black text-white">{stats.satsWon} <span className="text-sm text-neutral-500 font-sans">sats</span></span>
+             <span className="text-2xl font-mono font-black text-white">{stats.satsWon.toLocaleString()} <span className="text-xs text-neutral-500 font-sans font-bold">SATS</span></span>
           </Card>
         </div>
 
-        <Button onClick={openCreateSetup} className="shadow-orange-500/20 py-6 text-lg">
+        <Button onClick={openCreateSetup} className="py-6 text-lg animate-neon">
           <Plus size={24} strokeWidth={3}/> NEUES DUELL STARTEN
         </Button>
 
-        <div className="flex-1 flex flex-col gap-3 overflow-hidden">
-          <div className="flex items-center gap-2 text-neutral-500 text-sm font-bold uppercase tracking-wider px-1 mt-4">
-            <History size={14}/> Lobby
+        <div className="flex-1 flex flex-col gap-3 overflow-hidden bg-neutral-900/30 rounded-2xl border border-white/5 p-2 backdrop-blur-sm">
+          <div className="flex items-center gap-2 text-neutral-400 text-xs font-bold uppercase tracking-widest px-3 mt-2">
+            <History size={12}/> Live Lobby
           </div>
           
-          <div className="flex-1 overflow-y-auto space-y-3 pb-20">
+          <div className="flex-1 overflow-y-auto space-y-2 pr-1 custom-scrollbar">
             {duelsList.length === 0 && (
-              <div className="text-center py-10 opacity-30 border-2 border-dashed border-neutral-800 rounded-xl">
-                <Swords size={40} className="mx-auto mb-2"/>
-                <p>Keine offenen Duelle</p>
+              <div className="h-full flex flex-col items-center justify-center opacity-30">
+                <Swords size={40} className="mb-3 text-neutral-500"/>
+                <p className="text-sm font-medium">Warte auf Gegner...</p>
               </div>
             )}
             {duelsList.map(d => (
-              <div key={d.id} className="bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 p-4 rounded-xl flex justify-between items-center transition-all group">
+              <div key={d.id} className="bg-white/5 hover:bg-white/10 border border-white/5 p-3 rounded-xl flex justify-between items-center transition-all group">
                 <div className="flex items-center gap-3">
-                  <div className="bg-neutral-800 p-2 rounded-lg text-neutral-400 group-hover:text-white transition-colors">
-                    <User size={18}/>
+                  <div className="w-10 h-10 bg-neutral-800 rounded-lg flex items-center justify-center text-neutral-400 font-bold border border-white/5">
+                    {d.creator.charAt(0).toUpperCase()}
                   </div>
                   <div>
-                    <p className="font-bold text-white text-sm"><PlayerName name={d.creator}/></p>
-                    <p className="text-xs text-orange-500 font-mono font-bold mt-1 flex items-center gap-1">
-                       <Coins size={10}/> {d.amount || 500} SATS
+                    <p className="font-bold text-white text-sm leading-none mb-1"><PlayerName name={d.creator}/></p>
+                    <p className="text-xs text-orange-400 font-mono font-bold flex items-center gap-1 bg-orange-500/10 px-2 py-0.5 rounded-md inline-block">
+                       <Coins size={10}/> {d.amount || 500}
                     </p>
                   </div>
                 </div>
                 {d.creator !== user.name ? (
-                  <button onClick={() => initJoinDuel(d)} className="bg-neutral-800 hover:bg-green-500 hover:text-black border border-neutral-700 hover:border-green-400 text-white px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-2 transition-all">
+                  <button onClick={() => initJoinDuel(d)} className="bg-neutral-800 hover:bg-green-500 hover:text-black border border-white/10 hover:border-green-400 text-white px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-2 transition-all shadow-lg">
                     FIGHT <Swords size={14}/>
                   </button>
                 ) : (
-                  <span className="text-[10px] bg-neutral-800 text-neutral-500 px-2 py-1 rounded font-mono">DEIN SPIEL</span>
+                  <span className="text-[10px] bg-white/5 text-neutral-500 px-2 py-1 rounded font-mono border border-white/5">DU</span>
                 )}
               </div>
             ))}
           </div>
         </div>
       </div>
-    </div>
+    </Background>
   );
 
   if (view === 'create_setup') return (
-    <div className="min-h-screen bg-neutral-950 flex flex-col items-center justify-center p-6 text-neutral-200">
+    <Background>
       <div className="w-full max-w-sm">
-        <Card className="text-center">
-           <h2 className="text-2xl font-black text-white mb-6">Einsatz wählen</h2>
+        <Card className="text-center relative overflow-hidden">
+           <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-orange-500 to-transparent opacity-50"></div>
+           <h2 className="text-xl font-bold text-white mb-8 uppercase tracking-widest">Einsatz wählen</h2>
            
-           <div className="mb-8 relative group">
+           <div className="mb-10 relative group">
              <input 
                type="number" 
                min="1"
                value={wager}
                onChange={(e) => setWager(Number(e.target.value))}
-               className="text-6xl font-black text-orange-500 font-mono text-center bg-transparent w-full outline-none border-b-2 border-transparent focus:border-orange-500 transition-all appearance-none m-0 p-0"
+               className="text-6xl font-black text-orange-500 font-mono text-center bg-transparent w-full outline-none drop-shadow-[0_0_15px_rgba(249,115,22,0.5)] z-10 relative"
              />
-             <p className="text-neutral-500 text-xs uppercase tracking-widest mt-2">Sats eingeben oder schieben</p>
+             <p className="text-neutral-500 text-[10px] uppercase tracking-[0.2em] mt-2 font-bold">Sats Amount</p>
            </div>
 
            <input 
@@ -507,37 +524,37 @@ export default function App() {
              step="10"
              value={wager}
              onChange={(e) => setWager(parseInt(e.target.value))}
-             className="w-full h-2 bg-neutral-800 rounded-lg appearance-none cursor-pointer accent-orange-500 mb-8"
+             className="w-full h-2 bg-neutral-800 rounded-lg appearance-none cursor-pointer accent-orange-500 mb-8 hover:accent-orange-400"
            />
 
            <div className="grid grid-cols-4 gap-2 mb-8">
              {[100, 500, 1000, 2100].map(amt => (
-               <button key={amt} onClick={() => setWager(amt)} className={`py-2 rounded-lg text-xs font-bold ${wager === amt ? 'bg-orange-500 text-black' : 'bg-neutral-800 hover:bg-neutral-700'}`}>
+               <button key={amt} onClick={() => setWager(amt)} className={`py-2 rounded-lg text-xs font-bold transition-all border ${wager === amt ? 'bg-orange-500 text-black border-orange-500 shadow-[0_0_15px_rgba(249,115,22,0.4)]' : 'bg-neutral-800 text-neutral-400 border-white/5 hover:border-white/20'}`}>
                  {amt}
                </button>
              ))}
            </div>
 
            <div className="grid gap-3">
-             <Button variant="primary" onClick={submitCreateDuel}>Duell erstellen</Button>
+             <Button variant="primary" onClick={submitCreateDuel}>Erstellen</Button>
              <Button variant="secondary" onClick={() => setView('dashboard')}>Abbrechen</Button>
            </div>
         </Card>
       </div>
-    </div>
+    </Background>
   );
 
   if (view === 'payment') return (
-    <div className="min-h-screen bg-neutral-950 flex flex-col items-center justify-center p-6 text-neutral-200 font-sans">
+    <Background>
       <div className="w-full max-w-sm text-center">
-        <h2 className="text-2xl font-black text-white mb-2">Einsatz zahlen</h2>
-        <div className="bg-orange-500/10 text-orange-500 inline-block px-3 py-1 rounded-full text-xs font-mono font-bold mb-8">
+        <h2 className="text-2xl font-black text-white mb-2 tracking-tight">EINSATZ ZAHLEN</h2>
+        <div className="bg-orange-500/10 border border-orange-500/30 text-orange-400 inline-block px-4 py-1.5 rounded-full text-sm font-mono font-bold mb-8 shadow-[0_0_20px_rgba(249,115,22,0.1)]">
            {invoice.amount || wager} SATS
         </div>
         
-        <div className="bg-white p-4 rounded-2xl mx-auto mb-8 shadow-2xl relative flex justify-center items-center">
+        <div className="bg-white p-4 rounded-3xl mx-auto mb-8 shadow-[0_0_50px_rgba(255,255,255,0.1)] relative flex justify-center items-center group transition-transform hover:scale-105 duration-300">
            {invoice.req ? (
-             <QRCodeCanvas value={`lightning:${invoice.req.toUpperCase()}`} size={240} bgColor={"#ffffff"} fgColor={"#000000"} level={"L"} includeMargin={true}/>
+             <QRCodeCanvas value={`lightning:${invoice.req.toUpperCase()}`} size={220} bgColor={"#ffffff"} fgColor={"#000000"} level={"L"} includeMargin={true}/>
            ) : <Loader2 className="animate-spin text-neutral-900 mx-auto py-20" size={40}/>}
         </div>
 
@@ -548,62 +565,69 @@ export default function App() {
           <Button variant="secondary" onClick={copyInvoice}>
             {copied ? <Check size={18} className="text-green-500"/> : <Copy size={18}/>} Invoice kopieren
           </Button>
-          <Button variant="secondary" onClick={() => setView('dashboard')}>Abbrechen</Button>
+          <button onClick={() => setView('dashboard')} className="text-xs text-neutral-500 hover:text-white mt-4 uppercase tracking-widest font-bold transition-colors">Abbrechen</button>
         </div>
-        <div className="mt-8 flex justify-center items-center gap-2 text-neutral-500 text-xs animate-pulse">
-           <Zap size={14} className="text-orange-500 fill-orange-500"/> Warte auf Zahlungseingang...
+        
+        <div className="mt-8 flex justify-center items-center gap-2 text-orange-400 text-xs animate-pulse font-mono">
+           <Zap size={14} className="fill-orange-400"/> Warte auf Zahlung...
         </div>
       </div>
-    </div>
+    </Background>
   );
 
   if (view === 'game') return (
-    <div className="min-h-screen bg-neutral-950 p-6 flex flex-col font-sans text-neutral-200">
-      <div className="w-full max-w-sm mx-auto flex-1 flex flex-col justify-center">
-        <div className="flex justify-between items-end mb-4">
+    <Background>
+      <div className="w-full max-w-sm mx-auto flex flex-col justify-center min-h-[60vh]">
+        <div className="flex justify-between items-end mb-4 px-1">
           <span className="text-xs font-bold text-neutral-500 uppercase tracking-widest">Frage {currentQ + 1} / 5</span>
-          <span className={`text-2xl font-black font-mono ${timeLeft < 5 ? 'text-red-500' : 'text-white'}`}>{timeLeft}</span>
+          <span className={`text-3xl font-black font-mono ${timeLeft < 5 ? 'text-red-500 drop-shadow-[0_0_10px_rgba(239,68,68,0.8)]' : 'text-white'}`}>{timeLeft}</span>
         </div>
-        <div className="w-full h-2 bg-neutral-900 rounded-full mb-8 overflow-hidden">
-          <div className={`h-full transition-all duration-1000 ease-linear ${timeLeft < 5 ? 'bg-red-500' : 'bg-orange-500'}`} style={{ width: `${(timeLeft / 15) * 100}%` }}></div>
+        
+        {/* Progress Bar mit Glow */}
+        <div className="w-full h-2 bg-neutral-900 rounded-full mb-8 overflow-hidden border border-white/5 relative">
+          <div className={`h-full transition-all duration-1000 ease-linear relative z-10 ${timeLeft < 5 ? 'bg-red-500' : 'bg-orange-500'}`} style={{ width: `${(timeLeft / 15) * 100}%` }}></div>
+          <div className={`absolute top-0 left-0 h-full blur-[4px] opacity-50 ${timeLeft < 5 ? 'bg-red-500' : 'bg-orange-500'}`} style={{ width: `${(timeLeft / 15) * 100}%` }}></div>
         </div>
-        <div className="min-h-[120px] mb-8 flex items-center">
-          <h3 className="text-2xl font-bold text-white leading-tight">{questions[currentQ].q}</h3>
+
+        <div className="min-h-[140px] mb-8 flex items-center justify-center text-center">
+          <h3 className="text-2xl font-bold text-white leading-snug drop-shadow-md">{questions[currentQ].q}</h3>
         </div>
+
         <div className="grid grid-cols-1 gap-3">
           {questions[currentQ].options.map((opt, idx) => (
             <button 
               key={idx} 
               onClick={() => handleAnswer(idx)} 
-              className="group relative bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 hover:border-orange-500 p-5 rounded-xl text-left transition-all active:scale-[0.98]"
+              className="group relative bg-neutral-900/40 hover:bg-orange-500 border border-white/10 hover:border-orange-400 p-5 rounded-2xl text-left transition-all active:scale-[0.98] backdrop-blur-md overflow-hidden"
             >
-              <div className="flex items-center gap-4">
-                <span className="w-8 h-8 rounded-lg bg-neutral-800 group-hover:bg-orange-500 text-neutral-400 group-hover:text-black flex items-center justify-center font-bold text-sm transition-colors">
+              <div className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/10 to-white/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700"></div>
+              <div className="flex items-center gap-4 relative z-10">
+                <span className="w-8 h-8 rounded-lg bg-neutral-800 group-hover:bg-white text-neutral-400 group-hover:text-orange-600 flex items-center justify-center font-bold text-sm transition-colors shadow-inner">
                   {String.fromCharCode(65 + idx)}
                 </span>
-                <span className="font-medium text-lg group-hover:text-white">{opt}</span>
+                <span className="font-medium text-lg text-neutral-200 group-hover:text-white tracking-wide">{opt}</span>
               </div>
             </button>
           ))}
         </div>
       </div>
-    </div>
+    </Background>
   );
 
   if (view === 'result_wait') return (
-    <div className="min-h-screen bg-neutral-950 flex flex-col items-center justify-center p-6 text-neutral-200">
+    <Background>
       <div className="w-full max-w-sm text-center">
-        <div className="relative inline-flex justify-center items-center mb-8">
-           <div className="absolute inset-0 bg-orange-500/20 blur-2xl rounded-full"></div>
-           <Clock size={80} className="text-orange-500 relative animate-[spin_4s_linear_infinite]"/>
+        <div className="relative inline-flex justify-center items-center mb-10">
+           <div className="absolute inset-0 bg-orange-500/30 blur-3xl rounded-full animate-pulse"></div>
+           <Clock size={100} className="text-orange-500 relative animate-[spin_10s_linear_infinite] drop-shadow-[0_0_15px_rgba(249,115,22,0.5)]"/>
         </div>
-        <h2 className="text-2xl font-black text-white mb-2">Warte auf Gegner...</h2>
-        <p className="text-neutral-500 mb-8">Deine Antworten sind sicher. Gleich geht's weiter.</p>
+        <h2 className="text-3xl font-black text-white mb-3">WARTE AUF GEGNER</h2>
+        <p className="text-neutral-500 mb-10 text-sm tracking-wide">Der Kampf ist noch nicht vorbei.</p>
         <Button variant="secondary" onClick={checkDuelStatus}>
           {manualCheckLoading ? <Loader2 className="animate-spin" size={18}/> : <RefreshCw size={18}/>} Status prüfen
         </Button>
       </div>
-    </div>
+    </Background>
   );
 
   if (view === 'result_final') {
@@ -614,7 +638,6 @@ export default function App() {
     const oppTime = iAmCreator ? activeDuel.challenger_time : activeDuel.creator_time;
     const duelAmount = activeDuel.amount || 500;
     
-    // Fee Logik für die Anzeige
     const totalPot = duelAmount * 2;
     const fee = Math.floor(totalPot * (HOUSE_FEE_PERCENT / 100));
     const prize = totalPot - fee;
@@ -624,38 +647,40 @@ export default function App() {
     const isWinner = withdrawLink || wonByScore || wonByTime;
 
     return (
-      <div className="min-h-screen bg-neutral-950 flex flex-col items-center justify-center p-6 font-sans text-neutral-200">
+      <Background>
          <div className="w-full max-w-sm text-center">
             
-            <div className={`mx-auto w-24 h-24 rounded-full flex items-center justify-center mb-6 ring-4 ${isWinner ? "bg-green-500/10 ring-green-500/30" : "bg-red-500/10 ring-red-500/30"}`}>
-               {isWinner ? <Trophy size={48} className="text-green-500 fill-green-500"/> : <Flame size={48} className="text-red-500 fill-red-500"/>}
+            <div className={`mx-auto w-28 h-28 rounded-full flex items-center justify-center mb-8 ring-4 ring-offset-4 ring-offset-black shadow-[0_0_50px_rgba(0,0,0,0.5)] ${isWinner ? "bg-green-500 ring-green-500 shadow-green-500/20" : "bg-red-500 ring-red-500 shadow-red-500/20"}`}>
+               {isWinner ? <Trophy size={56} className="text-black fill-black animate-bounce"/> : <Flame size={56} className="text-black fill-black"/>}
             </div>
 
-            <h2 className={`text-4xl font-black mb-8 uppercase tracking-tight ${isWinner ? "text-white" : "text-neutral-500"}`}>
+            <h2 className={`text-5xl font-black mb-10 uppercase tracking-tighter drop-shadow-lg ${isWinner ? "text-green-500" : "text-red-500"}`}>
               {isWinner ? "GEWONNEN!" : "VERLOREN"}
             </h2>
 
-            <div className="grid grid-cols-2 gap-4 mb-8">
-              <Card className={`text-center ${iAmCreator ? 'border-orange-500' : 'opacity-50'}`}>
-                <p className="text-xs font-bold uppercase text-neutral-500 mb-2">Du</p>
+            <div className="grid grid-cols-2 gap-4 mb-10">
+              <Card className={`text-center relative overflow-hidden ${iAmCreator ? 'border-orange-500/50 bg-orange-500/10' : 'opacity-60 grayscale'}`}>
+                {iAmCreator && <div className="absolute top-0 left-0 w-full h-1 bg-orange-500 shadow-[0_0_10px_orange]"></div>}
+                <p className="text-[10px] font-bold uppercase text-neutral-500 mb-2 tracking-widest">Du</p>
                 <p className="text-4xl font-black font-mono text-white mb-1">{myScore}</p>
-                <p className="text-xs font-mono text-neutral-600">{myTime}s</p>
+                <p className="text-xs font-mono text-neutral-500">{myTime}s</p>
               </Card>
-              <Card className={`text-center ${!iAmCreator ? 'border-orange-500' : 'opacity-50'}`}>
-                <p className="text-xs font-bold uppercase text-neutral-500 mb-2">Gegner</p>
+              <Card className={`text-center relative overflow-hidden ${!iAmCreator ? 'border-orange-500/50 bg-orange-500/10' : 'opacity-60 grayscale'}`}>
+                {!iAmCreator && <div className="absolute top-0 left-0 w-full h-1 bg-orange-500 shadow-[0_0_10px_orange]"></div>}
+                <p className="text-[10px] font-bold uppercase text-neutral-500 mb-2 tracking-widest">Gegner</p>
                 <p className="text-4xl font-black font-mono text-white mb-1">{oppScore}</p>
-                <p className="text-xs font-mono text-neutral-600">{oppTime}s</p>
+                <p className="text-xs font-mono text-neutral-500">{oppTime}s</p>
               </Card>
             </div>
 
             {withdrawLink ? (
-              <div className="animate-in slide-in-from-bottom-5 fade-in duration-500">
-                <Card className="bg-green-500/10 border-green-500/30 p-6 mb-4">
-                  <div className="bg-white p-2 rounded-xl inline-block mb-4">
-                    <QRCodeCanvas value={`lightning:${withdrawLink}`.toUpperCase()} size={160} level={"L"} includeMargin={true}/>
+              <div className="animate-in slide-in-from-bottom-5 fade-in duration-700">
+                <Card className="bg-gradient-to-b from-green-900/20 to-green-900/5 border-green-500/30 p-6 mb-4 backdrop-blur-md">
+                  <div className="bg-white p-3 rounded-xl inline-block mb-6 shadow-xl transform hover:scale-105 transition-transform duration-300">
+                    <QRCodeCanvas value={`lightning:${withdrawLink}`.toUpperCase()} size={180} level={"L"} includeMargin={true}/>
                   </div>
                   <Button variant="success" onClick={() => window.location.href = `lightning:${withdrawLink}`}>
-                    <Zap size={18} className="fill-black"/> {prize} SATS ABHOLEN
+                    <Zap size={18} className="fill-white"/> {prize} SATS ABHOLEN
                   </Button>
                 </Card>
               </div>
@@ -666,14 +691,14 @@ export default function App() {
                 <Button variant="danger" onClick={() => createWithdrawLink(duelAmount)}>Erneut versuchen</Button>
               </Card>
             ) : (
-              <p className="text-neutral-600 text-sm mb-8">Viel Erfolg beim nächsten Mal.</p>
+              <p className="text-neutral-500 text-sm mb-8 font-medium">Viel Erfolg beim nächsten Mal.</p>
             )}
 
-            <button onClick={() => setView('dashboard')} className="text-neutral-500 hover:text-white text-xs font-bold uppercase tracking-widest transition-colors py-4">
+            <button onClick={() => setView('dashboard')} className="text-neutral-500 hover:text-white text-xs font-bold uppercase tracking-[0.2em] transition-colors py-4">
               Zurück zur Lobby
             </button>
          </div>
-      </div>
+      </Background>
     );
   }
 }
