@@ -4,8 +4,12 @@ import { Zap, Trophy, Clock, User, Plus, Swords, RefreshCw, Copy, Check, Externa
 import confetti from 'canvas-confetti';
 import { QRCodeCanvas } from 'qrcode.react';
 
-// HIER IST DER NEUE IMPORT:
+// --- EIGENE IMPORTS ---
 import { ALL_QUESTIONS } from './questions';
+import Button from './components/Button';
+import Card from './components/Card';
+import Background from './components/Background';
+import PlayerName from './components/PlayerName';
 
 // --- KONFIGURATION ---
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
@@ -18,49 +22,7 @@ const HOUSE_FEE_PERCENT = 0;
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-// HIER HABE ICH DAS LANGE ARRAY GELÖSCHT (es wird jetzt importiert)
-
 const getRandomQuestions = () => [...ALL_QUESTIONS].sort(() => 0.5 - Math.random()).slice(0, 5);
-
-
-// --- DESIGN COMPONENTS (NEU GESTYLT) ---
-
-const PlayerName = ({ name, large = false }) => {
-  if (!name) return null;
-  if (name.includes('#')) {
-    const [n, tag] = name.split('#');
-    return (
-      <span className="font-mono tracking-tight">
-        {n}<span className={`${large ? 'text-lg' : 'text-xs'} text-neutral-500 opacity-70`}>#{tag}</span>
-      </span>
-    );
-  }
-  return <span>{name}</span>;
-};
-
-// Neue "Glass" Karte
-const Card = ({ children, className = "" }) => (
-  <div className={`glass-panel rounded-2xl p-5 ${className} transition-all duration-300 hover:border-orange-500/30`}>
-    {children}
-  </div>
-);
-
-// Neuer "Shiny" Button
-const Button = ({ children, onClick, className = "", variant = "primary" }) => {
-  const base = "btn-shine w-full py-4 rounded-xl font-bold tracking-wide transition-all active:scale-[0.98] flex items-center justify-center gap-2 uppercase text-sm";
-  const variants = {
-    primary: "bg-gradient-to-r from-orange-600 to-orange-500 hover:to-orange-400 text-white shadow-[0_0_20px_rgba(234,88,12,0.3)] border border-orange-400/50",
-    secondary: "bg-neutral-800/80 hover:bg-neutral-700 text-neutral-200 border border-white/10 backdrop-blur",
-    nostr: "bg-gradient-to-r from-purple-700 to-indigo-600 hover:to-indigo-500 text-white shadow-lg border border-purple-500/50",
-    danger: "bg-red-500/10 text-red-500 border border-red-500/50 hover:bg-red-500/20",
-    success: "bg-gradient-to-r from-green-600 to-emerald-500 text-white shadow-[0_0_20px_rgba(34,197,94,0.3)] border border-green-400/50"
-  };
-  return (
-    <button onClick={onClick} className={`${base} ${variants[variant]} ${className}`}>
-      {children}
-    </button>
-  );
-};
 
 // --- HAUPT APP ---
 
@@ -94,6 +56,13 @@ export default function App() {
   const [manualCheckLoading, setManualCheckLoading] = useState(false);
 
   // --- LOGIC ---
+
+  // DEBUG CHECK beim Start
+  useEffect(() => {
+    if (!LNBITS_URL || !INVOICE_KEY) {
+      console.error("ACHTUNG: .env Variablen fehlen!");
+    }
+  }, []);
 
   useEffect(() => {
     const storedUser = localStorage.getItem('satoshi_user');
@@ -351,22 +320,6 @@ export default function App() {
       else setWithdrawError(data.detail || JSON.stringify(data));
     } catch(e) { setWithdrawError("Netzwerkfehler: " + e.message); }
   };
-
-  // --- BACKGROUND WRAPPER ---
-  const Background = ({ children }) => (
-    <div className="min-h-screen bg-neutral-950 text-white font-sans overflow-hidden relative selection:bg-orange-500 selection:text-black">
-      {/* Animiertes Grid */}
-      <div className="absolute inset-0 bg-grid opacity-20 pointer-events-none"></div>
-      
-      {/* Weicher Glow Oben/Unten */}
-      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[500px] h-[300px] bg-orange-600/20 blur-[120px] rounded-full pointer-events-none"></div>
-      <div className="absolute bottom-0 right-0 w-[400px] h-[300px] bg-purple-600/10 blur-[100px] rounded-full pointer-events-none"></div>
-
-      <div className="relative z-10 p-4 h-full flex flex-col items-center justify-center min-h-screen">
-         {children}
-      </div>
-    </div>
-  );
 
   // --- VIEWS ---
 
