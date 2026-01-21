@@ -4,6 +4,9 @@ import { Zap, Trophy, Clock, User, Plus, Swords, RefreshCw, Copy, Check, Externa
 import confetti from 'canvas-confetti';
 import { QRCodeCanvas } from 'qrcode.react';
 
+// HIER IST DER NEUE IMPORT:
+import { ALL_QUESTIONS } from './questions';
+
 // --- KONFIGURATION ---
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_KEY;
@@ -11,22 +14,14 @@ const LNBITS_URL = import.meta.env.VITE_LNBITS_URL;
 const INVOICE_KEY = import.meta.env.VITE_INVOICE_KEY;
 const ADMIN_KEY = import.meta.env.VITE_ADMIN_KEY;
 
-const HOUSE_FEE_PERCENT = 10; 
+const HOUSE_FEE_PERCENT = 0; 
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-const ALL_QUESTIONS = [
-  { id: 1, q: "Wer veröffentlichte das Bitcoin Whitepaper?", options: ["Vitalik Buterin", "Satoshi Nakamoto", "Adam Back", "Hal Finney"], correct: 1 },
-  { id: 2, q: "Wann wurde der Genesis Block gemined?", options: ["2008", "2009", "2010", "2012"], correct: 1 },
-  { id: 3, q: "Wie hoch ist der Max Supply von Bitcoin?", options: ["21 Millionen", "Unendlich", "100 Millionen", "18 Millionen"], correct: 0 },
-  { id: 4, q: "Was passiert beim Halving?", options: ["Preis halbiert sich", "Hashrate halbiert sich", "Block-Reward halbiert sich", "Difficulty sinkt"], correct: 2 },
-  { id: 5, q: "Was ist die kleinste Bitcoin-Einheit?", options: ["Bit", "Wei", "Satoshi", "Nano"], correct: 2 },
-  { id: 6, q: "Was ist SegWit?", options: ["Ein Hard Fork", "Ein Soft Fork", "Ein Altcoin", "Eine Wallet"], correct: 1 },
-  { id: 7, q: "Was ist der 'Mempool'?", options: ["Ein Mining Pool", "Warteraum für Transaktionen", "Eine Wallet", "Die Blockchain"], correct: 1 },
-  { id: 8, q: "Welcher Port ist Standard für Bitcoin?", options: ["8080", "8333", "21", "443"], correct: 1 }
-];
+// HIER HABE ICH DAS LANGE ARRAY GELÖSCHT (es wird jetzt importiert)
 
 const getRandomQuestions = () => [...ALL_QUESTIONS].sort(() => 0.5 - Math.random()).slice(0, 5);
+
 
 // --- DESIGN COMPONENTS (NEU GESTYLT) ---
 
