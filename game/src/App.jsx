@@ -1,6 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
-import { Zap, Trophy, Clock, User, Plus, Swords, RefreshCw, Copy, Check, ExternalLink, AlertTriangle, Loader2, LogOut, Fingerprint, Flame, History, Coins, Lock, Medal, Share2, Globe, Settings, Save } from 'lucide-react';
+import { 
+  Zap, Trophy, Clock, User, Plus, Swords, RefreshCw, Copy, Check, 
+  ExternalLink, AlertTriangle, Loader2, LogOut, Fingerprint, Flame, 
+  History, Coins, Lock, Medal, Share2, Globe, Settings, Save, Heart 
+} from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { QRCodeCanvas } from 'qrcode.react';
 import { nip19 } from 'nostr-tools'; 
@@ -17,7 +21,7 @@ const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_KEY;
 const LNBITS_URL = import.meta.env.VITE_LNBITS_URL;
 const INVOICE_KEY = import.meta.env.VITE_INVOICE_KEY; 
-// HINWEIS: ADMIN_KEY wurde hier entfernt! Sicherheit! 🔒
+// HINWEIS: ADMIN_KEY und DONATION_ADDRESS sind hier nicht mehr nötig (Backend only)
 
 const DEFAULT_RELAYS = [
   'wss://relay.damus.io',
@@ -29,9 +33,22 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 // --- HELPER FUNKTIONEN ---
 
-const getRandomQuestionIndices = () => {
-  const indices = ALL_QUESTIONS.map((_, i) => i);
-  return indices.sort(() => 0.5 - Math.random()).slice(0, 5);
+// Generiert das Spiel: Wählt 5 Fragen aus UND mischt die Antworten für jede Frage
+const generateGameData = () => {
+  // 1. Alle Fragen-Indizes holen [0, 1, 2, ... 100]
+  const allIndices = ALL_QUESTIONS.map((_, i) => i);
+  
+  // 2. 5 zufällige Fragen auswählen
+  const selectedIndices = allIndices.sort(() => 0.5 - Math.random()).slice(0, 5);
+
+  // 3. Für jede Frage die Antwort-Positionen (0-3) mischen
+  // Ergebnis: [ { id: 5, order: [2,0,3,1] }, { id: 12, order: [0,1,2,3] } ... ]
+  return selectedIndices.map(id => {
+    return {
+      id: id,
+      order: [0, 1, 2, 3].sort(() => 0.5 - Math.random()) 
+    };
+  });
 };
 
 async function hashPin(pin) {
@@ -70,7 +87,10 @@ export default function App() {
   const [myDuels, setMyDuels] = useState([]);
   const [activeDuel, setActiveDuel] = useState(null);
   const [role, setRole] = useState(null); 
-  const [questionIndices, setQuestionIndices] = useState([]); 
+  
+  // WICHTIG: Speichert jetzt komplexe Objekte { id: 1, order: [3,0,1,2] }
+  const [gameData, setGameData] = useState([]); 
+  
   const [wager, setWager] = useState(500); 
   const [stats, setStats] = useState({ wins: 0, losses: 0, total: 0, satsWon: 0 });
   
@@ -88,6 +108,11 @@ export default function App() {
   const [checkingPayment, setCheckingPayment] = useState(false);
   const [copied, setCopied] = useState(false);
   const [manualCheckLoading, setManualCheckLoading] = useState(false);
+
+  // Donation State
+  const [donationAmount, setDonationAmount] = useState(2100);
+  const [donationInvoice, setDonationInvoice] = useState('');
+  const [isDonationLoading, setIsDonationLoading] = useState(false);
 
   // --- ÜBERSETZUNGS HELPER ---
   const txt = (key) => TRANSLATIONS[lang]?.[key] || key;
@@ -307,6 +332,32 @@ export default function App() {
     }
   };
 
+  // --- DONATION LOGIC (SICHERE API CALLS) ---
+  const openDonation = () => {
+    setDonationInvoice('');
+    setDonationAmount(2100);
+    setView('donate');
+  };
+
+  const handleGenerateDonation = async () => {
+    setIsDonationLoading(true);
+    try {
+      // Wir rufen /api/donate auf, der Server nutzt die versteckte Adresse
+      const res = await fetch('/api/donate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ amount: donationAmount })
+      });
+      const data = await res.json();
+      if (data.req) {
+        setDonationInvoice(data.req);
+      } else {
+        alert("Fehler bei der Erstellung (Server Error)");
+      }
+    } catch (e) { console.error(e); alert("Connection Error"); }
+    setIsDonationLoading(false);
+  };
+
   // --- DATEN LADEN & SPIEL ---
 
   const fetchLeaderboard = async () => {
@@ -361,7 +412,6 @@ export default function App() {
     } catch(e) {}
   };
 
-  // Status Check für Withdrawals - nutzt INVOICE_KEY (Read-Only), was sicherer ist als ADMIN_KEY
   const checkWithdrawStatus = async () => {
     if (!withdrawId) return;
     try {
@@ -384,9 +434,10 @@ export default function App() {
   const startChallenge = (target) => { setChallengePlayer(target); openCreateSetup(); };
   const openCreateSetup = () => { resetGameState(); setWager(500); setView('create_setup'); };
   
+  // WICHTIG: Hier nutzen wir generateGameData() um Fragen UND Reihenfolge zu würfeln
   const submitCreateDuel = async () => { 
-    const indices = getRandomQuestionIndices(); 
-    setQuestionIndices(indices); 
+    const gameConfig = generateGameData(); 
+    setGameData(gameConfig); 
     setRole('creator'); 
     await fetchInvoice(wager); 
   };
@@ -394,7 +445,17 @@ export default function App() {
   const initJoinDuel = async (duel) => { 
     resetGameState(); 
     setActiveDuel(duel); 
-    setQuestionIndices(duel.questions); 
+    
+    // Fallback für alte DB-Einträge
+    const rawQuestions = duel.questions;
+    let safeGameData = [];
+    if (rawQuestions && typeof rawQuestions[0] === 'number') {
+      safeGameData = rawQuestions.map(id => ({ id: id, order: [0, 1, 2, 3] }));
+    } else {
+      safeGameData = rawQuestions;
+    }
+
+    setGameData(safeGameData); 
     setRole('challenger'); 
     await fetchInvoice(duel.amount); 
   };
@@ -413,17 +474,19 @@ export default function App() {
 
   const startGame = () => { setCurrentQ(0); setScore(0); setTotalTime(0); setTimeLeft(15); setSelectedAnswer(null); setView('game'); };
 
-  const handleAnswer = (index) => {
+  const handleAnswer = (displayIndex) => {
     if (selectedAnswer !== null) return; 
 
-    setSelectedAnswer(index);
+    // displayIndex = Welchen Button hat der User gedrückt (0,1,2 oder 3)
+    setSelectedAnswer(displayIndex);
     setTotalTime(prev => prev + (15 - timeLeft)); 
 
-    const currentQuestionID = questionIndices[currentQ];
-    const isLegacy = typeof currentQuestionID === 'object';
-    const correctIndex = isLegacy ? currentQuestionID.correct : ALL_QUESTIONS[currentQuestionID].correct;
+    // Wir lösen auf: Welcher Antwort-Index steckt hinter diesem Button?
+    const roundConfig = gameData[currentQ];
+    const originalIndex = roundConfig.order[displayIndex];
+    const correctIndex = ALL_QUESTIONS[roundConfig.id].correct;
 
-    const isCorrect = (index === correctIndex);
+    const isCorrect = (originalIndex === correctIndex);
     if (isCorrect) setScore(s => s + 1);
 
     setTimeout(() => {
@@ -441,7 +504,7 @@ export default function App() {
     if (role === 'creator') {
       await supabase.from('duels').insert([{
         creator: user.name, creator_score: finalScore, creator_time: totalTime, 
-        questions: questionIndices, 
+        questions: gameData, 
         status: 'open', amount: invoice.amount, target_player: challengePlayer
       }]);
       setView('dashboard');
@@ -474,7 +537,7 @@ export default function App() {
     }
   };
 
-  // 🔒 SICHERHEITS-UPDATE: Ruft jetzt die API Route auf, statt den Key direkt zu nutzen!
+  // Sichere Auszahlung über Vercel API (Kein Admin Key im Frontend!)
   const createWithdrawLink = async (duelAmount, duelId) => {
     try {
       const res = await fetch('/api/claim', {
@@ -488,9 +551,7 @@ export default function App() {
         setWithdrawLink(data.lnurl); 
         setWithdrawId(data.id); 
         await supabase.from('duels').update({ claimed: true }).eq('id', duelId); 
-      } else {
-        console.error("API Error:", data);
-      }
+      } else { console.error("API Error:", data); }
     } catch(e) { console.error("Withdraw Error:", e); }
   };
 
@@ -574,6 +635,38 @@ export default function App() {
     </Background>
   );
 
+  // --- DONATION VIEW ---
+  if (view === 'donate') return (
+    <Background>
+      <div className="w-full max-w-sm flex flex-col gap-6 animate-float text-center px-4">
+        <Heart size={48} className="text-red-500 mx-auto animate-pulse"/>
+        <h2 className="text-2xl font-black text-white uppercase">{txt('donate_title')}</h2>
+        <p className="text-neutral-400 text-sm">{txt('donate_text')}</p>
+        
+        {!donationInvoice ? (
+          <div className="flex flex-col gap-4">
+             <input type="number" value={donationAmount} onChange={(e) => setDonationAmount(Number(e.target.value))} className="w-full p-4 rounded-xl bg-[#0a0a0a] border border-white/10 text-white font-mono text-2xl font-bold text-center outline-none focus:border-red-500"/>
+             <div className="grid grid-cols-3 gap-2">
+                {[500, 2100, 5000].map(amt => (
+                  <button key={amt} onClick={() => setDonationAmount(amt)} className="bg-neutral-800 p-2 rounded border border-white/5 hover:bg-red-500/20 text-xs text-white transition-colors">{amt}</button>
+                ))}
+             </div>
+             <Button variant="primary" onClick={handleGenerateDonation} disabled={isDonationLoading}>
+                {isDonationLoading ? <Loader2 className="animate-spin mx-auto"/> : txt('donate_btn')}
+             </Button>
+          </div>
+        ) : (
+          <div className="animate-in slide-in-from-bottom-5">
+             <div className="bg-white p-4 rounded-3xl inline-block mb-6 shadow-2xl"><QRCodeCanvas value={`lightning:${donationInvoice.toUpperCase()}`} size={220}/></div>
+             <Button variant="secondary" onClick={() => window.location.href = `lightning:${donationInvoice}`}>{txt('btn_wallet')}</Button>
+             <p className="text-green-500 font-black mt-4 uppercase animate-bounce">{txt('donate_thanks')}</p>
+          </div>
+        )}
+        <button onClick={() => setView('dashboard')} className="text-xs text-neutral-600 uppercase font-bold mt-4">{txt('settings_back')}</button>
+      </div>
+    </Background>
+  );
+
   if (view === 'settings') return (
     <Background>
       <div className="w-full max-w-sm flex flex-col gap-6 animate-float text-center px-4">
@@ -646,7 +739,6 @@ export default function App() {
                        <button onClick={() => openPastDuel(d)} className="text-orange-500 font-black uppercase text-[10px]">{d.claimed ? txt('lobby_paid') : txt('lobby_details')}</button>
                      ) : <span className="animate-pulse text-neutral-600 uppercase font-black text-[10px]">{txt('lobby_wait')}</span>}
                    </div>
-                   {/* NOSTR SHARE BUTTON */}
                    {d.status === 'open' && d.creator === user.name && (
                      <button onClick={(e) => {e.stopPropagation(); shareDuelOnNostr(d);}} className="w-full bg-purple-500/10 hover:bg-purple-600 border border-purple-500/30 hover:border-purple-500 text-purple-300 hover:text-white py-2 rounded-lg flex items-center justify-center gap-2 transition-all group">
                        <Share2 size={14} className="group-hover:animate-pulse"/>
@@ -659,6 +751,11 @@ export default function App() {
           </div>
         </div>
         
+        {/* SPENDEN BUTTON GANZ UNTEN */}
+        <button onClick={openDonation} className="w-full py-2 bg-gradient-to-r from-red-900/50 to-red-600/50 border border-red-500/30 rounded-xl text-white text-xs font-bold uppercase tracking-widest flex items-center justify-center gap-2 hover:brightness-125 transition-all shadow-lg">
+           <Heart size={14} className="fill-red-500 text-red-500"/> {txt('dashboard_donate')}
+        </button>
+
         <div className="flex flex-col gap-2 bg-neutral-900/50 p-3 rounded-2xl border border-white/5 mt-2">
           <div className="flex items-center gap-2 text-orange-500 text-[10px] font-black uppercase tracking-widest px-1"><Trophy size={14}/> {txt('leaderboard')}</div>
           <div className="space-y-1.5 max-h-[140px] overflow-y-auto custom-scrollbar">
@@ -678,49 +775,18 @@ export default function App() {
     </Background>
   );
 
-  if (view === 'create_setup') return (
-    <Background>
-      <Card className="w-full max-w-sm text-center">
-        <h2 className="text-xl font-black text-white mb-8 uppercase italic tracking-widest">
-          {challengePlayer ? `${txt('setup_target')} ${challengePlayer.toUpperCase()}` : txt('setup_title')}
-        </h2>
-        <input type="number" value={wager} onChange={(e) => setWager(Number(e.target.value))} className="text-6xl font-black text-orange-500 font-mono text-center bg-transparent w-full outline-none mb-10"/>
-        <div className="grid grid-cols-4 gap-2 mb-8">
-          {[100, 500, 1000, 2100].map(amt => (
-            <button key={amt} onClick={() => setWager(amt)} className={`py-2 rounded-lg text-xs font-bold border ${wager === amt ? 'bg-orange-500 text-black border-orange-500' : 'bg-neutral-800 text-neutral-400 border-white/5'}`}>{amt}</button>
-          ))}
-        </div>
-        <div className="grid gap-3">
-          <Button variant="primary" onClick={submitCreateDuel}>{txt('btn_start')}</Button>
-          <button onClick={() => setView('dashboard')} className="text-xs text-neutral-600 uppercase font-bold mt-2">{txt('btn_cancel')}</button>
-        </div>
-      </Card>
-    </Background>
-  );
-
-  if (view === 'payment') return (
-    <Background>
-      <div className="w-full max-w-sm text-center">
-        <h2 className="text-2xl font-black text-white mb-8 uppercase">{txt('pay_title')}</h2>
-        <div className="bg-white p-4 rounded-3xl mx-auto mb-8 flex justify-center shadow-2xl">
-          {invoice.req && <QRCodeCanvas value={`lightning:${invoice.req.toUpperCase()}`} size={220} includeMargin={true}/>}
-        </div>
-        <div className="grid gap-3">
-          <Button variant="primary" onClick={handleManualCheck}>{txt('btn_check')}</Button>
-          <Button variant="secondary" onClick={() => window.location.href = `lightning:${invoice.req}`}>{txt('btn_wallet')}</Button>
-          <button onClick={() => setView('dashboard')} className="text-xs text-neutral-500 mt-4 font-bold uppercase">{txt('btn_cancel')}</button>
-        </div>
-      </div>
-    </Background>
-  );
-
+  if (view === 'create_setup') return (<Background><Card className="w-full max-w-sm text-center"><h2 className="text-xl font-black text-white mb-8 uppercase italic tracking-widest">{challengePlayer ? `${txt('setup_target')} ${challengePlayer.toUpperCase()}` : txt('setup_title')}</h2><input type="number" value={wager} onChange={(e) => setWager(Number(e.target.value))} className="text-6xl font-black text-orange-500 font-mono text-center bg-transparent w-full outline-none mb-10"/><div className="grid grid-cols-4 gap-2 mb-8">{[100, 500, 1000, 2100].map(amt => (<button key={amt} onClick={() => setWager(amt)} className={`py-2 rounded-lg text-xs font-bold border ${wager === amt ? 'bg-orange-500 text-black border-orange-500' : 'bg-neutral-800 text-neutral-400 border-white/5'}`}>{amt}</button>))}</div><div className="grid gap-3"><Button variant="primary" onClick={submitCreateDuel}>{txt('btn_start')}</Button><button onClick={() => setView('dashboard')} className="text-xs text-neutral-600 uppercase font-bold mt-2">{txt('btn_cancel')}</button></div></Card></Background>);
+  if (view === 'payment') return (<Background><div className="w-full max-w-sm text-center"><h2 className="text-2xl font-black text-white mb-8 uppercase">{txt('pay_title')}</h2><div className="bg-white p-4 rounded-3xl mx-auto mb-8 flex justify-center shadow-2xl">{invoice.req && <QRCodeCanvas value={`lightning:${invoice.req.toUpperCase()}`} size={220} includeMargin={true}/>}</div><div className="grid gap-3"><Button variant="primary" onClick={handleManualCheck}>{txt('btn_check')}</Button><Button variant="secondary" onClick={() => window.location.href = `lightning:${invoice.req}`}>{txt('btn_wallet')}</Button><button onClick={() => setView('dashboard')} className="text-xs text-neutral-500 mt-4 font-bold uppercase">{txt('btn_cancel')}</button></div></div></Background>);
+  
   if (view === 'game') {
-    const questionIndex = questionIndices[currentQ];
-    const isLegacy = typeof questionIndex === 'object';
+    const roundConfig = gameData[currentQ];
+    const questionID = roundConfig.id;
+    const shuffledOrder = roundConfig.order;
     
-    const questionData = isLegacy ? questionIndex : ALL_QUESTIONS[questionIndex][lang];
-    const options = isLegacy ? questionIndex.options : questionData.options;
-    const correctIndex = isLegacy ? questionIndex.correct : ALL_QUESTIONS[questionIndex].correct;
+    // Sprache laden
+    const questionData = ALL_QUESTIONS[questionID][lang];
+    const originalOptions = questionData.options;
+    const correctIndex = ALL_QUESTIONS[questionID].correct;
 
     return (
       <Background>
@@ -732,10 +798,14 @@ export default function App() {
           <div className="w-full h-2 bg-neutral-900 rounded-full mb-10 overflow-hidden"><div className="h-full bg-orange-500 transition-all duration-1000 ease-linear" style={{ width: `${(timeLeft / 15) * 100}%` }}></div></div>
           <h3 className="text-2xl font-bold text-white text-center mb-10 min-h-[100px]">"{questionData.q}"</h3>
           <div className="grid gap-3">
-            {options.map((opt, idx) => {
+            {[0,1,2,3].map((displayIndex) => {
+               // Welcher Text gehört an diese Stelle?
+               const originalOptionIndex = shuffledOrder[displayIndex];
+               const optionText = originalOptions[originalOptionIndex];
+
                let btnClass = "bg-neutral-900/50 hover:bg-orange-500 border-white/10";
-               const isCorrect = idx === correctIndex;
-               const isSelected = selectedAnswer === idx;
+               const isCorrect = originalOptionIndex === correctIndex;
+               const isSelected = selectedAnswer === displayIndex;
 
                if (selectedAnswer !== null) {
                  if (isCorrect) {
@@ -749,15 +819,16 @@ export default function App() {
 
                return (
                  <button 
-                   key={idx} 
-                   onClick={() => handleAnswer(idx)} 
+                   // WICHTIG: Key ändert sich bei jeder Frage -> Button wird neu gebaut -> Kein "Sticky" Hover
+                   key={`${currentQ}-${displayIndex}`}
+                   onClick={() => handleAnswer(displayIndex)} 
                    disabled={selectedAnswer !== null} 
                    className={`border p-5 rounded-2xl text-left transition-all active:scale-[0.95] flex items-center gap-4 ${btnClass}`}
                  >
                    <span className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-sm ${selectedAnswer !== null && isCorrect ? 'bg-black text-green-500' : 'bg-neutral-800 text-neutral-400'}`}>
-                     {String.fromCharCode(65 + idx)}
+                     {String.fromCharCode(65 + displayIndex)}
                    </span>
-                   <span className="font-bold text-lg text-neutral-200">{opt}</span>
+                   <span className="font-bold text-lg text-neutral-200">{optionText}</span>
                  </button>
                );
             })}
@@ -767,6 +838,7 @@ export default function App() {
     );
   }
 
+  // Hier ist der ausführliche Result-View:
   if (view === 'result_final') {
     const duel = activeDuel;
     const iAmCreator = role === 'creator';
@@ -798,13 +870,24 @@ export default function App() {
                 <p className="text-[10px] text-neutral-500 italic">{duel.status === 'finished' ? opT + 's' : 'läuft...'}</p>
               </Card>
             </div>
+            
             {withdrawLink ? (
               <div className="animate-in slide-in-from-bottom-5 duration-700">
-                <div className="bg-white p-4 rounded-3xl inline-block mb-6 shadow-2xl"><QRCodeCanvas value={`lightning:${withdrawLink.toUpperCase()}`} size={180}/></div>
-                <Button variant="success" onClick={() => window.location.href = `lightning:${withdrawLink}`}>{txt('btn_withdraw')}</Button>
-                <p className="text-orange-400 text-[10px] mt-4 font-mono animate-pulse uppercase tracking-widest italic">App springt nach Einlösung automatisch zurück</p>
+                <div className="bg-white p-4 rounded-3xl inline-block mb-6 shadow-2xl">
+                  <QRCodeCanvas value={`lightning:${withdrawLink.toUpperCase()}`} size={180}/>
+                </div>
+                <Button variant="success" onClick={() => window.location.href = `lightning:${withdrawLink}`}>
+                  {txt('btn_withdraw')}
+                </Button>
+                <p className="text-orange-400 text-[10px] mt-4 font-mono animate-pulse uppercase tracking-widest italic">
+                  App springt nach Einlösung automatisch zurück
+                </p>
               </div>
-            ) : <button onClick={() => setView('dashboard')} className="text-neutral-500 font-black uppercase text-xs tracking-widest mt-6">{txt('btn_lobby')}</button>}
+            ) : (
+              <button onClick={() => setView('dashboard')} className="text-neutral-500 font-black uppercase text-xs tracking-widest mt-6">
+                {txt('btn_lobby')}
+              </button>
+            )}
          </div>
       </Background>
     );

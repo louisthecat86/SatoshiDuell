@@ -42,6 +42,11 @@ export const TRANSLATIONS = {
     settings_save: "PIN SPEICHERN",
     settings_saved: "Gespeichert!",
     settings_back: "ZURÜCK",
+    dashboard_donate: "ENTWICKLER UNTERSTÜTZEN ❤️",
+    donate_title: "SPENDE AN DEN DEV",
+    donate_text: "Gefällt dir Satoshi Duell? Unterstütze die Weiterentwicklung mit ein paar Sats!",
+    donate_btn: "ERZEUGE RECHNUNG",
+    donate_thanks: "DANKE FÜR DEN SUPPORT! 🙏",
   },
   en: {
     login_title: "LOGIN",
@@ -86,6 +91,11 @@ export const TRANSLATIONS = {
     settings_save: "SAVE PIN",
     settings_saved: "Saved!",
     settings_back: "BACK",
+    dashboard_donate: "SUPPORT DEVELOPER ❤️",
+    donate_title: "DONATE TO DEV",
+    donate_text: "Enjoying Satoshi Duel? Support development with a few Sats!",
+    donate_btn: "CREATE INVOICE",
+    donate_thanks: "THANKS FOR SUPPORT! 🙏",
   },
   es: {
     login_title: "INICIAR SESIÓN",
@@ -130,5 +140,10 @@ export const TRANSLATIONS = {
     settings_save: "GUARDAR PIN",
     settings_saved: "¡Guardado!",
     settings_back: "ATRÁS",
+    dashboard_donate: "APOYAR AL DESARROLLADOR ❤️",
+    donate_title: "DONAR AL DEV",
+    donate_text: "¿Te gusta Satoshi Duel? ¡Apoya el desarrollo con unos Sats!",
+    donate_btn: "CREAR FACTURA",
+    donate_thanks: "¡GRACIAS POR EL APOYO! 🙏",
   }
 };
