@@ -54,7 +54,6 @@ const DEFAULT_RELAYS = [
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 // --- KONSTANTEN ---
-// 3 Tage in Millisekunden
 const REFUND_TIMEOUT_MS = 3 * 24 * 60 * 60 * 1000; 
 
 // --- HELPER FUNKTIONEN ---
@@ -77,29 +76,29 @@ export default function App() {
   const [lang, setLang] = useState('de'); 
   const [user, setUser] = useState(null);
   
-  // Daten vom Server (Sicherheit)
+  // Daten vom Server
   const [allQuestions, setAllQuestions] = useState([]);
   const [isDataLoaded, setIsDataLoaded] = useState(false);
 
-  // Login State
+  // Login
   const [loginInput, setLoginInput] = useState(''); 
   const [loginPin, setLoginPin] = useState(''); 
   const [loginError, setLoginError] = useState('');
   const [isLoginLoading, setIsLoginLoading] = useState(false);
   
-  // Settings State
+  // Settings
   const [newPin, setNewPin] = useState('');
   const [settingsMsg, setSettingsMsg] = useState('');
   
-  // Nostr Setup
+  // Nostr
   const [nostrSetupPubkey, setNostrSetupPubkey] = useState(null);
   const [nostrSetupName, setNostrSetupName] = useState('');
   
-  // Game & Lobby Data
+  // Game & Lobby
   const [leaderboard, setLeaderboard] = useState([]);
   const [challengePlayer, setChallengePlayer] = useState(null);
   
-  // -- GETRENNTE LISTEN --
+  // LISTEN (GETRENNT)
   const [publicDuels, setPublicDuels] = useState([]);     
   const [targetedDuels, setTargetedDuels] = useState([]); 
   const [myDuels, setMyDuels] = useState([]);             
@@ -107,52 +106,37 @@ export default function App() {
   const [activeDuel, setActiveDuel] = useState(null);
   const [role, setRole] = useState(null); 
   const [gameData, setGameData] = useState([]); 
-  
-  // Wetteinsatz
   const [wager, setWager] = useState(''); 
+  const [stats, setStats] = useState({ wins: 0, losses: 0, total: 0, satsWon: 0 });
   
-  // Stats
-  const [stats, setStats] = useState({ 
-    wins: 0, 
-    losses: 0, 
-    total: 0, 
-    satsWon: 0 
-  });
-  
-  // Quiz Logik 
+  // Quiz
   const [currentQ, setCurrentQ] = useState(0);
   const [score, setScore] = useState(0);
   const [timeLeft, setTimeLeft] = useState(15);
   const [totalTime, setTotalTime] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState(null); 
   
-  // Payment & Withdraw
+  // Payment
   const [invoice, setInvoice] = useState({ req: '', hash: '', amount: 0 });
   const [withdrawLink, setWithdrawLink] = useState('');
   const [withdrawId, setWithdrawId] = useState(''); 
   const [checkingPayment, setCheckingPayment] = useState(false);
   const [manualCheckLoading, setManualCheckLoading] = useState(false);
 
-  // Donation State
+  // Donation
   const [donationAmount, setDonationAmount] = useState(2100);
   const [donationInvoice, setDonationInvoice] = useState('');
   const [isDonationLoading, setIsDonationLoading] = useState(false);
   const [isDonationSuccess, setIsDonationSuccess] = useState(false);
 
-  // Helper für Übersetzungen
+  // Helper
   const txt = (key) => TRANSLATIONS[lang]?.[key] || key;
 
-  // Helper zum Generieren der Spieldaten
+  // Generator
   const generateGameData = (questionsSource) => {
     if (!questionsSource || questionsSource.length === 0) return [];
-    
-    // 1. Alle Indizes holen
     const allIndices = questionsSource.map((_, i) => i);
-    
-    // 2. 5 Zufällige auswählen
     const selectedIndices = allIndices.sort(() => 0.5 - Math.random()).slice(0, 5);
-    
-    // 3. Antwort-Reihenfolge mischen
     return selectedIndices.map(id => {
       return {
         id: id,
@@ -163,7 +147,6 @@ export default function App() {
 
   // --- INITIALISIERUNG ---
 
-  // 1. Fragen vom Server laden
   useEffect(() => {
     const fetchQuestions = async () => {
       try {
@@ -174,16 +157,14 @@ export default function App() {
         setIsDataLoaded(true);
       } catch (e) {
         console.error("Failed to load questions", e);
-        alert("Fehler: Konnte Fragen nicht vom Server laden. Bitte Internet prüfen.");
+        alert("Fehler: Konnte Fragen nicht laden. Bitte Seite neu laden.");
       }
     };
     fetchQuestions();
   }, []);
 
-  // 2. User & Sprache laden
   useEffect(() => {
     if (!isDataLoaded) return; 
-
     const savedLang = localStorage.getItem('satoshi_lang');
     const storedUser = localStorage.getItem('satoshi_user');
     const savedPin = localStorage.getItem('saved_pin');
@@ -202,21 +183,18 @@ export default function App() {
     }
   }, [isDataLoaded]);
 
-  // 3. Supabase Live Updates
   useEffect(() => {
     if (view === 'dashboard' && user) {
-      fetchAllLobbyData(); // Initiales Laden
-      
+      fetchAllLobbyData();
       const channel = supabase.channel('public:duels')
         .on('postgres_changes', { event: '*', schema: 'public', table: 'duels' }, () => {
-          fetchAllLobbyData(); // Reload bei Änderungen
+          fetchAllLobbyData();
         })
         .subscribe();
       return () => supabase.removeChannel(channel);
     }
   }, [view, user]);
 
-  // 4. Timer Logik
   useEffect(() => {
     let timer;
     if (view === 'game' && timeLeft > 0 && selectedAnswer === null) {
@@ -227,7 +205,6 @@ export default function App() {
     return () => clearInterval(timer);
   }, [view, timeLeft, selectedAnswer]);
 
-  // 5. Payment Polling
   useEffect(() => {
     let interval;
     if (view === 'payment' && invoice.hash && !checkingPayment) {
@@ -237,7 +214,6 @@ export default function App() {
     return () => clearInterval(interval);
   }, [view, invoice, checkingPayment]);
 
-  // 6. Withdraw Polling
   useEffect(() => {
     let interval;
     if (view === 'result_final' && withdrawId) {
@@ -246,131 +222,60 @@ export default function App() {
     return () => clearInterval(interval);
   }, [view, withdrawId]);
 
-  // 7. Donation Auto-Close
   useEffect(() => {
     if (view === 'donate' && isDonationSuccess) {
-      confetti({ 
-        particleCount: 150, 
-        spread: 100, 
-        origin: { y: 0.6 }, 
-        colors: ['#FFA500', '#ffffff', '#FF4500'] 
-      });
-      
-      const timer = setTimeout(() => { 
-        setIsDonationSuccess(false); 
-        setDonationInvoice(''); 
-        setView('dashboard'); 
-      }, 3500);
-      
+      confetti({ particleCount: 150, spread: 100, origin: { y: 0.6 }, colors: ['#FFA500', '#ffffff', '#FF4500'] });
+      const timer = setTimeout(() => { setIsDonationSuccess(false); setDonationInvoice(''); setView('dashboard'); }, 3500);
       return () => clearTimeout(timer);
     }
   }, [view, isDonationSuccess]);
 
-
-  // --- LOGIK & NAVI ---
+  // --- LOGIK ---
   
   const previewLanguage = (l) => { setLang(l); };
   
   const acceptDisclaimer = () => {
     localStorage.setItem('satoshi_lang', lang);
-    if (localStorage.getItem('satoshi_user')) { 
-      setView('dashboard'); 
-    } else { 
-      setView('login'); 
-    }
+    if (localStorage.getItem('satoshi_user')) { setView('dashboard'); } else { setView('login'); }
   };
 
-  // --- LOGIN LOGIK ---
-
   const handleSmartLogin = async (e) => {
-    if (e) e.preventDefault(); 
-    setLoginError(''); 
-    setIsLoginLoading(true);
-    
+    if (e) e.preventDefault(); setLoginError(''); setIsLoginLoading(true);
     const input = loginInput.trim();
-    let pubkeyFromInput = null; 
-    let nameFromInput = null;
-
-    if (loginPin.length < 4) { 
-      setLoginError(txt('login_error_pin')); 
-      setIsLoginLoading(false); 
-      return; 
-    }
-
+    let pubkeyFromInput = null; let nameFromInput = null;
+    if (loginPin.length < 4) { setLoginError(txt('login_error_pin')); setIsLoginLoading(false); return; }
     if (input.startsWith('npub1')) {
-      try { 
-        const { type, data } = nip19.decode(input); 
-        if (type === 'npub') pubkeyFromInput = data; 
-      } catch (err) { 
-        setLoginError("Invalid NPUB"); 
-        setIsLoginLoading(false); 
-        return; 
-      }
+      try { const { type, data } = nip19.decode(input); if (type === 'npub') pubkeyFromInput = data; } 
+      catch (err) { setLoginError("Invalid NPUB"); setIsLoginLoading(false); return; }
     } else {
       nameFromInput = input.toLowerCase();
-      if (nameFromInput.length < 3) { 
-        setLoginError(txt('login_error_name')); 
-        setIsLoginLoading(false); 
-        return; 
-      }
+      if (nameFromInput.length < 3) { setLoginError(txt('login_error_name')); setIsLoginLoading(false); return; }
     }
-
     try {
       const hashedPin = await hashPin(loginPin);
       let query = supabase.from('players').select('*');
-      
-      if (pubkeyFromInput) {
-        query = query.eq('pubkey', pubkeyFromInput); 
-      } else {
-        query = query.eq('name', nameFromInput);
-      }
-      
+      if (pubkeyFromInput) query = query.eq('pubkey', pubkeyFromInput); else query = query.eq('name', nameFromInput);
       const { data: existingUser } = await query.single();
-
       if (existingUser) {
-        if (nameFromInput && existingUser.pubkey) { 
-          setLoginError(txt('login_error_nostr')); 
-          setIsLoginLoading(false); 
-          return; 
-        }
-        
-        if (existingUser.pin === 'nostr-auth' || existingUser.pin === 'extension-auth') { 
-          setLoginError(txt('login_error_wrong_pin')); 
-        } else if (existingUser.pin === hashedPin) { 
-          finishLogin(existingUser.name, existingUser.pubkey); 
-        } else { 
-          setLoginError(txt('login_error_wrong_pin')); 
-        }
+        if (nameFromInput && existingUser.pubkey) { setLoginError(txt('login_error_nostr')); setIsLoginLoading(false); return; }
+        if (existingUser.pin === 'nostr-auth' || existingUser.pin === 'extension-auth') { setLoginError(txt('login_error_wrong_pin')); } 
+        else if (existingUser.pin === hashedPin) { finishLogin(existingUser.name, existingUser.pubkey); } 
+        else { setLoginError(txt('login_error_wrong_pin')); }
       } else {
-        if (pubkeyFromInput) { 
-          localStorage.setItem('temp_nostr_pin', hashedPin); 
-          setNostrSetupPubkey(pubkeyFromInput); 
-          setIsLoginLoading(false); 
-          setView('nostr_setup'); 
-        } else {
+        if (pubkeyFromInput) { localStorage.setItem('temp_nostr_pin', hashedPin); setNostrSetupPubkey(pubkeyFromInput); setIsLoginLoading(false); setView('nostr_setup'); } 
+        else {
           const { data: nameTaken } = await supabase.from('players').select('*').eq('name', nameFromInput).single();
-          if (nameTaken) { 
-            setLoginError(txt('login_error_taken')); 
-            setIsLoginLoading(false); 
-            return; 
-          }
+          if(nameTaken) { setLoginError(txt('login_error_taken')); setIsLoginLoading(false); return; }
           await supabase.from('players').insert([{ name: nameFromInput, pin: hashedPin }]);
           finishLogin(nameFromInput, null);
         }
       }
-    } catch (err) { 
-      setLoginError("Error."); 
-    } finally { 
-      if (!nostrSetupPubkey) setIsLoginLoading(false); 
-    }
+    } catch (err) { setLoginError("Error."); } finally { if (!nostrSetupPubkey) setIsLoginLoading(false); }
   };
 
   const finishLogin = (name, pubkey) => {
     const userObj = { name, pubkey };
-    setUser(userObj); 
-    localStorage.setItem('satoshi_user', JSON.stringify(userObj)); 
-    localStorage.setItem('saved_pin', loginPin); 
-    setView('dashboard');
+    setUser(userObj); localStorage.setItem('satoshi_user', JSON.stringify(userObj)); localStorage.setItem('saved_pin', loginPin); setView('dashboard');
   };
 
   const handleExtensionLogin = async () => {
@@ -420,13 +325,7 @@ export default function App() {
   };
 
   // --- DONATION LOGIC ---
-  const openDonation = () => { 
-    setDonationInvoice(''); 
-    setDonationAmount(2100); 
-    setIsDonationSuccess(false); 
-    setView('donate'); 
-  };
-  
+  const openDonation = () => { setDonationInvoice(''); setDonationAmount(2100); setIsDonationSuccess(false); setView('donate'); };
   const handleGenerateDonation = async () => {
     setIsDonationLoading(true);
     try {
@@ -436,12 +335,11 @@ export default function App() {
     } catch (e) { console.error(e); alert("Connection Error"); }
     setIsDonationLoading(false);
   };
-  
   const handleConfirmDonation = () => { setIsDonationSuccess(true); };
 
   // --- DATEN LADEN & SPIEL ---
   
-  // ZENTRALE FUNKTION: Lädt alle Daten und sortiert sie STRENG in die Listen
+  // ZENTRALE FUNKTION MIT KORREKTER FILTERUNG
   const fetchAllLobbyData = async () => {
     if (!user) return;
 
@@ -471,8 +369,9 @@ export default function App() {
     const { data: allOpen } = await supabase.from('duels').select('*').eq('status', 'open').order('created_at', { ascending: false });
     
     if (allOpen) {
-      // 2a. PUBLIC DUELS: Nur Duelle OHNE Target
-      const publicData = allOpen.filter(d => !d.target_player || d.target_player === '');
+      // 2a. PUBLIC DUELS: STRENGE FILTERUNG!
+      // Nur wenn target_player null, undefined oder leer ist
+      const publicData = allOpen.filter(d => !d.target_player || d.target_player.trim() === '');
       setPublicDuels(publicData);
 
       // 2b. TARGETED DUELS: Nur Duelle, die an MICH gerichtet sind
@@ -480,7 +379,7 @@ export default function App() {
       setTargetedDuels(targetData);
     }
 
-    // 3. Meine Geschichte (Erstellt von mir ODER mich betreffend)
+    // 3. Meine Geschichte
     const { data: myHistory } = await supabase
       .from('duels')
       .select('*')
@@ -494,7 +393,6 @@ export default function App() {
     }
   };
 
-  // Diese Wrapper sind jetzt leer, da alles in fetchAllLobbyData passiert
   const fetchLeaderboard = () => {}; 
   const fetchStats = () => {};
   const fetchDuels = () => {};
@@ -504,10 +402,28 @@ export default function App() {
   const checkWithdrawStatus = async () => { if (!withdrawId) return; try { const res = await fetch(`${LNBITS_URL}/withdraw/api/v1/links/${withdrawId}`, { headers: { 'X-Api-Key': INVOICE_KEY } }); const data = await res.json(); if (data.used >= 1 || data.spent === true) { confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } }); setTimeout(() => { setView('dashboard'); resetGameState(); setWithdrawId(''); }, 2000); } } catch(e) {} };
   const handleManualCheck = async () => { setManualCheckLoading(true); await checkPaymentStatus(); setTimeout(() => setManualCheckLoading(false), 1000); };
   
-  const resetGameState = () => { setWithdrawLink(''); setWithdrawId(''); setScore(0); setTotalTime(0); setCurrentQ(0); setInvoice({ req: '', hash: '', amount: 0 }); setChallengePlayer(null); setSelectedAnswer(null); };
+  const resetGameState = () => { 
+    setWithdrawLink(''); setWithdrawId(''); setScore(0); setTotalTime(0); setCurrentQ(0); 
+    setInvoice({ req: '', hash: '', amount: 0 }); 
+    // WICHTIG: Hier resetten wir challengePlayer NICHT, das passiert im openCreateSetup
+    setSelectedAnswer(null); 
+  };
   
-  const startChallenge = (target) => { setChallengePlayer(target); openCreateSetup(); };
-  const openCreateSetup = () => { resetGameState(); setWager(''); setView('create_setup'); };
+  // SCHWERT-KLICK: Setzt den Target Player
+  const startChallenge = (target) => { 
+    setChallengePlayer(target); 
+    resetGameState();
+    setWager('');
+    setView('create_setup'); 
+  };
+  
+  // PLUS-KLICK: Muss Target Player zwingend leeren!
+  const openCreateSetup = () => { 
+    setChallengePlayer(null); // RESET FÜR ÖFFENTLICHES SPIEL
+    resetGameState(); 
+    setWager(''); 
+    setView('create_setup'); 
+  };
   
   const submitCreateDuel = async () => { 
     if (!wager || Number(wager) <= 0) { alert("Bitte einen Einsatz wählen!"); return; }
@@ -565,7 +481,16 @@ export default function App() {
 
   const finishGameLogic = async (finalScore = score) => {
     if (role === 'creator') {
-      await supabase.from('duels').insert([{ creator: user.name, creator_score: finalScore, creator_time: totalTime, questions: gameData, status: 'open', amount: invoice.amount, target_player: challengePlayer }]); setView('dashboard');
+      await supabase.from('duels').insert([{ 
+        creator: user.name, 
+        creator_score: finalScore, 
+        creator_time: totalTime, 
+        questions: gameData, 
+        status: 'open', 
+        amount: invoice.amount, 
+        target_player: challengePlayer // Hier wird entschieden ob Public oder Private!
+      }]); 
+      setView('dashboard');
     } else {
       const { data } = await supabase.from('duels').update({ challenger: user.name, challenger_score: finalScore, challenger_time: totalTime, status: 'finished' }).eq('id', activeDuel.id).select();
       if (data) { setActiveDuel(data[0]); determineWinner(data[0], 'challenger', finalScore, totalTime); }
@@ -596,7 +521,6 @@ export default function App() {
     return (<Background><div className="flex flex-col items-center justify-center h-screen"><Loader2 size={48} className="text-orange-500 animate-spin"/><p className="text-white mt-4 font-bold uppercase tracking-widest">Lade Quiz Daten...</p></div></Background>);
   }
 
-  // --- LANDING PAGE ---
   if (view === 'language_select') {
     return (
       <Background>
@@ -728,13 +652,13 @@ export default function App() {
               </div>
             )}
 
-            {/* 2. OFFENE LOBBY (Nur öffentliche Duelle) */}
+            {/* 2. OFFENE LOBBY (NUR PUBLIC!) */}
             <div className="flex flex-col gap-2 flex-1 overflow-hidden">
                <div className="text-[10px] font-black text-neutral-500 uppercase tracking-widest px-2">{txt('lobby_open')}</div>
                <div className="overflow-y-auto space-y-2 pr-1 custom-scrollbar">
-                 {/* WICHTIG: Hier nutzen wir publicDuels, nicht mehr die gemischte Liste! */}
-                 {publicDuels.filter(d => d.creator !== user.name).length === 0 && <p className="text-neutral-600 text-xs italic text-center py-4">Keine offenen Duelle</p>}
-                 {publicDuels.filter(d => d.creator !== user.name).map(d => (
+                 {/* WICHTIG: Doppelte Filterung für maximale Sicherheit */}
+                 {publicDuels.filter(d => d.creator !== user.name && (!d.target_player || d.target_player === '')).length === 0 && <p className="text-neutral-600 text-xs italic text-center py-4">Keine offenen Duelle</p>}
+                 {publicDuels.filter(d => d.creator !== user.name && (!d.target_player || d.target_player === '')).map(d => (
                    <div key={d.id} className="bg-white/5 p-3 rounded-xl flex justify-between items-center border border-white/5">
                      <div><p className="font-bold text-white text-xs uppercase">{d.creator}</p><p className="text-[10px] text-orange-400 font-mono">{d.amount} sats</p></div>
                      <button onClick={() => initJoinDuel(d)} className="bg-orange-500 text-black px-4 py-2 rounded-lg text-[10px] font-black uppercase">{txt('lobby_fight')}</button>
@@ -829,7 +753,6 @@ export default function App() {
           <p className="text-neutral-400 text-xs font-bold uppercase tracking-widest mb-2">{txt('setup_wager_label')}</p>
           <input type="number" value={wager} onChange={(e) => setWager(e.target.value)} placeholder="0" className="text-6xl font-black text-orange-500 font-mono text-center bg-transparent w-full outline-none mb-10 placeholder:text-neutral-800"/>
           
-          {/* HIER IST DER NEUE HINWEIS ZUR 3-TAGE-REGEL */}
           <p className="text-[10px] text-neutral-500 mb-8 italic">{txt('setup_refund_info')}</p>
 
           <div className="grid grid-cols-4 gap-2 mb-8">{[100, 500, 1000, 2100].map(amt => (<button key={amt} onClick={() => setWager(amt)} className={`py-2 rounded-lg text-xs font-bold border ${Number(wager) === amt ? 'bg-orange-500 text-black border-orange-500' : 'bg-neutral-800 text-neutral-400 border-white/5'}`}>{amt}</button>))}</div>
