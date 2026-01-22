@@ -62,6 +62,9 @@ export const TRANSLATIONS = {
     refund_info: "Gegner hat 3 Tage nicht reagiert.",
     refund_wait: "Warte auf Gegner...",
     challenge_sent: "Herausforderung an",
+    setup_wager_label: "DEIN EINSATZ (SATS)",
+    setup_refund_info: "ℹ️ Fairness-Garantie: Wenn dein Gegner die Herausforderung nicht innerhalb von 3 Tagen annimmt, kannst du deinen Einsatz in der Historie zurückfordern.",
+    // ...
   },
   en: {
     // NEUE EINTRÄGE:
@@ -125,6 +128,8 @@ export const TRANSLATIONS = {
     refund_info: "Opponent inactive for 3 days.",
     refund_wait: "Waiting for opponent...",
     challenge_sent: "Challenge sent to",
+    setup_wager_label: "YOUR WAGER (SATS)",
+    setup_refund_info: "ℹ️ Fairness Guarantee: If your opponent does not accept within 3 days, you can claim a refund in your history.",
   },
   es: {
     // NEUE EINTRÄGE:
@@ -188,5 +193,7 @@ export const TRANSLATIONS = {
     refund_info: "Oponente inactivo por 3 días.",
     refund_wait: "Esperando al oponente...",
     challenge_sent: "Desafío enviado a",
+    setup_wager_label: "TU APUESTA (SATS)",
+    setup_refund_info: "ℹ️ Garantía de justicia: Si tu oponente no acepta en 3 días, puedes reclamar un reembolso en tu historial.",
   }
 };

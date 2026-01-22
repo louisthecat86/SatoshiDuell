@@ -27,7 +27,7 @@ import {
   Heart,
   Github,
   CheckCircle,
-  RefreshCcw // Für den Refund Button
+  RefreshCcw 
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { QRCodeCanvas } from 'qrcode.react';
@@ -54,7 +54,7 @@ const DEFAULT_RELAYS = [
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 // --- KONSTANTEN ---
-// 3 Tage in Millisekunden für den Refund-Timer
+// 3 Tage in Millisekunden
 const REFUND_TIMEOUT_MS = 3 * 24 * 60 * 60 * 1000; 
 
 // --- HELPER FUNKTIONEN ---
@@ -99,10 +99,10 @@ export default function App() {
   const [leaderboard, setLeaderboard] = useState([]);
   const [challengePlayer, setChallengePlayer] = useState(null);
   
-  // -- NEUE LISTEN STRUKTUR FÜR TARGETED DUELS --
-  const [publicDuels, setPublicDuels] = useState([]);     // Offene Lobby (Jeder)
-  const [targetedDuels, setTargetedDuels] = useState([]); // Nur für MICH
-  const [myDuels, setMyDuels] = useState([]);             // Meine Historie
+  // -- GETRENNTE LISTEN --
+  const [publicDuels, setPublicDuels] = useState([]);     
+  const [targetedDuels, setTargetedDuels] = useState([]); 
+  const [myDuels, setMyDuels] = useState([]);             
   
   const [activeDuel, setActiveDuel] = useState(null);
   const [role, setRole] = useState(null); 
@@ -112,7 +112,12 @@ export default function App() {
   const [wager, setWager] = useState(''); 
   
   // Stats
-  const [stats, setStats] = useState({ wins: 0, losses: 0, total: 0, satsWon: 0 });
+  const [stats, setStats] = useState({ 
+    wins: 0, 
+    losses: 0, 
+    total: 0, 
+    satsWon: 0 
+  });
   
   // Quiz Logik 
   const [currentQ, setCurrentQ] = useState(0);
@@ -126,7 +131,6 @@ export default function App() {
   const [withdrawLink, setWithdrawLink] = useState('');
   const [withdrawId, setWithdrawId] = useState(''); 
   const [checkingPayment, setCheckingPayment] = useState(false);
-  const [copied, setCopied] = useState(false);
   const [manualCheckLoading, setManualCheckLoading] = useState(false);
 
   // Donation State
@@ -198,14 +202,14 @@ export default function App() {
     }
   }, [isDataLoaded]);
 
-  // 3. Supabase Live Updates & Daten Laden
+  // 3. Supabase Live Updates
   useEffect(() => {
     if (view === 'dashboard' && user) {
-      fetchAllLobbyData();
+      fetchAllLobbyData(); // Initiales Laden
       
       const channel = supabase.channel('public:duels')
         .on('postgres_changes', { event: '*', schema: 'public', table: 'duels' }, () => {
-          fetchAllLobbyData();
+          fetchAllLobbyData(); // Reload bei Änderungen
         })
         .subscribe();
       return () => supabase.removeChannel(channel);
@@ -245,19 +249,19 @@ export default function App() {
   // 7. Donation Auto-Close
   useEffect(() => {
     if (view === 'donate' && isDonationSuccess) {
-      confetti({
-        particleCount: 150,
-        spread: 100,
-        origin: { y: 0.6 },
-        colors: ['#FFA500', '#ffffff', '#FF4500']
+      confetti({ 
+        particleCount: 150, 
+        spread: 100, 
+        origin: { y: 0.6 }, 
+        colors: ['#FFA500', '#ffffff', '#FF4500'] 
       });
-
-      const timer = setTimeout(() => {
-        setIsDonationSuccess(false);
-        setDonationInvoice('');
-        setView('dashboard');
+      
+      const timer = setTimeout(() => { 
+        setIsDonationSuccess(false); 
+        setDonationInvoice(''); 
+        setView('dashboard'); 
       }, 3500);
-
+      
       return () => clearTimeout(timer);
     }
   }, [view, isDonationSuccess]);
@@ -269,58 +273,104 @@ export default function App() {
   
   const acceptDisclaimer = () => {
     localStorage.setItem('satoshi_lang', lang);
-    if (localStorage.getItem('satoshi_user')) {
-      setView('dashboard');
-    } else {
-      setView('login');
+    if (localStorage.getItem('satoshi_user')) { 
+      setView('dashboard'); 
+    } else { 
+      setView('login'); 
     }
   };
 
   // --- LOGIN LOGIK ---
 
   const handleSmartLogin = async (e) => {
-    if (e) e.preventDefault();
-    setLoginError(''); setIsLoginLoading(true);
+    if (e) e.preventDefault(); 
+    setLoginError(''); 
+    setIsLoginLoading(true);
+    
     const input = loginInput.trim();
-    let pubkeyFromInput = null; let nameFromInput = null;
+    let pubkeyFromInput = null; 
+    let nameFromInput = null;
 
-    if (loginPin.length < 4) { setLoginError(txt('login_error_pin')); setIsLoginLoading(false); return; }
+    if (loginPin.length < 4) { 
+      setLoginError(txt('login_error_pin')); 
+      setIsLoginLoading(false); 
+      return; 
+    }
 
     if (input.startsWith('npub1')) {
-      try { const { type, data } = nip19.decode(input); if (type === 'npub') pubkeyFromInput = data; } 
-      catch (err) { setLoginError("Invalid NPUB"); setIsLoginLoading(false); return; }
+      try { 
+        const { type, data } = nip19.decode(input); 
+        if (type === 'npub') pubkeyFromInput = data; 
+      } catch (err) { 
+        setLoginError("Invalid NPUB"); 
+        setIsLoginLoading(false); 
+        return; 
+      }
     } else {
       nameFromInput = input.toLowerCase();
-      if (nameFromInput.length < 3) { setLoginError(txt('login_error_name')); setIsLoginLoading(false); return; }
+      if (nameFromInput.length < 3) { 
+        setLoginError(txt('login_error_name')); 
+        setIsLoginLoading(false); 
+        return; 
+      }
     }
 
     try {
       const hashedPin = await hashPin(loginPin);
       let query = supabase.from('players').select('*');
-      if (pubkeyFromInput) query = query.eq('pubkey', pubkeyFromInput); else query = query.eq('name', nameFromInput);
+      
+      if (pubkeyFromInput) {
+        query = query.eq('pubkey', pubkeyFromInput); 
+      } else {
+        query = query.eq('name', nameFromInput);
+      }
+      
       const { data: existingUser } = await query.single();
 
       if (existingUser) {
-        if (nameFromInput && existingUser.pubkey) { setLoginError(txt('login_error_nostr')); setIsLoginLoading(false); return; }
-        if (existingUser.pin === 'nostr-auth' || existingUser.pin === 'extension-auth') { setLoginError(txt('login_error_wrong_pin')); } 
-        else if (existingUser.pin === hashedPin) { finishLogin(existingUser.name, existingUser.pubkey); } 
-        else { setLoginError(txt('login_error_wrong_pin')); }
+        if (nameFromInput && existingUser.pubkey) { 
+          setLoginError(txt('login_error_nostr')); 
+          setIsLoginLoading(false); 
+          return; 
+        }
+        
+        if (existingUser.pin === 'nostr-auth' || existingUser.pin === 'extension-auth') { 
+          setLoginError(txt('login_error_wrong_pin')); 
+        } else if (existingUser.pin === hashedPin) { 
+          finishLogin(existingUser.name, existingUser.pubkey); 
+        } else { 
+          setLoginError(txt('login_error_wrong_pin')); 
+        }
       } else {
-        if (pubkeyFromInput) {
-          localStorage.setItem('temp_nostr_pin', hashedPin); setNostrSetupPubkey(pubkeyFromInput); setIsLoginLoading(false); setView('nostr_setup');
+        if (pubkeyFromInput) { 
+          localStorage.setItem('temp_nostr_pin', hashedPin); 
+          setNostrSetupPubkey(pubkeyFromInput); 
+          setIsLoginLoading(false); 
+          setView('nostr_setup'); 
         } else {
           const { data: nameTaken } = await supabase.from('players').select('*').eq('name', nameFromInput).single();
-          if(nameTaken) { setLoginError(txt('login_error_taken')); setIsLoginLoading(false); return; }
+          if (nameTaken) { 
+            setLoginError(txt('login_error_taken')); 
+            setIsLoginLoading(false); 
+            return; 
+          }
           await supabase.from('players').insert([{ name: nameFromInput, pin: hashedPin }]);
           finishLogin(nameFromInput, null);
         }
       }
-    } catch (err) { setLoginError("Error."); } finally { if (!nostrSetupPubkey) setIsLoginLoading(false); }
+    } catch (err) { 
+      setLoginError("Error."); 
+    } finally { 
+      if (!nostrSetupPubkey) setIsLoginLoading(false); 
+    }
   };
 
   const finishLogin = (name, pubkey) => {
     const userObj = { name, pubkey };
-    setUser(userObj); localStorage.setItem('satoshi_user', JSON.stringify(userObj)); localStorage.setItem('saved_pin', loginPin); setView('dashboard');
+    setUser(userObj); 
+    localStorage.setItem('satoshi_user', JSON.stringify(userObj)); 
+    localStorage.setItem('saved_pin', loginPin); 
+    setView('dashboard');
   };
 
   const handleExtensionLogin = async () => {
@@ -387,70 +437,50 @@ export default function App() {
     setIsDonationLoading(false);
   };
   
-  const handleConfirmDonation = () => {
-    setIsDonationSuccess(true);
-  };
+  const handleConfirmDonation = () => { setIsDonationSuccess(true); };
 
   // --- DATEN LADEN & SPIEL ---
   
-  // ZENTRALE FUNKTION: Lädt alle Daten und sortiert sie in die richtigen Listen
+  // ZENTRALE FUNKTION: Lädt alle Daten und sortiert sie STRENG in die Listen
   const fetchAllLobbyData = async () => {
     if (!user) return;
 
     // 1. Leaderboard & Stats
     const { data: finishedDuels } = await supabase.from('duels').select('*').eq('status', 'finished');
     if (finishedDuels) {
-      // Leaderboard berechnen
       const playerStats = {};
       let myWins = 0, mySats = 0;
-      
       finishedDuels.forEach(d => {
-        // Winner Logic
         const p1Won = d.creator_score > d.challenger_score || (d.creator_score === d.challenger_score && d.creator_time < d.challenger_time);
         const winner = p1Won ? d.creator : d.challenger;
-        
-        // Leaderboard Update
         [d.creator, d.challenger].forEach(p => { 
           if (!playerStats[p]) playerStats[p] = { name: p, wins: 0, satsWon: 0 }; 
-          if (p === winner) { 
-            playerStats[p].wins++; 
-            playerStats[p].satsWon += d.amount; 
-          } 
+          if (p === winner) { playerStats[p].wins++; playerStats[p].satsWon += d.amount; } 
         });
-
-        // My Stats Update
         if (d.creator === user.name || d.challenger === user.name) {
           const amICreator = d.creator === user.name;
           const iWon = (amICreator && p1Won) || (!amICreator && !p1Won);
           if (iWon) { myWins++; mySats += d.amount; }
         }
       });
-      
       setLeaderboard(Object.values(playerStats).sort((a, b) => b.satsWon - a.satsWon).slice(0, 10));
-      
-      // Meine Stats komplettieren (Total Games holen wir aus der History Abfrage)
       setStats(prev => ({ ...prev, wins: myWins, satsWon: mySats }));
     }
 
-    // 2. Offene Lobby (Niemandem zugewiesen)
-    const { data: publicData } = await supabase
-      .from('duels')
-      .select('*')
-      .eq('status', 'open')
-      .is('target_player', null)
-      .order('created_at', { ascending: false });
-    if (publicData) setPublicDuels(publicData);
+    // 2. ALLE offenen Duelle laden
+    const { data: allOpen } = await supabase.from('duels').select('*').eq('status', 'open').order('created_at', { ascending: false });
+    
+    if (allOpen) {
+      // 2a. PUBLIC DUELS: Nur Duelle OHNE Target
+      const publicData = allOpen.filter(d => !d.target_player || d.target_player === '');
+      setPublicDuels(publicData);
 
-    // 3. Herausforderungen an MICH
-    const { data: targetData } = await supabase
-      .from('duels')
-      .select('*')
-      .eq('status', 'open')
-      .eq('target_player', user.name)
-      .order('created_at', { ascending: false });
-    if (targetData) setTargetedDuels(targetData);
+      // 2b. TARGETED DUELS: Nur Duelle, die an MICH gerichtet sind
+      const targetData = allOpen.filter(d => d.target_player === user.name);
+      setTargetedDuels(targetData);
+    }
 
-    // 4. Meine Geschichte (Erstellt von mir ODER mich betreffend)
+    // 3. Meine Geschichte (Erstellt von mir ODER mich betreffend)
     const { data: myHistory } = await supabase
       .from('duels')
       .select('*')
@@ -459,13 +489,12 @@ export default function App() {
     
     if (myHistory) {
       setMyDuels(myHistory);
-      // Update Total Games Stats
       const finishedCount = myHistory.filter(d => d.status === 'finished').length;
       setStats(prev => ({ ...prev, total: finishedCount, losses: finishedCount - prev.wins }));
     }
   };
 
-  // Wrapper für Kompatibilität, falls noch alte Calls existieren
+  // Diese Wrapper sind jetzt leer, da alles in fetchAllLobbyData passiert
   const fetchLeaderboard = () => {}; 
   const fetchStats = () => {};
   const fetchDuels = () => {};
@@ -478,7 +507,6 @@ export default function App() {
   const resetGameState = () => { setWithdrawLink(''); setWithdrawId(''); setScore(0); setTotalTime(0); setCurrentQ(0); setInvoice({ req: '', hash: '', amount: 0 }); setChallengePlayer(null); setSelectedAnswer(null); };
   
   const startChallenge = (target) => { setChallengePlayer(target); openCreateSetup(); };
-  
   const openCreateSetup = () => { resetGameState(); setWager(''); setView('create_setup'); };
   
   const submitCreateDuel = async () => { 
@@ -524,14 +552,11 @@ export default function App() {
     if (selectedAnswer !== null) return; 
     setSelectedAnswer(displayIndex);
     setTotalTime(prev => prev + (15 - timeLeft)); 
-    
     const roundConfig = gameData[currentQ];
     const originalIndex = roundConfig.order[displayIndex];
     const correctIndex = allQuestions[roundConfig.id].correct;
-
     const isCorrect = (originalIndex === correctIndex);
     if (isCorrect) setScore(s => s + 1);
-
     setTimeout(() => {
       if (currentQ < 4) { setCurrentQ(p => p + 1); setTimeLeft(15); setSelectedAnswer(null); } 
       else { finishGameLogic(isCorrect ? score + 1 : score); }
@@ -568,14 +593,7 @@ export default function App() {
   // --- VIEWS ---
 
   if (view === 'loading_data') {
-    return (
-      <Background>
-        <div className="flex flex-col items-center justify-center h-screen">
-          <Loader2 size={48} className="text-orange-500 animate-spin"/>
-          <p className="text-white mt-4 font-bold uppercase tracking-widest">Lade Quiz Daten...</p>
-        </div>
-      </Background>
-    );
+    return (<Background><div className="flex flex-col items-center justify-center h-screen"><Loader2 size={48} className="text-orange-500 animate-spin"/><p className="text-white mt-4 font-bold uppercase tracking-widest">Lade Quiz Daten...</p></div></Background>);
   }
 
   // --- LANDING PAGE ---
@@ -584,27 +602,17 @@ export default function App() {
       <Background>
         <div className="w-full max-w-sm flex flex-col items-center justify-center min-h-[90vh] px-4 gap-6 animate-float">
           <div className="flex flex-col items-center justify-center">
-             <div className="relative mb-4">
-                <div className="absolute inset-0 bg-orange-500 blur-[50px] opacity-20 rounded-full"></div>
-                <img src="/logo.png" alt="Satoshi Duell" className="relative w-40 h-40 object-contain drop-shadow-2xl mx-auto" />
-             </div>
-             <h1 className="text-4xl font-black text-white italic uppercase drop-shadow-md">
-               SATOSHI<span className="text-orange-500">DUELL</span>
-             </h1>
+             <div className="relative mb-4"><div className="absolute inset-0 bg-orange-500 blur-[50px] opacity-20 rounded-full"></div><img src="/logo.png" alt="Satoshi Duell" className="relative w-40 h-40 object-contain drop-shadow-2xl mx-auto" /></div>
+             <h1 className="text-4xl font-black text-white italic uppercase drop-shadow-md">SATOSHI<span className="text-orange-500">DUELL</span></h1>
           </div>
           <div className="flex gap-4 mb-2">
             <button onClick={() => previewLanguage('de')} className={`text-3xl p-3 rounded-xl border transition-all ${lang === 'de' ? 'bg-orange-500/20 border-orange-500 scale-110' : 'bg-black/40 border-white/10 hover:bg-white/10'}`}>🇩🇪</button>
             <button onClick={() => previewLanguage('en')} className={`text-3xl p-3 rounded-xl border transition-all ${lang === 'en' ? 'bg-orange-500/20 border-orange-500 scale-110' : 'bg-black/40 border-white/10 hover:bg-white/10'}`}>🇺🇸</button>
             <button onClick={() => previewLanguage('es')} className={`text-3xl p-3 rounded-xl border transition-all ${lang === 'es' ? 'bg-orange-500/20 border-orange-500 scale-110' : 'bg-black/40 border-white/10 hover:bg-white/10'}`}>🇪🇸</button>
           </div>
-          <div className="bg-black/40 p-4 rounded-xl border border-white/10 backdrop-blur-sm">
-             <h3 className="text-orange-500 font-bold uppercase text-xs mb-2 tracking-widest text-center">{txt('welcome_disclaimer')}</h3>
-             <p className="text-neutral-400 text-xs text-center leading-relaxed">{txt('welcome_text')}</p>
-          </div>
+          <div className="bg-black/40 p-4 rounded-xl border border-white/10 backdrop-blur-sm"><h3 className="text-orange-500 font-bold uppercase text-xs mb-2 tracking-widest text-center">{txt('welcome_disclaimer')}</h3><p className="text-neutral-400 text-xs text-center leading-relaxed">{txt('welcome_text')}</p></div>
           <Button variant="primary" onClick={acceptDisclaimer}>{txt('btn_understood')}</Button>
-          <a href="https://github.com/louisthecat86/SatoshiDuell" target="_blank" rel="noopener noreferrer" className="mt-8 flex items-center gap-2 text-white/20 hover:text-white/50 transition-colors text-[10px] uppercase tracking-widest">
-            <Github size={14} /><span>Open Source Everything</span>
-          </a>
+          <a href="https://github.com/louisthecat86/SatoshiDuell" target="_blank" rel="noopener noreferrer" className="mt-8 flex items-center gap-2 text-white/20 hover:text-white/50 transition-colors text-[10px] uppercase tracking-widest"><Github size={14} /><span>Open Source Everything</span></a>
         </div>
       </Background>
     );
@@ -615,13 +623,8 @@ export default function App() {
       <Background>
         <div className="w-full max-w-sm flex flex-col gap-6 animate-float text-center px-4">
           <div className="flex flex-col items-center justify-center">
-             <div className="relative mb-4">
-                <div className="absolute inset-0 bg-orange-500 blur-[50px] opacity-20 rounded-full"></div>
-                <img src="/logo.png" alt="Satoshi Duell" className="relative w-48 h-48 object-contain drop-shadow-2xl mx-auto" />
-             </div>
-             <h1 className="text-5xl font-black text-white tracking-tighter italic uppercase drop-shadow-md">
-               SATOSHI<span className="text-orange-500">DUELL</span>
-             </h1>
+             <div className="relative mb-4"><div className="absolute inset-0 bg-orange-500 blur-[50px] opacity-20 rounded-full"></div><img src="/logo.png" alt="Satoshi Duell" className="relative w-48 h-48 object-contain drop-shadow-2xl mx-auto" /></div>
+             <h1 className="text-5xl font-black text-white tracking-tighter italic uppercase drop-shadow-md">SATOSHI<span className="text-orange-500">DUELL</span></h1>
           </div>
           <form onSubmit={handleSmartLogin} className="flex flex-col gap-4 mt-2">
             <input type="text" placeholder={txt('login_placeholder')} value={loginInput} onChange={(e) => setLoginInput(e.target.value)} className="w-full p-4 rounded-xl bg-[#0a0a0a] border border-white/10 text-white outline-none focus:border-orange-500 focus:bg-black transition-all font-bold uppercase text-center shadow-lg placeholder:text-neutral-600"/>
@@ -639,18 +642,7 @@ export default function App() {
 
   if (view === 'donate') {
     if (isDonationSuccess) {
-      return (
-        <Background>
-          <div className="w-full max-w-sm flex flex-col gap-6 animate-float text-center px-4 items-center justify-center h-[80vh]">
-            <div className="relative">
-              <div className="absolute inset-0 bg-green-500 blur-[60px] opacity-40 rounded-full animate-pulse"></div>
-              <Heart size={120} className="text-green-500 fill-green-500 relative animate-bounce"/>
-            </div>
-            <h2 className="text-4xl font-black text-white uppercase drop-shadow-lg">{txt('donate_thanks')}</h2>
-            <p className="text-neutral-400 text-sm animate-pulse">Redirecting to Dashboard...</p>
-          </div>
-        </Background>
-      );
+      return (<Background><div className="w-full max-w-sm flex flex-col gap-6 animate-float text-center px-4 items-center justify-center h-[80vh]"><div className="relative"><div className="absolute inset-0 bg-green-500 blur-[60px] opacity-40 rounded-full animate-pulse"></div><Heart size={120} className="text-green-500 fill-green-500 relative animate-bounce"/></div><h2 className="text-4xl font-black text-white uppercase drop-shadow-lg">{txt('donate_thanks')}</h2><p className="text-neutral-400 text-sm animate-pulse">Redirecting to Dashboard...</p></div></Background>);
     }
     return (
       <Background>
@@ -661,20 +653,13 @@ export default function App() {
           {!donationInvoice ? (
             <div className="flex flex-col gap-4">
                <input type="number" value={donationAmount} onChange={(e) => setDonationAmount(Number(e.target.value))} className="w-full p-4 rounded-xl bg-[#0a0a0a] border border-white/10 text-white font-mono text-2xl font-bold text-center outline-none focus:border-orange-500"/>
-               <div className="grid grid-cols-3 gap-2">
-                  {[500, 2100, 5000].map(amt => (
-                    <button key={amt} onClick={() => setDonationAmount(amt)} className="bg-neutral-800 p-2 rounded border border-white/5 hover:bg-orange-500/20 text-xs text-white transition-colors">{amt}</button>
-                  ))}
-               </div>
+               <div className="grid grid-cols-3 gap-2">{[500, 2100, 5000].map(amt => (<button key={amt} onClick={() => setDonationAmount(amt)} className="bg-neutral-800 p-2 rounded border border-white/5 hover:bg-orange-500/20 text-xs text-white transition-colors">{amt}</button>))}</div>
                <Button variant="primary" onClick={handleGenerateDonation} disabled={isDonationLoading}>{isDonationLoading ? <Loader2 className="animate-spin mx-auto"/> : txt('donate_btn')}</Button>
             </div>
           ) : (
             <div className="animate-in slide-in-from-bottom-5 flex flex-col gap-4">
                <div className="bg-white p-4 rounded-3xl inline-block mx-auto shadow-2xl"><QRCodeCanvas value={`lightning:${donationInvoice.toUpperCase()}`} size={220}/></div>
-               <div className="flex flex-col gap-2">
-                 <Button variant="secondary" onClick={() => window.location.href = `lightning:${donationInvoice}`}>{txt('btn_wallet')}</Button>
-                 <button onClick={handleConfirmDonation} className="w-full py-3 bg-green-600/20 border border-green-500/50 rounded-xl text-green-400 text-xs font-black uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-green-600/40 transition-all"><CheckCircle size={16}/> Ich habe gesendet!</button>
-               </div>
+               <div className="flex flex-col gap-2"><Button variant="secondary" onClick={() => window.location.href = `lightning:${donationInvoice}`}>{txt('btn_wallet')}</Button><button onClick={handleConfirmDonation} className="w-full py-3 bg-green-600/20 border border-green-500/50 rounded-xl text-green-400 text-xs font-black uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-green-600/40 transition-all"><CheckCircle size={16}/> Ich habe gesendet!</button></div>
             </div>
           )}
           <button onClick={() => setView('dashboard')} className="text-xs text-neutral-600 uppercase font-bold mt-4">{txt('settings_back')}</button>
@@ -705,19 +690,13 @@ export default function App() {
       <Background>
          <div className="w-full max-w-sm flex flex-col gap-6 animate-float text-center px-4">
             <div className="w-16 h-16 bg-purple-500/20 rounded-full flex items-center justify-center mx-auto mb-2 text-purple-400 border border-purple-500/50"><Globe size={32}/></div>
-            <h2 className="text-2xl font-black text-white uppercase">{txt('nostr_setup_title')}</h2>
-            <p className="text-neutral-400 text-sm">{txt('nostr_setup_text')}</p>
-            <form onSubmit={completeNostrRegistration} className="flex flex-col gap-4">
-              <input type="text" placeholder="GAMERTAG" value={nostrSetupName} onChange={(e) => setNostrSetupName(e.target.value)} className="w-full p-4 rounded-xl bg-[#0a0a0a] border border-white/10 text-white outline-none focus:border-orange-500 font-bold uppercase text-center shadow-lg"/>
-              <Button variant="primary" onClick={completeNostrRegistration}>OK</Button>
-              <button onClick={() => setView('login')} className="text-xs text-neutral-600 uppercase font-bold">Zurück</button>
-            </form>
+            <h2 className="text-2xl font-black text-white uppercase">{txt('nostr_setup_title')}</h2><p className="text-neutral-400 text-sm">{txt('nostr_setup_text')}</p>
+            <form onSubmit={completeNostrRegistration} className="flex flex-col gap-4"><input type="text" placeholder="GAMERTAG" value={nostrSetupName} onChange={(e) => setNostrSetupName(e.target.value)} className="w-full p-4 rounded-xl bg-[#0a0a0a] border border-white/10 text-white outline-none focus:border-orange-500 font-bold uppercase text-center shadow-lg"/><Button variant="primary" onClick={completeNostrRegistration}>OK</Button><button onClick={() => setView('login')} className="text-xs text-neutral-600 uppercase font-bold">Zurück</button></form>
          </div>
       </Background>
     );
   }
 
-  // --- DASHBOARD (MIT GETRENNTEN LISTEN) ---
   if (view === 'dashboard') {
     return (
       <Background>
@@ -727,10 +706,7 @@ export default function App() {
               <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-orange-500 to-yellow-500 flex items-center justify-center font-black text-black text-xl">{user.name.charAt(0).toUpperCase()}</div>
               <div className="text-left"><p className="font-bold text-white text-sm uppercase">{user.name}</p><p className="text-[10px] text-orange-400 font-mono">{stats.satsWon.toLocaleString()} {txt('sats_won')}</p></div>
             </div>
-            <div className="flex gap-2">
-               <button onClick={() => setView('settings')} className="p-2 text-neutral-500 hover:text-white"><Settings size={18}/></button>
-               <button onClick={handleLogout} className="p-2 text-neutral-500 hover:text-white"><LogOut size={18}/></button>
-            </div>
+            <div className="flex gap-2"><button onClick={() => setView('settings')} className="p-2 text-neutral-500 hover:text-white"><Settings size={18}/></button><button onClick={handleLogout} className="p-2 text-neutral-500 hover:text-white"><LogOut size={18}/></button></div>
           </Card>
 
           <Button onClick={openCreateSetup} className="py-4 text-lg animate-neon"><Plus size={24}/> {txt('dashboard_new_duel')}</Button>
@@ -756,6 +732,7 @@ export default function App() {
             <div className="flex flex-col gap-2 flex-1 overflow-hidden">
                <div className="text-[10px] font-black text-neutral-500 uppercase tracking-widest px-2">{txt('lobby_open')}</div>
                <div className="overflow-y-auto space-y-2 pr-1 custom-scrollbar">
+                 {/* WICHTIG: Hier nutzen wir publicDuels, nicht mehr die gemischte Liste! */}
                  {publicDuels.filter(d => d.creator !== user.name).length === 0 && <p className="text-neutral-600 text-xs italic text-center py-4">Keine offenen Duelle</p>}
                  {publicDuels.filter(d => d.creator !== user.name).map(d => (
                    <div key={d.id} className="bg-white/5 p-3 rounded-xl flex justify-between items-center border border-white/5">
@@ -766,13 +743,13 @@ export default function App() {
                </div>
             </div>
 
-            {/* 3. DEINE GESCHICHTE (Mit Refund Option) */}
+            {/* 3. DEINE GESCHICHTE (MIT REFUND) */}
             <div className="flex flex-col gap-2 flex-1 overflow-hidden">
                <div className="text-[10px] font-black text-neutral-500 uppercase tracking-widest px-2">{txt('lobby_history')}</div>
                <div className="overflow-y-auto space-y-2 pr-1 custom-scrollbar">
                  {myDuels.map(d => {
                    const isMyOpenDuel = d.creator === user.name && d.status === 'open';
-                   // Check: Sind 3 Tage vergangen?
+                   // Check ob 3 Tage vergangen sind
                    const created = new Date(d.created_at).getTime();
                    const now = Date.now();
                    const canRefund = isMyOpenDuel && (now - created > REFUND_TIMEOUT_MS);
@@ -794,18 +771,17 @@ export default function App() {
                          ) : d.status === 'refunded' ? (
                            <span className="text-red-500 font-black text-[10px] uppercase">REFUNDED</span>
                          ) : canRefund ? (
-                           // REFUND BUTTON (Wenn Zeit abgelaufen)
+                           // REFUND BUTTON
                            <button onClick={() => handleRefund(d)} className="bg-red-500/20 text-red-500 border border-red-500/50 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase hover:bg-red-500 hover:text-white transition-all flex items-center gap-1">
                              <RefreshCcw size={10}/> {txt('btn_refund')}
                            </button>
                          ) : (
-                           // ANSONSTEN WARTEN
                            <span className="animate-pulse text-neutral-600 uppercase font-black text-[10px]">
                              {d.target_player ? txt('refund_wait') : txt('lobby_wait')}
                            </span>
                          )}
                        </div>
-                       {/* NOSTR SHARE BUTTON (Nur wenn offen & kein Refund möglich) */}
+                       {/* NOSTR SHARE BUTTON (Nur wenn offen und kein Refund möglich) */}
                        {d.status === 'open' && d.creator === user.name && !canRefund && (
                          <button onClick={(e) => {e.stopPropagation(); shareDuelOnNostr(d);}} className="w-full bg-purple-500/10 hover:bg-purple-600 border border-purple-500/30 hover:border-purple-500 text-purple-300 hover:text-white py-2 rounded-lg flex items-center justify-center gap-2 transition-all group">
                            <Share2 size={14} className="group-hover:animate-pulse"/>
@@ -852,15 +828,12 @@ export default function App() {
           </h2>
           <p className="text-neutral-400 text-xs font-bold uppercase tracking-widest mb-2">{txt('setup_wager_label')}</p>
           <input type="number" value={wager} onChange={(e) => setWager(e.target.value)} placeholder="0" className="text-6xl font-black text-orange-500 font-mono text-center bg-transparent w-full outline-none mb-10 placeholder:text-neutral-800"/>
-          <div className="grid grid-cols-4 gap-2 mb-8">
-            {[100, 500, 1000, 2100].map(amt => (
-              <button key={amt} onClick={() => setWager(amt)} className={`py-2 rounded-lg text-xs font-bold border ${Number(wager) === amt ? 'bg-orange-500 text-black border-orange-500' : 'bg-neutral-800 text-neutral-400 border-white/5'}`}>{amt}</button>
-            ))}
-          </div>
-          <div className="grid gap-3">
-            <Button variant="primary" onClick={submitCreateDuel}>{txt('btn_start')}</Button>
-            <button onClick={() => setView('dashboard')} className="text-xs text-neutral-600 uppercase font-bold mt-2">{txt('btn_cancel')}</button>
-          </div>
+          
+          {/* HIER IST DER NEUE HINWEIS ZUR 3-TAGE-REGEL */}
+          <p className="text-[10px] text-neutral-500 mb-8 italic">{txt('setup_refund_info')}</p>
+
+          <div className="grid grid-cols-4 gap-2 mb-8">{[100, 500, 1000, 2100].map(amt => (<button key={amt} onClick={() => setWager(amt)} className={`py-2 rounded-lg text-xs font-bold border ${Number(wager) === amt ? 'bg-orange-500 text-black border-orange-500' : 'bg-neutral-800 text-neutral-400 border-white/5'}`}>{amt}</button>))}</div>
+          <div className="grid gap-3"><Button variant="primary" onClick={submitCreateDuel}>{txt('btn_start')}</Button><button onClick={() => setView('dashboard')} className="text-xs text-neutral-600 uppercase font-bold mt-2">{txt('btn_cancel')}</button></div>
         </Card>
       </Background>
     );
@@ -871,27 +844,15 @@ export default function App() {
       <Background>
         <div className="w-full max-w-sm text-center">
           <h2 className="text-2xl font-black text-white mb-8 uppercase">{txt('pay_title')}</h2>
-          <div className="bg-white p-4 rounded-3xl mx-auto mb-8 flex justify-center shadow-2xl">
-            {invoice.req && <QRCodeCanvas value={`lightning:${invoice.req.toUpperCase()}`} size={220} includeMargin={true}/>}
-          </div>
-          <div className="grid gap-3">
-            <Button variant="primary" onClick={handleManualCheck}>{txt('btn_check')}</Button>
-            <Button variant="secondary" onClick={() => window.location.href = `lightning:${invoice.req}`}>{txt('btn_wallet')}</Button><button onClick={() => setView('dashboard')} className="text-xs text-neutral-500 mt-4 font-bold uppercase">{txt('btn_cancel')}</button>
-          </div>
+          <div className="bg-white p-4 rounded-3xl mx-auto mb-8 flex justify-center shadow-2xl">{invoice.req && <QRCodeCanvas value={`lightning:${invoice.req.toUpperCase()}`} size={220} includeMargin={true}/>}</div>
+          <div className="grid gap-3"><Button variant="primary" onClick={handleManualCheck}>{txt('btn_check')}</Button><Button variant="secondary" onClick={() => window.location.href = `lightning:${invoice.req}`}>{txt('btn_wallet')}</Button><button onClick={() => setView('dashboard')} className="text-xs text-neutral-500 mt-4 font-bold uppercase">{txt('btn_cancel')}</button></div>
         </div>
       </Background>
     );
   }
   
   if (view === 'game') {
-    if (!allQuestions || allQuestions.length === 0) {
-      return (
-        <Background>
-          <div className="text-white">Fehler: Keine Fragen geladen.</div>
-        </Background>
-      );
-    }
-
+    if (!allQuestions || allQuestions.length === 0) { return (<Background><div className="text-white">Fehler: Keine Fragen geladen.</div></Background>); }
     const roundConfig = gameData[currentQ];
     const questionID = roundConfig.id;
     const shuffledOrder = roundConfig.order;
@@ -902,42 +863,16 @@ export default function App() {
     return (
       <Background>
         <div className="w-full max-w-sm mx-auto flex flex-col justify-center min-h-[60vh] px-4">
-          <div className="flex justify-between items-end mb-4 px-1"><span className="text-xs font-bold text-neutral-500 uppercase">{txt('game_q')} {currentQ + 1}/5</span><span className={`text-4xl font-black font-mono ${timeLeft < 5 ? 'text-red-500 drop-shadow-[0_0_10px_red]' : 'text-white'}`}>{timeLeft}</span></div><div className="w-full h-2 bg-neutral-900 rounded-full mb-10 overflow-hidden"><div className="h-full bg-orange-500 transition-all duration-1000 ease-linear" style={{ width: `${(timeLeft / 15) * 100}%` }}></div></div><h3 className="text-2xl font-bold text-white text-center mb-10 min-h-[100px]">"{questionData.q}"</h3>
-          <div className="grid gap-3">
-            {[0,1,2,3].map((displayIndex) => { 
-               const originalOptionIndex = shuffledOrder[displayIndex]; 
-               const optionText = originalOptions[originalOptionIndex]; 
-               let btnClass = "bg-neutral-900/50 hover:bg-orange-500 border-white/10"; 
-               const isCorrect = originalOptionIndex === correctIndex; 
-               const isSelected = selectedAnswer === displayIndex; 
-               if (selectedAnswer !== null) { 
-                 if (isCorrect) {
-                   btnClass = "bg-green-500 text-black border-green-500 shadow-[0_0_15px_rgba(34,197,94,0.6)]"; 
-                 } else if (isSelected) {
-                   btnClass = "bg-red-500 text-white border-red-500"; 
-                 } else {
-                   btnClass = "opacity-30 border-transparent"; 
-                 } 
-               } 
-               return (
-                 <button 
-                   key={`${currentQ}-${displayIndex}`} 
-                   onClick={() => handleAnswer(displayIndex)} 
-                   disabled={selectedAnswer !== null} 
-                   className={`border p-5 rounded-2xl text-left transition-all active:scale-[0.95] flex items-center gap-4 ${btnClass}`}
-                 >
-                   <span className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-sm ${selectedAnswer !== null && isCorrect ? 'bg-black text-green-500' : 'bg-neutral-800 text-neutral-400'}`}>{String.fromCharCode(65 + displayIndex)}</span><span className="font-bold text-lg text-neutral-200">{optionText}</span>
-                 </button>
-               ); 
-            })}
-          </div>
+          <div className="flex justify-between items-end mb-4 px-1"><span className="text-xs font-bold text-neutral-500 uppercase">{txt('game_q')} {currentQ + 1}/5</span><span className={`text-4xl font-black font-mono ${timeLeft < 5 ? 'text-red-500 drop-shadow-[0_0_10px_red]' : 'text-white'}`}>{timeLeft}</span></div>
+          <div className="w-full h-2 bg-neutral-900 rounded-full mb-10 overflow-hidden"><div className="h-full bg-orange-500 transition-all duration-1000 ease-linear" style={{ width: `${(timeLeft / 15) * 100}%` }}></div></div>
+          <h3 className="text-2xl font-bold text-white text-center mb-10 min-h-[100px]">"{questionData.q}"</h3>
+          <div className="grid gap-3">{[0,1,2,3].map((displayIndex) => { const originalOptionIndex = shuffledOrder[displayIndex]; const optionText = originalOptions[originalOptionIndex]; let btnClass = "bg-neutral-900/50 hover:bg-orange-500 border-white/10"; const isCorrect = originalOptionIndex === correctIndex; const isSelected = selectedAnswer === displayIndex; if (selectedAnswer !== null) { if (isCorrect) btnClass = "bg-green-500 text-black border-green-500 shadow-[0_0_15px_rgba(34,197,94,0.6)]"; else if (isSelected) btnClass = "bg-red-500 text-white border-red-500"; else btnClass = "opacity-30 border-transparent"; } return (<button key={`${currentQ}-${displayIndex}`} onClick={() => handleAnswer(displayIndex)} disabled={selectedAnswer !== null} className={`border p-5 rounded-2xl text-left transition-all active:scale-[0.95] flex items-center gap-4 ${btnClass}`}><span className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-sm ${selectedAnswer !== null && isCorrect ? 'bg-black text-green-500' : 'bg-neutral-800 text-neutral-400'}`}>{String.fromCharCode(65 + displayIndex)}</span><span className="font-bold text-lg text-neutral-200">{optionText}</span></button>); })}</div>
         </div>
       </Background>
     );
   }
 
   if (view === 'result_final') { 
-    // FALL: Refund Erfolgreich abgeschlossen (nur QR Code anzeigen)
     if (activeDuel && activeDuel.status === 'refunded') {
        return (
          <Background>
