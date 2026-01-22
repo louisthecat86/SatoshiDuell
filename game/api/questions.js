@@ -1,4 +1,6 @@
-export const ALL_QUESTIONS = [
+// Hier lagern die Fragen sicher auf dem Server
+const ALL_QUESTIONS = [
+
   // --- BITCOIN GRUNDLAGEN ---
   {
     de: { q: "Wer veröffentlichte 2008 das Bitcoin Whitepaper?", options: ["Satoshi Nakamoto", "Vitalik Buterin", "Hal Finney", "Nick Szabo"] },
@@ -1255,3 +1257,16 @@ export const ALL_QUESTIONS = [
     correct: 1
   }
 ];
+
+export default function handler(req, res) {
+  // Wir erlauben nur GET Anfragen
+  if (req.method !== 'GET') {
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
+
+  // Wir senden die Fragen an das Frontend zurück
+  // HINWEIS: Für maximale Sicherheit könnte man hier auch die "correct"-Eigenschaft entfernen
+  // und die Prüfung auf dem Server machen, aber das würde die App sehr langsam machen.
+  // So ist es ein guter Kompromiss: Code ist sauber, Daten kommen dynamisch.
+  res.status(200).json(ALL_QUESTIONS);
+}

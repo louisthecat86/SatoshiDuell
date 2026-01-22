@@ -1,5 +1,12 @@
 export const TRANSLATIONS = {
   de: {
+    // ... deine alten Einträge ...
+    // NEUE EINTRÄGE FÜR DEN DISCLAIMER:
+    welcome_disclaimer: "Haftungsausschluss & Verantwortung",
+    welcome_text: "Satoshi Duell ist ein experimentelles Spiel im Lightning Network. Jeder Spieler ist alleinverantwortlich für seine Handlungen, Einsätze und die Sicherheit seiner Wallet (Keys). Der Entwickler übernimmt keinerlei Haftung für Verluste durch Softwarefehler, Netzwerkprobleme oder Dritte. Spiele nur mit Sats, die du bereit bist zu verlieren.",
+    btn_understood: "VERSTANDEN & WEITER",
+    
+    // ... hier folgen die bestehenden Einträge (login_title etc.) ...
     login_title: "ANMELDEN",
     login_btn: "LOGIN / START",
     login_placeholder: "GAMERTAG ODER NPUB",
@@ -12,6 +19,7 @@ export const TRANSLATIONS = {
     login_error_nostr: "Account ist Nostr-geschützt. Bitte NPUB nutzen.",
     btn_nostr_ext: "Login mit Alby (Kein Passwort)",
     dashboard_new_duel: "NEUES DUELL",
+    dashboard_donate: "ENTWICKLER UNTERSTÜTZEN ❤️",
     lobby_open: "OFFENE LOBBY",
     lobby_history: "DEINE GESCHICHTE",
     lobby_fight: "FIGHT",
@@ -42,13 +50,21 @@ export const TRANSLATIONS = {
     settings_save: "PIN SPEICHERN",
     settings_saved: "Gespeichert!",
     settings_back: "ZURÜCK",
-    dashboard_donate: "ENTWICKLER UNTERSTÜTZEN ❤️",
     donate_title: "SPENDE AN DEN DEV",
     donate_text: "Gefällt dir Satoshi Duell? Unterstütze die Weiterentwicklung mit ein paar Sats!",
     donate_btn: "ERZEUGE RECHNUNG",
     donate_thanks: "DANKE FÜR DEN SUPPORT! 🙏",
+    setup_title: "EINSATZ WÄHLEN",
+    setup_target: "TARGET:",
+    setup_wager_label: "DEIN EINSATZ (SATS)",
   },
   en: {
+    // NEUE EINTRÄGE:
+    welcome_disclaimer: "Disclaimer & Responsibility",
+    welcome_text: "Satoshi Duel is an experimental game on the Lightning Network. Each player is solely responsible for their actions, wagers, and wallet security (keys). The developer assumes no liability for losses due to software bugs, network issues, or third parties. Only play with Sats you are willing to lose.",
+    btn_understood: "UNDERSTOOD & CONTINUE",
+
+    // ... BESTEHEND ...
     login_title: "LOGIN",
     login_btn: "LOGIN / START",
     login_placeholder: "GAMERTAG OR NPUB",
@@ -61,6 +77,7 @@ export const TRANSLATIONS = {
     login_error_nostr: "Account protected by Nostr. Use NPUB.",
     btn_nostr_ext: "Login with Alby (No Password)",
     dashboard_new_duel: "NEW DUEL",
+    dashboard_donate: "SUPPORT DEVELOPER ❤️",
     lobby_open: "OPEN LOBBY",
     lobby_history: "YOUR HISTORY",
     lobby_fight: "FIGHT",
@@ -91,13 +108,21 @@ export const TRANSLATIONS = {
     settings_save: "SAVE PIN",
     settings_saved: "Saved!",
     settings_back: "BACK",
-    dashboard_donate: "SUPPORT DEVELOPER ❤️",
     donate_title: "DONATE TO DEV",
     donate_text: "Enjoying Satoshi Duel? Support development with a few Sats!",
     donate_btn: "CREATE INVOICE",
     donate_thanks: "THANKS FOR SUPPORT! 🙏",
+    setup_title: "CHOOSE WAGER",
+    setup_target: "TARGET:",
+    setup_wager_label: "YOUR WAGER (SATS)",
   },
   es: {
+    // NEUE EINTRÄGE:
+    welcome_disclaimer: "Descargo de responsabilidad",
+    welcome_text: "Satoshi Duel es un juego experimental en Lightning Network. Cada jugador es responsable de sus acciones y la seguridad de su billetera. El desarrollador no asume ninguna responsabilidad por pérdidas debidas a errores de software o problemas de red. Juega solo con Sats que estés dispuesto a perder.",
+    btn_understood: "ENTENDIDO Y CONTINUAR",
+
+    // ... BESTEHEND ...
     login_title: "INICIAR SESIÓN",
     login_btn: "ENTRAR / EMPEZAR",
     login_placeholder: "GAMERTAG O NPUB",
@@ -110,6 +135,7 @@ export const TRANSLATIONS = {
     login_error_nostr: "Cuenta protegida por Nostr. Usa NPUB.",
     btn_nostr_ext: "Entrar con Alby (Sin contraseña)",
     dashboard_new_duel: "NUEVO DUELO",
+    dashboard_donate: "APOYAR AL DESARROLLADOR ❤️",
     lobby_open: "SALA DE ESPERA",
     lobby_history: "HISTORIAL",
     lobby_fight: "PELEAR",
@@ -140,10 +166,12 @@ export const TRANSLATIONS = {
     settings_save: "GUARDAR PIN",
     settings_saved: "¡Guardado!",
     settings_back: "ATRÁS",
-    dashboard_donate: "APOYAR AL DESARROLLADOR ❤️",
     donate_title: "DONAR AL DEV",
     donate_text: "¿Te gusta Satoshi Duel? ¡Apoya el desarrollo con unos Sats!",
     donate_btn: "CREAR FACTURA",
     donate_thanks: "¡GRACIAS POR EL APOYO! 🙏",
+    setup_title: "ELIGE APUESTA",
+    setup_target: "OBJETIVO:",
+    setup_wager_label: "TU APUESTA (SATS)",
   }
 };
