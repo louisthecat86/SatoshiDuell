@@ -1,38 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { 
-  Zap, 
-  Trophy, 
-  Clock, 
-  User, 
-  Plus, 
-  Swords, 
-  RefreshCw, 
-  Copy, 
-  Check, 
-  ExternalLink, 
-  AlertTriangle, 
-  Loader2, 
-  LogOut, 
-  Fingerprint, 
-  Flame, 
-  History, 
-  Coins, 
-  Lock, 
-  Medal, 
-  Share2, 
-  Globe, 
-  Settings, 
-  Save, 
-  Heart,
-  Github
+  Zap, Trophy, Clock, User, Plus, Swords, RefreshCw, Copy, Check, 
+  ExternalLink, AlertTriangle, Loader2, LogOut, Fingerprint, Flame, 
+  History, Coins, Lock, Medal, Share2, Globe, Settings, Save, Heart,
+  Github 
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { QRCodeCanvas } from 'qrcode.react';
 import { nip19 } from 'nostr-tools'; 
 
 // --- EIGENE IMPORTS ---
-// WICHTIG: Kein Import von questions.js mehr!
 import { TRANSLATIONS } from './translations'; 
 import Button from './components/Button';
 import Card from './components/Card';
@@ -65,30 +43,30 @@ async function hashPin(pin) {
 // --- HAUPT APP ---
 
 export default function App() {
-  // STATE MANAGEMENT
+  // --- STATE MANAGEMENT ---
   const [view, setView] = useState('loading_data'); 
   const [lang, setLang] = useState('de'); 
   const [user, setUser] = useState(null);
   
-  // DATEN VOM SERVER
+  // Daten vom Server
   const [allQuestions, setAllQuestions] = useState([]);
   const [isDataLoaded, setIsDataLoaded] = useState(false);
 
-  // Login State
+  // Login
   const [loginInput, setLoginInput] = useState(''); 
   const [loginPin, setLoginPin] = useState(''); 
   const [loginError, setLoginError] = useState('');
   const [isLoginLoading, setIsLoginLoading] = useState(false);
   
-  // Settings State
+  // Settings
   const [newPin, setNewPin] = useState('');
   const [settingsMsg, setSettingsMsg] = useState('');
   
-  // Nostr Setup
+  // Nostr
   const [nostrSetupPubkey, setNostrSetupPubkey] = useState(null);
   const [nostrSetupName, setNostrSetupName] = useState('');
   
-  // Game & Lobby Data
+  // Game & Lobby
   const [leaderboard, setLeaderboard] = useState([]);
   const [challengePlayer, setChallengePlayer] = useState(null);
   const [duelsList, setDuelsList] = useState([]);
@@ -99,14 +77,14 @@ export default function App() {
   const [wager, setWager] = useState(''); 
   const [stats, setStats] = useState({ wins: 0, losses: 0, total: 0, satsWon: 0 });
   
-  // Quiz Logik 
+  // Quiz
   const [currentQ, setCurrentQ] = useState(0);
   const [score, setScore] = useState(0);
   const [timeLeft, setTimeLeft] = useState(15);
   const [totalTime, setTotalTime] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState(null); 
   
-  // Payment & Withdraw
+  // Payment
   const [invoice, setInvoice] = useState({ req: '', hash: '', amount: 0 });
   const [withdrawLink, setWithdrawLink] = useState('');
   const [withdrawId, setWithdrawId] = useState(''); 
@@ -114,7 +92,7 @@ export default function App() {
   const [copied, setCopied] = useState(false);
   const [manualCheckLoading, setManualCheckLoading] = useState(false);
 
-  // Donation State
+  // Donation
   const [donationAmount, setDonationAmount] = useState(2100);
   const [donationInvoice, setDonationInvoice] = useState('');
   const [isDonationLoading, setIsDonationLoading] = useState(false);
@@ -122,17 +100,11 @@ export default function App() {
   // Helper
   const txt = (key) => TRANSLATIONS[lang]?.[key] || key;
 
-  // Generiert das Spiel (Nimmt jetzt die Fragen als Parameter an!)
+  // Generator
   const generateGameData = (questionsSource) => {
     if (!questionsSource || questionsSource.length === 0) return [];
-    
-    // 1. Alle Indizes holen
     const allIndices = questionsSource.map((_, i) => i);
-    
-    // 2. 5 Zufällige auswählen
     const selectedIndices = allIndices.sort(() => 0.5 - Math.random()).slice(0, 5);
-    
-    // 3. Antwort-Reihenfolge mischen
     return selectedIndices.map(id => {
       return {
         id: id,
@@ -143,7 +115,7 @@ export default function App() {
 
   // --- INITIALISIERUNG ---
 
-  // 1. Fragen vom Server laden
+  // 1. Fragen laden
   useEffect(() => {
     const fetchQuestions = async () => {
       try {
@@ -154,14 +126,13 @@ export default function App() {
         setIsDataLoaded(true);
       } catch (e) {
         console.error("Failed to load questions", e);
-        // Falls Fehler, bleibt der Loading Screen oder man zeigt Error an
         alert("Fehler: Konnte Fragen nicht laden. Bitte Seite neu laden.");
       }
     };
     fetchQuestions();
   }, []);
 
-  // 2. User & Sprache laden (Erst wenn Fragen da sind)
+  // 2. Routing Logic (WICHTIG: Entscheidet ob Landingpage oder Login kommt)
   useEffect(() => {
     if (!isDataLoaded) return; 
 
@@ -169,6 +140,7 @@ export default function App() {
     const storedUser = localStorage.getItem('satoshi_user');
     const savedPin = localStorage.getItem('saved_pin');
     
+    // Wenn Sprache da ist -> User war schonmal hier -> Weiterleiten
     if (savedLang) {
       setLang(savedLang);
       if (storedUser) {
@@ -179,6 +151,7 @@ export default function App() {
         if (savedPin) setLoginPin(savedPin);
       }
     } else {
+      // Wenn keine Sprache da ist -> Neuer User -> Landingpage zeigen!
       setView('language_select');
     }
   }, [isDataLoaded]);
@@ -196,7 +169,7 @@ export default function App() {
     }
   }, [view, user]);
 
-  // 4. Timer Logik
+  // 4. Timer
   useEffect(() => {
     let timer;
     if (view === 'game' && timeLeft > 0 && selectedAnswer === null) {
@@ -229,6 +202,7 @@ export default function App() {
   
   const previewLanguage = (l) => { setLang(l); };
   
+  // Bestätigt den Disclaimer und speichert die Sprache -> Erst dann gehts weiter
   const acceptDisclaimer = () => {
     localStorage.setItem('satoshi_lang', lang);
     if (localStorage.getItem('satoshi_user')) {
@@ -329,7 +303,7 @@ export default function App() {
     } else { navigator.clipboard.writeText(shareString); alert("Copied to clipboard!"); }
   };
 
-  // --- DONATION ---
+  // --- DONATION LOGIC ---
   const openDonation = () => { setDonationInvoice(''); setDonationAmount(2100); setView('donate'); };
   
   const handleGenerateDonation = async () => {
@@ -371,6 +345,7 @@ export default function App() {
   };
   
   const fetchDuels = async () => { const { data } = await supabase.from('duels').select('*').eq('status', 'open').or(`target_player.is.null,target_player.eq.${user.name}`).order('created_at', { ascending: false }); if (data) setDuelsList(data); };
+  
   const fetchMyDuels = async () => { if (!user) return; const { data } = await supabase.from('duels').select('*').or(`creator.eq.${user.name},challenger.eq.${user.name}`).order('created_at', { ascending: false }); if (data) setMyDuels(data); };
   
   const checkPaymentStatus = async () => { if (!invoice.hash) return; try { const url = `${LNBITS_URL}/api/v1/payments/${invoice.hash}?ts=${Date.now()}`; const res = await fetch(url, { headers: { 'X-Api-Key': INVOICE_KEY } }); const data = await res.json(); if (data.paid === true || data.status === 'success') { setCheckingPayment(true); startGame(); } } catch(e) {} };
@@ -387,7 +362,6 @@ export default function App() {
   
   const submitCreateDuel = async () => { 
     if (!wager || Number(wager) <= 0) { alert("Bitte einen Einsatz wählen!"); return; }
-    // Hier verwenden wir jetzt die geladenen allQuestions!
     const gameConfig = generateGameData(allQuestions); 
     setGameData(gameConfig); setRole('creator'); await fetchInvoice(Number(wager)); 
   };
@@ -414,7 +388,6 @@ export default function App() {
     
     const roundConfig = gameData[currentQ];
     const originalIndex = roundConfig.order[displayIndex];
-    // Zugriff auf allQuestions (State)
     const correctIndex = allQuestions[roundConfig.id].correct;
 
     const isCorrect = (originalIndex === correctIndex);
@@ -439,21 +412,7 @@ export default function App() {
   
   const determineWinner = async (duel, myRole, myScore, myTime) => { setView('result_final'); const oppScore = myRole === 'creator' ? (duel.challenger_score || 0) : duel.creator_score; const oppTime = myRole === 'creator' ? (duel.challenger_time || 999) : duel.creator_time; const won = myScore > oppScore || (myScore === oppScore && myTime < oppTime); if (duel.status === 'finished' && won && !duel.claimed) { confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } }); await createWithdrawLink(duel.amount, duel.id); } };
   
-  const createWithdrawLink = async (duelAmount, duelId) => { 
-    try { 
-      const res = await fetch('/api/claim', { 
-        method: 'POST', 
-        headers: { 'Content-Type': 'application/json' }, 
-        body: JSON.stringify({ amount: duelAmount, duelId: duelId }) 
-      }); 
-      const data = await res.json(); 
-      if (data.lnurl) { 
-        setWithdrawLink(data.lnurl); 
-        setWithdrawId(data.id); 
-        await supabase.from('duels').update({ claimed: true }).eq('id', duelId); 
-      } 
-    } catch(e) { console.error("Withdraw Error:", e); } 
-  };
+  const createWithdrawLink = async (duelAmount, duelId) => { try { const res = await fetch('/api/claim', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ amount: duelAmount, duelId: duelId }) }); const data = await res.json(); if (data.lnurl) { setWithdrawLink(data.lnurl); setWithdrawId(data.id); await supabase.from('duels').update({ claimed: true }).eq('id', duelId); } } catch(e) { console.error("Withdraw Error:", e); } };
   
   const handleLogout = () => { localStorage.clear(); setUser(null); setView('language_select'); };
 
@@ -470,10 +429,13 @@ export default function App() {
     );
   }
 
+  // --- LANDING PAGE (SPRACHWAHL + DISCLAIMER + GITHUB) ---
   if (view === 'language_select') {
     return (
       <Background>
         <div className="w-full max-w-sm flex flex-col items-center justify-center min-h-[90vh] px-4 gap-6 animate-float">
+          
+          {/* HEADER */}
           <div className="flex flex-col items-center justify-center">
              <div className="relative mb-4">
                 <div className="absolute inset-0 bg-orange-500 blur-[50px] opacity-20 rounded-full"></div>
@@ -483,17 +445,24 @@ export default function App() {
                SATOSHI<span className="text-orange-500">DUELL</span>
              </h1>
           </div>
+
+          {/* SPRACH-BUTTONS */}
           <div className="flex gap-4 mb-2">
             <button onClick={() => previewLanguage('de')} className={`text-3xl p-3 rounded-xl border transition-all ${lang === 'de' ? 'bg-orange-500/20 border-orange-500 scale-110' : 'bg-black/40 border-white/10 hover:bg-white/10'}`}>🇩🇪</button>
             <button onClick={() => previewLanguage('en')} className={`text-3xl p-3 rounded-xl border transition-all ${lang === 'en' ? 'bg-orange-500/20 border-orange-500 scale-110' : 'bg-black/40 border-white/10 hover:bg-white/10'}`}>🇺🇸</button>
             <button onClick={() => previewLanguage('es')} className={`text-3xl p-3 rounded-xl border transition-all ${lang === 'es' ? 'bg-orange-500/20 border-orange-500 scale-110' : 'bg-black/40 border-white/10 hover:bg-white/10'}`}>🇪🇸</button>
           </div>
+
+          {/* DISCLAIMER BOX */}
           <div className="bg-black/40 p-4 rounded-xl border border-white/10 backdrop-blur-sm">
              <h3 className="text-orange-500 font-bold uppercase text-xs mb-2 tracking-widest text-center">{txt('welcome_disclaimer')}</h3>
              <p className="text-neutral-400 text-xs text-center leading-relaxed">{txt('welcome_text')}</p>
           </div>
+
+          {/* START BUTTON */}
           <Button variant="primary" onClick={acceptDisclaimer}>{txt('btn_understood')}</Button>
           
+          {/* GITHUB LINK GANZ UNTEN */}
           <a 
             href="https://github.com/louisthecat86/SatoshiDuell" 
             target="_blank" 
