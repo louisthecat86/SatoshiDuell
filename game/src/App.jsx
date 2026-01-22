@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
-import { Zap, Trophy, Clock, User, Plus, Swords, RefreshCw, Copy, Check, ExternalLink, AlertTriangle, Loader2, LogOut, Fingerprint, Flame, History, Coins, Lock, Medal, Share2, Globe } from 'lucide-react';
+import { Zap, Trophy, Clock, User, Plus, Swords, RefreshCw, Copy, Check, ExternalLink, AlertTriangle, Loader2, LogOut, Fingerprint, Flame, History, Coins, Lock, Medal, Share2, Globe, Settings, Save } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { QRCodeCanvas } from 'qrcode.react';
 import { nip19 } from 'nostr-tools'; 
 
 // --- EIGENE IMPORTS ---
 import { ALL_QUESTIONS } from './questions';
+import { TRANSLATIONS } from './translations'; 
 import Button from './components/Button';
 import Card from './components/Card';
 import Background from './components/Background';
@@ -18,7 +19,6 @@ const LNBITS_URL = import.meta.env.VITE_LNBITS_URL;
 const INVOICE_KEY = import.meta.env.VITE_INVOICE_KEY;
 const ADMIN_KEY = import.meta.env.VITE_ADMIN_KEY;
 
-// Standard Relays für das Publishen
 const DEFAULT_RELAYS = [
   'wss://relay.damus.io',
   'wss://relay.primal.net',
@@ -27,21 +27,17 @@ const DEFAULT_RELAYS = [
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-// --- HELPER: FRAGEN MISCHEN ---
-const getRandomQuestions = () => {
-  return [...ALL_QUESTIONS]
-    .sort(() => 0.5 - Math.random()) 
-    .slice(0, 5)
-    .map(q => {
-      const shuffledOptions = q.options
-        .map((opt, idx) => ({ text: opt, isCorrect: idx === q.correct }))
-        .sort(() => Math.random() - 0.5); 
-      const newCorrectIndex = shuffledOptions.findIndex(o => o.isCorrect);
-      return { ...q, options: shuffledOptions.map(o => o.text), correct: newCorrectIndex };
-    });
+// --- HELPER FUNKTIONEN ---
+
+// NEU: Gibt jetzt nur noch die NUMMERN (Indizes) der Fragen zurück
+// Das ist wichtig, damit der Spanier Frage #5 auf Spanisch sieht und der Deutsche #5 auf Deutsch.
+const getRandomQuestionIndices = () => {
+  // Erstellt ein Array von 0 bis Anzahl der Fragen [0, 1, 2, ... 100]
+  const indices = ALL_QUESTIONS.map((_, i) => i);
+  // Mischt sie und nimmt die ersten 5
+  return indices.sort(() => 0.5 - Math.random()).slice(0, 5);
 };
 
-// --- HELPER: SICHERHEIT (PIN Hashing) ---
 async function hashPin(pin) {
   const encoder = new TextEncoder();
   const data = encoder.encode(pin);
@@ -53,38 +49,46 @@ async function hashPin(pin) {
 // --- HAUPT APP ---
 
 export default function App() {
-  const [view, setView] = useState('login'); 
+  const [view, setView] = useState('language_select'); // Startet bei Sprachwahl
+  const [lang, setLang] = useState('de'); // Standardsprache
   const [user, setUser] = useState(null);
   
   // Login State
-  const [loginInput, setLoginInput] = useState(''); // Name ODER npub
+  const [loginInput, setLoginInput] = useState(''); 
   const [loginPin, setLoginPin] = useState(''); 
   const [loginError, setLoginError] = useState('');
   const [isLoginLoading, setIsLoginLoading] = useState(false);
+  
+  // Settings State (PIN ändern)
+  const [newPin, setNewPin] = useState('');
+  const [settingsMsg, setSettingsMsg] = useState('');
   
   // Nostr Setup
   const [nostrSetupPubkey, setNostrSetupPubkey] = useState(null);
   const [nostrSetupName, setNostrSetupName] = useState('');
   
-  // Community & Game
+  // Game & Lobby Data
   const [leaderboard, setLeaderboard] = useState([]);
   const [challengePlayer, setChallengePlayer] = useState(null);
   const [duelsList, setDuelsList] = useState([]);
   const [myDuels, setMyDuels] = useState([]);
   const [activeDuel, setActiveDuel] = useState(null);
   const [role, setRole] = useState(null); 
-  const [questions, setQuestions] = useState([]);
+  
+  // WICHTIG: Speichert jetzt [3, 12, 5, 99, 1] statt ganzer Objekte
+  const [questionIndices, setQuestionIndices] = useState([]); 
+  
   const [wager, setWager] = useState(500); 
   const [stats, setStats] = useState({ wins: 0, losses: 0, total: 0, satsWon: 0 });
   
-  // Quiz Logic
+  // Quiz Logik 
   const [currentQ, setCurrentQ] = useState(0);
   const [score, setScore] = useState(0);
   const [timeLeft, setTimeLeft] = useState(15);
   const [totalTime, setTotalTime] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState(null); 
   
-  // Payment
+  // Payment & Withdraw
   const [invoice, setInvoice] = useState({ req: '', hash: '', amount: 0 });
   const [withdrawLink, setWithdrawLink] = useState('');
   const [withdrawId, setWithdrawId] = useState(''); 
@@ -92,26 +96,42 @@ export default function App() {
   const [copied, setCopied] = useState(false);
   const [manualCheckLoading, setManualCheckLoading] = useState(false);
 
+  // --- ÜBERSETZUNGS HELPER ---
+  const txt = (key) => {
+    // Holt den Text aus translations.js basierend auf 'lang' (de/en/es)
+    // Fallback: Zeigt den Key an, falls Übersetzung fehlt
+    return TRANSLATIONS[lang]?.[key] || key;
+  };
+
   // --- INITIALISIERUNG ---
 
   useEffect(() => {
+    const savedLang = localStorage.getItem('satoshi_lang');
+    if (savedLang) setLang(savedLang);
+
     const storedUser = localStorage.getItem('satoshi_user');
     const savedPin = localStorage.getItem('saved_pin');
-    if (storedUser) {
+    
+    if (savedLang && storedUser) {
       setUser(JSON.parse(storedUser));
       setView('dashboard');
-    } else if (savedPin) {
-      setLoginPin(savedPin);
-    }
+    } else if (savedLang && !storedUser) {
+      // Wenn Sprache gewählt, aber nicht eingeloggt -> Login
+      setView('login');
+      if (savedPin) setLoginPin(savedPin);
+    } 
+    // Wenn gar nichts gespeichert -> Bleibt bei 'language_select'
   }, []);
 
   useEffect(() => {
     if (view === 'dashboard' && user) {
       fetchDuels(); fetchMyDuels(); fetchStats(); fetchLeaderboard();
+      
       const channel = supabase.channel('public:duels')
         .on('postgres_changes', { event: '*', schema: 'public', table: 'duels' }, () => {
           fetchDuels(); fetchMyDuels(); fetchStats(); fetchLeaderboard();
-        }).subscribe();
+        })
+        .subscribe();
       return () => supabase.removeChannel(channel);
     }
   }, [view, user]);
@@ -129,7 +149,8 @@ export default function App() {
   useEffect(() => {
     let interval;
     if (view === 'payment' && invoice.hash && !checkingPayment) {
-      checkPaymentStatus(); interval = setInterval(() => checkPaymentStatus(), 2000); 
+      checkPaymentStatus();
+      interval = setInterval(() => checkPaymentStatus(), 2000); 
     }
     return () => clearInterval(interval);
   }, [view, invoice, checkingPayment]);
@@ -142,6 +163,18 @@ export default function App() {
     return () => clearInterval(interval);
   }, [view, withdrawId]);
 
+  // --- SPRACH AUSWAHL ---
+  const selectLanguage = (l) => {
+    setLang(l);
+    localStorage.setItem('satoshi_lang', l);
+    // Navigiere weiter
+    if (localStorage.getItem('satoshi_user')) {
+      setView('dashboard');
+    } else {
+      setView('login');
+    }
+  };
+
   // --- LOGIN LOGIK ---
 
   const handleSmartLogin = async (e) => {
@@ -152,19 +185,26 @@ export default function App() {
     let pubkeyFromInput = null;
     let nameFromInput = null;
 
+    if (loginPin.length < 4) {
+      setLoginError(txt('login_error_pin'));
+      setIsLoginLoading(false); return;
+    }
+
     if (input.startsWith('npub1')) {
       try {
         const { type, data } = nip19.decode(input);
         if (type === 'npub') pubkeyFromInput = data;
       } catch (err) {
-        setLoginError("Ungültiger npub Key."); setIsLoginLoading(false); return;
+        setLoginError("Invalid NPUB"); setIsLoginLoading(false); return;
       }
     } else {
       nameFromInput = input.toLowerCase();
-      if (nameFromInput.length < 3) { setLoginError("Name zu kurz."); setIsLoginLoading(false); return; }
+      if (nameFromInput.length < 3) { setLoginError(txt('login_error_name')); setIsLoginLoading(false); return; }
     }
 
     try {
+      const hashedPin = await hashPin(loginPin);
+      
       let query = supabase.from('players').select('*');
       if (pubkeyFromInput) {
         query = query.eq('pubkey', pubkeyFromInput);
@@ -175,34 +215,33 @@ export default function App() {
 
       if (existingUser) {
         if (nameFromInput && existingUser.pubkey) {
-          setLoginError("Account ist Nostr-geschützt. Bitte npub nutzen.");
+          setLoginError(txt('login_error_nostr'));
           setIsLoginLoading(false); return;
         }
 
-        if (pubkeyFromInput) {
-          finishLogin(existingUser.name, pubkeyFromInput);
+        if (existingUser.pin === 'nostr-auth' || existingUser.pin === 'extension-auth') {
+           setLoginError(txt('login_error_wrong_pin') + " (Auth Mode mismatch)"); // Vereinfacht
+        } else if (existingUser.pin === hashedPin) {
+          finishLogin(existingUser.name, existingUser.pubkey);
         } else {
-           const hashedPin = await hashPin(loginPin);
-           if (existingUser.pin === hashedPin) {
-             finishLogin(existingUser.name, null);
-           } else {
-             setLoginError("Falsche PIN!");
-           }
+          setLoginError(txt('login_error_wrong_pin'));
         }
       } 
       else {
         if (pubkeyFromInput) {
+          localStorage.setItem('temp_nostr_pin', hashedPin);
           setNostrSetupPubkey(pubkeyFromInput);
           setIsLoginLoading(false);
           setView('nostr_setup');
         } else {
-          if (loginPin.length < 4) { setLoginError("PIN min. 4 Stellen."); setIsLoginLoading(false); return; }
-          const hashedPin = await hashPin(loginPin);
+          const { data: nameTaken } = await supabase.from('players').select('*').eq('name', nameFromInput).single();
+          if(nameTaken) { setLoginError(txt('login_error_taken')); setIsLoginLoading(false); return; }
+
           await supabase.from('players').insert([{ name: nameFromInput, pin: hashedPin }]);
           finishLogin(nameFromInput, null);
         }
       }
-    } catch (err) { setLoginError("Verbindungsfehler."); } 
+    } catch (err) { setLoginError("Error."); } 
     finally { if (!nostrSetupPubkey) setIsLoginLoading(false); }
   };
 
@@ -210,19 +249,22 @@ export default function App() {
     const userObj = { name, pubkey };
     setUser(userObj);
     localStorage.setItem('satoshi_user', JSON.stringify(userObj));
-    if (!pubkey) localStorage.setItem('saved_pin', loginPin);
+    localStorage.setItem('saved_pin', loginPin);
     setView('dashboard');
   };
 
   const handleExtensionLogin = async () => {
-    if (!window.nostr) { alert("Keine Nostr-Extension gefunden!"); return; }
+    if (!window.nostr) { alert("No Nostr Extension found!"); return; }
     try {
       const pubkey = await window.nostr.getPublicKey();
       setLoginInput(nip19.npubEncode(pubkey)); 
+      
       const { data: existingUser } = await supabase.from('players').select('*').eq('pubkey', pubkey).single();
+      
       if (existingUser) {
         finishLogin(existingUser.name, pubkey);
       } else {
+        localStorage.setItem('temp_nostr_pin', 'extension-auth'); 
         setNostrSetupPubkey(pubkey);
         setView('nostr_setup');
       }
@@ -232,19 +274,33 @@ export default function App() {
   const completeNostrRegistration = async (e) => {
     if(e) e.preventDefault();
     const cleanName = nostrSetupName.trim().toLowerCase();
-    if (cleanName.length < 3) { alert("Name zu kurz"); return; }
+    if (cleanName.length < 3) return;
     
     const { data: nameTaken } = await supabase.from('players').select('*').eq('name', cleanName).single();
-    if (nameTaken) { alert("Name schon vergeben."); return; }
+    if (nameTaken) { alert(txt('login_error_taken')); return; }
 
-    await supabase.from('players').insert([{ name: cleanName, pubkey: nostrSetupPubkey, pin: 'nostr-auth' }]);
+    const pinToSave = localStorage.getItem('temp_nostr_pin') || 'nostr-auth';
+    await supabase.from('players').insert([{ name: cleanName, pubkey: nostrSetupPubkey, pin: pinToSave }]);
+    
+    localStorage.removeItem('temp_nostr_pin');
     finishLogin(cleanName, nostrSetupPubkey);
   };
 
-  // --- NOSTR SHARING ---
+  const handleUpdatePin = async () => {
+    if (newPin.length < 4) { setSettingsMsg(txt('login_error_pin')); return; }
+    try {
+      const hashed = await hashPin(newPin);
+      await supabase.from('players').update({ pin: hashed }).eq('name', user.name);
+      setSettingsMsg(txt('settings_saved'));
+      localStorage.setItem('saved_pin', newPin);
+      setTimeout(() => { setView('dashboard'); setSettingsMsg(''); setNewPin(''); }, 1500);
+    } catch (e) { setSettingsMsg("Error saving."); }
+  };
 
   const shareDuelOnNostr = async (duel) => {
-    const shareText = `⚡ SATOSHI DUELL CHALLENGE ⚡\n\nIch wette ${duel.amount} Sats, dass du mich im Bitcoin-Quiz nicht schlägst!\n\nMein Score: ${duel.creator_score}/5 in ${duel.creator_time}s.\n\nTraust du dich? 👇\nhttps://satoshi-duell.vercel.app\n\n#Bitcoin #Lightning #SatoshiDuell #Zap`;
+    // String Replacement für den Share-Text
+    let shareString = txt('nostr_share_text');
+    shareString = shareString.replace('{amount}', duel.amount).replace('{score}', duel.creator_score);
 
     if (window.nostr) {
       try {
@@ -252,24 +308,23 @@ export default function App() {
           kind: 1,
           created_at: Math.floor(Date.now() / 1000),
           tags: [['t', 'satoshiDuell'], ['t', 'bitcoin']],
-          content: shareText,
+          content: shareString,
         };
         const signedEvent = await window.nostr.signEvent(event);
         DEFAULT_RELAYS.forEach(url => {
            const ws = new WebSocket(url);
            ws.onopen = () => { ws.send(JSON.stringify(["EVENT", signedEvent])); ws.close(); };
         });
-        alert("Auf Nostr veröffentlicht! ⚡");
-      } catch (e) {
-        alert("Fehler beim Signieren.");
-      }
+        alert("Sent to Nostr! ⚡");
+      } catch (e) { alert("Sign Error."); }
     } else {
-      navigator.clipboard.writeText(shareText);
-      alert("Text kopiert! Teile ihn auf Nostr.");
+      navigator.clipboard.writeText(shareString);
+      alert("Copied to clipboard!");
     }
   };
 
-  // --- SPIEL FUNKTIONEN ---
+  // --- DATEN LADEN ---
+
   const fetchLeaderboard = async () => {
     const { data } = await supabase.from('duels').select('*').eq('status', 'finished');
     if (!data) return;
@@ -334,12 +389,32 @@ export default function App() {
     } catch (e) {}
   };
 
-  const handleManualCheck = async () => { setManualCheckLoading(true); await checkPaymentStatus(); setTimeout(() => setManualCheckLoading(false), 1000); };
+  const handleManualCheck = async () => {
+    setManualCheckLoading(true);
+    await checkPaymentStatus(); 
+    setTimeout(() => setManualCheckLoading(false), 1000);
+  };
+
   const resetGameState = () => { setWithdrawLink(''); setWithdrawId(''); setScore(0); setTotalTime(0); setCurrentQ(0); setInvoice({ req: '', hash: '', amount: 0 }); setChallengePlayer(null); setSelectedAnswer(null); };
   const startChallenge = (target) => { setChallengePlayer(target); openCreateSetup(); };
   const openCreateSetup = () => { resetGameState(); setWager(500); setView('create_setup'); };
-  const submitCreateDuel = async () => { const qs = getRandomQuestions(); setQuestions(qs); setRole('creator'); await fetchInvoice(wager); };
-  const initJoinDuel = async (duel) => { resetGameState(); setActiveDuel(duel); setQuestions(duel.questions); setRole('challenger'); await fetchInvoice(duel.amount); };
+  
+  // WICHTIG: Hier holen wir jetzt Indices [1, 55, 2] statt Objekte
+  const submitCreateDuel = async () => { 
+    const indices = getRandomQuestionIndices(); 
+    setQuestionIndices(indices); 
+    setRole('creator'); 
+    await fetchInvoice(wager); 
+  };
+  
+  const initJoinDuel = async (duel) => { 
+    resetGameState(); 
+    setActiveDuel(duel); 
+    setQuestionIndices(duel.questions); // Indices aus DB laden
+    setRole('challenger'); 
+    await fetchInvoice(duel.amount); 
+  };
+
   const fetchInvoice = async (amountSat) => {
     try {
       const res = await fetch(`${LNBITS_URL}/api/v1/payments`, {
@@ -351,23 +426,44 @@ export default function App() {
       setCheckingPayment(false); setView('payment');
     } catch (e) { alert("LNbits Error"); setView('dashboard'); }
   };
+
   const startGame = () => { setCurrentQ(0); setScore(0); setTotalTime(0); setTimeLeft(15); setSelectedAnswer(null); setView('game'); };
+
   const handleAnswer = (index) => {
     if (selectedAnswer !== null) return; 
+
     setSelectedAnswer(index);
     setTotalTime(prev => prev + (15 - timeLeft)); 
-    const isCorrect = (index === questions[currentQ].correct);
+
+    // Die Nummer der aktuellen Frage
+    const currentQuestionID = questionIndices[currentQ];
+    
+    // Fallback für alte Duelle in der DB (die noch Objekte waren)
+    // Wenn 'currentQuestionID' ein Objekt ist, ist es Legacy. Wenn es eine Zahl ist, ist es Neu.
+    const isLegacy = typeof currentQuestionID === 'object';
+    
+    const correctIndex = isLegacy ? currentQuestionID.correct : ALL_QUESTIONS[currentQuestionID].correct;
+
+    const isCorrect = (index === correctIndex);
     if (isCorrect) setScore(s => s + 1);
+
     setTimeout(() => {
-      if (currentQ < questions.length - 1) { setCurrentQ(p => p + 1); setTimeLeft(15); setSelectedAnswer(null); } 
-      else { finishGameLogic(isCorrect ? score + 1 : score); }
+      if (currentQ < 4) { // 5 Fragen (0-4)
+        setCurrentQ(p => p + 1);
+        setTimeLeft(15);
+        setSelectedAnswer(null);
+      } else {
+        finishGameLogic(isCorrect ? score + 1 : score);
+      }
     }, 2000);
   };
+
   const finishGameLogic = async (finalScore = score) => {
     if (role === 'creator') {
       await supabase.from('duels').insert([{
         creator: user.name, creator_score: finalScore, creator_time: totalTime, 
-        questions: questions, status: 'open', amount: invoice.amount, target_player: challengePlayer
+        questions: questionIndices, // Wir speichern die Indices [1, 5, 2...]
+        status: 'open', amount: invoice.amount, target_player: challengePlayer
       }]);
       setView('dashboard');
     } else {
@@ -377,6 +473,7 @@ export default function App() {
       if (data) { setActiveDuel(data[0]); determineWinner(data[0], 'challenger', finalScore, totalTime); }
     }
   };
+
   const openPastDuel = (duel) => {
     setActiveDuel(duel);
     const myRole = duel.creator === user.name ? 'creator' : 'challenger';
@@ -385,16 +482,19 @@ export default function App() {
     const myT = myRole === 'creator' ? duel.creator_time : duel.challenger_time;
     determineWinner(duel, myRole, myS, myT);
   };
+
   const determineWinner = async (duel, myRole, myScore, myTime) => {
     setView('result_final');
     const oppScore = myRole === 'creator' ? (duel.challenger_score || 0) : duel.creator_score;
     const oppTime = myRole === 'creator' ? (duel.challenger_time || 999) : duel.creator_time;
     const won = myScore > oppScore || (myScore === oppScore && myTime < oppTime);
+    
     if (duel.status === 'finished' && won && !duel.claimed) { 
       confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } }); 
       await createWithdrawLink(duel.amount, duel.id); 
     }
   };
+
   const createWithdrawLink = async (duelAmount, duelId) => {
     if (!ADMIN_KEY) return;
     try {
@@ -407,9 +507,40 @@ export default function App() {
       if (data.lnurl) { setWithdrawLink(data.lnurl); setWithdrawId(data.id); await supabase.from('duels').update({ claimed: true }).eq('id', duelId); }
     } catch(e) { console.error(e); }
   };
-  const handleLogout = () => { localStorage.clear(); setUser(null); setView('login'); };
+
+  const handleLogout = () => { 
+    localStorage.clear(); 
+    setUser(null); 
+    setView('language_select'); // Logout führt zur Sprachwahl
+  };
 
   // --- VIEWS ---
+
+  // 1. NEUER VIEW: SPRACHWAHL (Erster Screen)
+  if (view === 'language_select') return (
+    <Background>
+      <div className="w-full max-w-sm flex flex-col gap-8 animate-float text-center px-4">
+        <div className="flex flex-col items-center justify-center">
+           <div className="relative mb-4">
+              <div className="absolute inset-0 bg-orange-500 blur-[50px] opacity-20 rounded-full"></div>
+              <img src="/logo.png" alt="Satoshi Duell" className="relative w-48 h-48 object-contain drop-shadow-2xl mx-auto" />
+           </div>
+           <h1 className="text-4xl font-black text-white uppercase drop-shadow-md">SELECT LANGUAGE</h1>
+        </div>
+        <div className="grid gap-4">
+          <button onClick={() => selectLanguage('de')} className="bg-neutral-900/80 hover:bg-orange-500 hover:text-black border border-white/10 text-white p-6 rounded-2xl flex items-center gap-4 transition-all group">
+             <span className="text-4xl">🇩🇪</span> <span className="font-bold text-xl uppercase tracking-widest">Deutsch</span>
+          </button>
+          <button onClick={() => selectLanguage('en')} className="bg-neutral-900/80 hover:bg-orange-500 hover:text-black border border-white/10 text-white p-6 rounded-2xl flex items-center gap-4 transition-all group">
+             <span className="text-4xl">🇺🇸</span> <span className="font-bold text-xl uppercase tracking-widest">English</span>
+          </button>
+          <button onClick={() => selectLanguage('es')} className="bg-neutral-900/80 hover:bg-orange-500 hover:text-black border border-white/10 text-white p-6 rounded-2xl flex items-center gap-4 transition-all group">
+             <span className="text-4xl">🇪🇸</span> <span className="font-bold text-xl uppercase tracking-widest">Español</span>
+          </button>
+        </div>
+      </div>
+    </Background>
+  );
 
   if (view === 'login') return (
     <Background>
@@ -428,23 +559,22 @@ export default function App() {
           <div>
             <input 
               type="text" 
-              placeholder="GAMERTAG ODER NPUB" 
+              placeholder={txt('login_placeholder')} 
               value={loginInput} 
               onChange={(e) => setLoginInput(e.target.value)} 
               className="w-full p-4 rounded-xl bg-[#0a0a0a] border border-white/10 text-white outline-none focus:border-orange-500 focus:bg-black transition-all font-bold uppercase text-center shadow-lg placeholder:text-neutral-600"
             />
-            <p className="text-[10px] text-neutral-500 mt-1 uppercase font-bold tracking-wider">NPUB = Kein Passwort nötig</p>
           </div>
           <input 
             type="password" 
-            placeholder="PIN (Nur bei Gamertag)" 
+            placeholder={txt('pin_placeholder')}
             value={loginPin} 
             onChange={(e) => setLoginPin(e.target.value)} 
             className="w-full p-4 rounded-xl bg-[#0a0a0a] border border-white/10 text-white outline-none focus:border-orange-500 focus:bg-black transition-all font-bold text-center shadow-lg placeholder:text-neutral-600"
           />
           {loginError && <p className="text-red-500 text-xs font-bold">{loginError}</p>}
           <Button variant="primary" onClick={handleSmartLogin} disabled={isLoginLoading}>
-             {isLoginLoading ? <Loader2 className="animate-spin mx-auto"/> : "LOGIN / START"}
+             {isLoginLoading ? <Loader2 className="animate-spin mx-auto"/> : txt('login_btn')}
           </Button>
         </form>
 
@@ -453,7 +583,25 @@ export default function App() {
           <span className="relative bg-[#1a1a1a] px-3 text-[10px] uppercase font-bold text-neutral-600 rounded">Option</span>
         </div>
 
-        <Button variant="secondary" onClick={handleExtensionLogin}><Fingerprint size={18}/> Login mit Alby (Extension)</Button>
+        <Button variant="secondary" onClick={handleExtensionLogin}><Fingerprint size={18}/> {txt('btn_nostr_ext')}</Button>
+        
+        {/* SPRACHE WECHSELN BUTTON */}
+        <button onClick={() => setView('language_select')} className="text-neutral-500 text-xs uppercase font-bold mt-4 hover:text-white">Change Language 🌐</button>
+      </div>
+    </Background>
+  );
+
+  if (view === 'settings') return (
+    <Background>
+      <div className="w-full max-w-sm flex flex-col gap-6 animate-float text-center px-4">
+        <h2 className="text-2xl font-black text-white uppercase">{txt('settings_title')}</h2>
+        <p className="text-neutral-400 text-sm">{txt('settings_text')}</p>
+        <div className="flex flex-col gap-4">
+           <input type="password" placeholder={txt('pin_placeholder')} value={newPin} onChange={(e) => setNewPin(e.target.value)} className="w-full p-4 rounded-xl bg-[#0a0a0a] border border-white/10 text-white outline-none focus:border-orange-500 font-bold text-center shadow-lg"/>
+           {settingsMsg && <p className={`text-xs font-bold ${settingsMsg.includes('!') ? 'text-green-500' : 'text-red-500'}`}>{settingsMsg}</p>}
+           <Button variant="primary" onClick={handleUpdatePin}><Save size={18}/> {txt('settings_save')}</Button>
+           <button onClick={() => setView('dashboard')} className="text-xs text-neutral-600 uppercase font-bold mt-4">{txt('settings_back')}</button>
+        </div>
       </div>
     </Background>
   );
@@ -462,11 +610,11 @@ export default function App() {
     <Background>
        <div className="w-full max-w-sm flex flex-col gap-6 animate-float text-center px-4">
           <div className="w-16 h-16 bg-purple-500/20 rounded-full flex items-center justify-center mx-auto mb-2 text-purple-400 border border-purple-500/50"><Globe size={32}/></div>
-          <h2 className="text-2xl font-black text-white uppercase">Willkommen Bitcoiner!</h2>
-          <p className="text-neutral-400 text-sm">Dein Nostr Key wurde erkannt.<br/>Wähle nun deinen Gamertag für die Rangliste.</p>
+          <h2 className="text-2xl font-black text-white uppercase">{txt('nostr_setup_title')}</h2>
+          <p className="text-neutral-400 text-sm">{txt('nostr_setup_text')}</p>
           <form onSubmit={completeNostrRegistration} className="flex flex-col gap-4">
-            <input type="text" placeholder="DEIN GAMERTAG" value={nostrSetupName} onChange={(e) => setNostrSetupName(e.target.value)} className="w-full p-4 rounded-xl bg-[#0a0a0a] border border-white/10 text-white outline-none focus:border-orange-500 font-bold uppercase text-center shadow-lg"/>
-            <Button variant="primary" onClick={completeNostrRegistration}>Abschließen</Button>
+            <input type="text" placeholder="GAMERTAG" value={nostrSetupName} onChange={(e) => setNostrSetupName(e.target.value)} className="w-full p-4 rounded-xl bg-[#0a0a0a] border border-white/10 text-white outline-none focus:border-orange-500 font-bold uppercase text-center shadow-lg"/>
+            <Button variant="primary" onClick={completeNostrRegistration}>OK</Button>
             <button onClick={() => setView('login')} className="text-xs text-neutral-600 uppercase font-bold">Zurück</button>
           </form>
        </div>
@@ -479,27 +627,30 @@ export default function App() {
         <Card className="flex justify-between items-center py-3 border-orange-500/20">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-orange-500 to-yellow-500 flex items-center justify-center font-black text-black text-xl">{user.name.charAt(0).toUpperCase()}</div>
-            <div className="text-left"><p className="font-bold text-white text-sm uppercase">{user.name}</p><p className="text-[10px] text-orange-400 font-mono">{stats.satsWon.toLocaleString()} sats gewonnen</p></div>
+            <div className="text-left"><p className="font-bold text-white text-sm uppercase">{user.name}</p><p className="text-[10px] text-orange-400 font-mono">{stats.satsWon.toLocaleString()} {txt('sats_won')}</p></div>
           </div>
-          <button onClick={handleLogout} className="p-2 text-neutral-500 hover:text-white"><LogOut size={18}/></button>
+          <div className="flex gap-2">
+             <button onClick={() => setView('settings')} className="p-2 text-neutral-500 hover:text-white"><Settings size={18}/></button>
+             <button onClick={handleLogout} className="p-2 text-neutral-500 hover:text-white"><LogOut size={18}/></button>
+          </div>
         </Card>
 
-        <Button onClick={openCreateSetup} className="py-4 text-lg animate-neon"><Plus size={24}/> NEUES DUELL</Button>
+        <Button onClick={openCreateSetup} className="py-4 text-lg animate-neon"><Plus size={24}/> {txt('dashboard_new_duel')}</Button>
 
         <div className="flex-1 overflow-hidden flex flex-col gap-4">
           <div className="flex flex-col gap-2 flex-1 overflow-hidden">
-             <div className="text-[10px] font-black text-neutral-500 uppercase tracking-widest px-2">Offene Lobby</div>
+             <div className="text-[10px] font-black text-neutral-500 uppercase tracking-widest px-2">{txt('lobby_open')}</div>
              <div className="overflow-y-auto space-y-2 pr-1 custom-scrollbar">
                {duelsList.filter(d => d.creator !== user.name).map(d => (
                  <div key={d.id} className="bg-white/5 p-3 rounded-xl flex justify-between items-center border border-white/5">
                    <div><p className="font-bold text-white text-xs uppercase">{d.creator} {d.target_player && "🎯"}</p><p className="text-[10px] text-orange-400 font-mono">{d.amount} sats</p></div>
-                   <button onClick={() => initJoinDuel(d)} className="bg-orange-500 text-black px-4 py-2 rounded-lg text-[10px] font-black uppercase">Fight</button>
+                   <button onClick={() => initJoinDuel(d)} className="bg-orange-500 text-black px-4 py-2 rounded-lg text-[10px] font-black uppercase">{txt('lobby_fight')}</button>
                  </div>
                ))}
              </div>
           </div>
           <div className="flex flex-col gap-2 flex-1 overflow-hidden">
-             <div className="text-[10px] font-black text-neutral-500 uppercase tracking-widest px-2">Deine Geschichte</div>
+             <div className="text-[10px] font-black text-neutral-500 uppercase tracking-widest px-2">{txt('lobby_history')}</div>
              <div className="overflow-y-auto space-y-2 pr-1 custom-scrollbar">
                {myDuels.map(d => (
                  <div key={d.id} className="bg-neutral-900/50 p-3 rounded-xl border border-white/5 flex flex-col gap-2">
@@ -509,18 +660,14 @@ export default function App() {
                        <p className="text-[10px] font-mono text-orange-500">{d.amount} sats</p>
                      </div>
                      {d.status === 'finished' ? (
-                       <button onClick={() => openPastDuel(d)} className="text-orange-500 font-black uppercase text-[10px]">{d.claimed ? 'Bezahlt ✓' : 'Details'}</button>
-                     ) : <span className="animate-pulse text-neutral-600 uppercase font-black text-[10px]">Warten...</span>}
+                       <button onClick={() => openPastDuel(d)} className="text-orange-500 font-black uppercase text-[10px]">{d.claimed ? txt('lobby_paid') : txt('lobby_details')}</button>
+                     ) : <span className="animate-pulse text-neutral-600 uppercase font-black text-[10px]">{txt('lobby_wait')}</span>}
                    </div>
-
-                   {/* DER GROSSE NEUE BUTTON FÜR NOSTR */}
+                   {/* NOSTR SHARE BUTTON */}
                    {d.status === 'open' && d.creator === user.name && (
-                     <button
-                       onClick={(e) => {e.stopPropagation(); shareDuelOnNostr(d);}}
-                       className="w-full bg-purple-500/10 hover:bg-purple-600 border border-purple-500/30 hover:border-purple-500 text-purple-300 hover:text-white py-2 rounded-lg flex items-center justify-center gap-2 transition-all group"
-                     >
+                     <button onClick={(e) => {e.stopPropagation(); shareDuelOnNostr(d);}} className="w-full bg-purple-500/10 hover:bg-purple-600 border border-purple-500/30 hover:border-purple-500 text-purple-300 hover:text-white py-2 rounded-lg flex items-center justify-center gap-2 transition-all group">
                        <Share2 size={14} className="group-hover:animate-pulse"/>
-                       <span className="text-[10px] font-bold uppercase tracking-widest">Herausforderung auf Nostr teilen</span>
+                       <span className="text-[10px] font-bold uppercase tracking-widest">{txt('share_nostr')}</span>
                      </button>
                    )}
                  </div>
@@ -530,7 +677,7 @@ export default function App() {
         </div>
         
         <div className="flex flex-col gap-2 bg-neutral-900/50 p-3 rounded-2xl border border-white/5 mt-2">
-          <div className="flex items-center gap-2 text-orange-500 text-[10px] font-black uppercase tracking-widest px-1"><Trophy size={14}/> Top 10 Bestenliste</div>
+          <div className="flex items-center gap-2 text-orange-500 text-[10px] font-black uppercase tracking-widest px-1"><Trophy size={14}/> {txt('leaderboard')}</div>
           <div className="space-y-1.5 max-h-[140px] overflow-y-auto custom-scrollbar">
             {leaderboard.map((p, i) => (
               <div key={p.name} className="flex justify-between items-center bg-black/20 p-2 rounded-lg text-xs">
@@ -548,9 +695,139 @@ export default function App() {
     </Background>
   );
 
-  // RESTLICHE VIEWS
-  if (view === 'create_setup') return (<Background><Card className="w-full max-w-sm text-center"><h2 className="text-xl font-black text-white mb-8 uppercase italic tracking-widest">{challengePlayer ? `Target: ${challengePlayer.toUpperCase()}` : 'Einsatz wählen'}</h2><input type="number" value={wager} onChange={(e) => setWager(Number(e.target.value))} className="text-6xl font-black text-orange-500 font-mono text-center bg-transparent w-full outline-none mb-10"/><div className="grid grid-cols-4 gap-2 mb-8">{[100, 500, 1000, 2100].map(amt => (<button key={amt} onClick={() => setWager(amt)} className={`py-2 rounded-lg text-xs font-bold border ${wager === amt ? 'bg-orange-500 text-black border-orange-500' : 'bg-neutral-800 text-neutral-400 border-white/5'}`}>{amt}</button>))}</div><div className="grid gap-3"><Button variant="primary" onClick={submitCreateDuel}>Start Duel</Button><button onClick={() => setView('dashboard')} className="text-xs text-neutral-600 uppercase font-bold mt-2">Abbrechen</button></div></Card></Background>);
-  if (view === 'payment') return (<Background><div className="w-full max-w-sm text-center"><h2 className="text-2xl font-black text-white mb-8 uppercase">Zahlen zum Spielen</h2><div className="bg-white p-4 rounded-3xl mx-auto mb-8 flex justify-center shadow-2xl">{invoice.req && <QRCodeCanvas value={`lightning:${invoice.req.toUpperCase()}`} size={220} includeMargin={true}/>}</div><div className="grid gap-3"><Button variant="primary" onClick={handleManualCheck}>Status Prüfen</Button><Button variant="secondary" onClick={() => window.location.href = `lightning:${invoice.req}`}>Wallet öffnen</Button><button onClick={() => setView('dashboard')} className="text-xs text-neutral-500 mt-4 font-bold uppercase">Abbrechen</button></div></div></Background>);
-  if (view === 'game') return (<Background><div className="w-full max-w-sm mx-auto flex flex-col justify-center min-h-[60vh] px-4"><div className="flex justify-between items-end mb-4 px-1"><span className="text-xs font-bold text-neutral-500 uppercase">Frage {currentQ + 1}/5</span><span className={`text-4xl font-black font-mono ${timeLeft < 5 ? 'text-red-500 drop-shadow-[0_0_10px_red]' : 'text-white'}`}>{timeLeft}</span></div><div className="w-full h-2 bg-neutral-900 rounded-full mb-10 overflow-hidden"><div className="h-full bg-orange-500 transition-all duration-1000 ease-linear" style={{ width: `${(timeLeft / 15) * 100}%` }}></div></div><h3 className="text-2xl font-bold text-white text-center mb-10 min-h-[100px]">"{questions[currentQ].q}"</h3><div className="grid gap-3">{questions[currentQ].options.map((opt, idx) => { let btnClass = "bg-neutral-900/50 hover:bg-orange-500 border-white/10"; const isCorrect = idx === questions[currentQ].correct; const isSelected = selectedAnswer === idx; if (selectedAnswer !== null) { if (isCorrect) { btnClass = "bg-green-500 text-black border-green-500 shadow-[0_0_15px_rgba(34,197,94,0.6)]"; } else if (isSelected) { btnClass = "bg-red-500 text-white border-red-500"; } else { btnClass = "opacity-30 border-transparent"; } } return (<button key={idx} onClick={() => handleAnswer(idx)} disabled={selectedAnswer !== null} className={`border p-5 rounded-2xl text-left transition-all active:scale-[0.95] flex items-center gap-4 ${btnClass}`}><span className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-sm ${selectedAnswer !== null && isCorrect ? 'bg-black text-green-500' : 'bg-neutral-800 text-neutral-400'}`}>{String.fromCharCode(65 + idx)}</span><span className="font-bold text-lg text-neutral-200">{opt}</span></button>); })}</div></div></Background>);
-  if (view === 'result_final') { const duel = activeDuel; const iAmCreator = role === 'creator'; const myS = iAmCreator ? duel.creator_score : duel.challenger_score; const myT = iAmCreator ? duel.creator_time : duel.challenger_time; const opS = iAmCreator ? (duel.challenger_score ?? 0) : (duel.creator_score ?? 0); const opT = iAmCreator ? (duel.challenger_time ?? 999) : (duel.creator_time ?? 999); const won = myS > opS || (myS === opS && myT < opT); const isFinished = duel.status === 'finished'; return (<Background><div className="w-full max-w-sm text-center"><div className={`mx-auto w-24 h-24 rounded-full flex items-center justify-center mb-8 shadow-2xl ring-4 ring-offset-4 ring-offset-black ${won && isFinished ? "bg-green-500 ring-green-500" : "bg-red-500 ring-red-500"}`}>{won && isFinished ? <Trophy size={48} className="text-black animate-bounce"/> : <Flame size={48} className="text-black"/>}</div><h2 className={`text-5xl font-black mb-10 uppercase ${won && isFinished ? "text-green-500" : "text-red-500"}`}>{!isFinished ? "Warten..." : won ? "SIEG!" : "NIEDERLAGE"}</h2><div className="grid grid-cols-2 gap-4 mb-10"><Card className="p-4 bg-white/5 border-orange-500/30"><p className="text-[10px] font-bold text-neutral-500 uppercase">Du</p><p className="text-4xl font-black text-white font-mono">{myS}</p><p className="text-[10px] text-neutral-500 italic">{myT}s</p></Card><Card className="p-4 bg-white/5 opacity-50"><p className="text-[10px] font-bold text-neutral-500 uppercase">Gegner</p><p className="text-4xl font-black text-white font-mono">{duel.status === 'finished' ? opS : '?'}</p><p className="text-[10px] text-neutral-500 italic">{duel.status === 'finished' ? opT + 's' : 'läuft...'}</p></Card></div>{withdrawLink ? (<div className="animate-in slide-in-from-bottom-5 duration-700"><div className="bg-white p-4 rounded-3xl inline-block mb-6 shadow-2xl"><QRCodeCanvas value={`lightning:${withdrawLink.toUpperCase()}`} size={180}/></div><Button variant="success" onClick={() => window.location.href = `lightning:${withdrawLink}`}>GEWINN ABHOLEN ⚡</Button><p className="text-orange-400 text-[10px] mt-4 font-mono animate-pulse uppercase tracking-widest italic">App springt nach Einlösung automatisch zurück</p></div>) : <button onClick={() => setView('dashboard')} className="text-neutral-500 font-black uppercase text-xs tracking-widest mt-6">Zurück zur Lobby</button>}</div></Background>); }
+  if (view === 'create_setup') return (
+    <Background>
+      <Card className="w-full max-w-sm text-center">
+        <h2 className="text-xl font-black text-white mb-8 uppercase italic tracking-widest">
+          {challengePlayer ? `${txt('setup_target')} ${challengePlayer.toUpperCase()}` : txt('setup_title')}
+        </h2>
+        <input type="number" value={wager} onChange={(e) => setWager(Number(e.target.value))} className="text-6xl font-black text-orange-500 font-mono text-center bg-transparent w-full outline-none mb-10"/>
+        <div className="grid grid-cols-4 gap-2 mb-8">
+          {[100, 500, 1000, 2100].map(amt => (
+            <button key={amt} onClick={() => setWager(amt)} className={`py-2 rounded-lg text-xs font-bold border ${wager === amt ? 'bg-orange-500 text-black border-orange-500' : 'bg-neutral-800 text-neutral-400 border-white/5'}`}>{amt}</button>
+          ))}
+        </div>
+        <div className="grid gap-3">
+          <Button variant="primary" onClick={submitCreateDuel}>{txt('btn_start')}</Button>
+          <button onClick={() => setView('dashboard')} className="text-xs text-neutral-600 uppercase font-bold mt-2">{txt('btn_cancel')}</button>
+        </div>
+      </Card>
+    </Background>
+  );
+
+  if (view === 'payment') return (
+    <Background>
+      <div className="w-full max-w-sm text-center">
+        <h2 className="text-2xl font-black text-white mb-8 uppercase">{txt('pay_title')}</h2>
+        <div className="bg-white p-4 rounded-3xl mx-auto mb-8 flex justify-center shadow-2xl">
+          {invoice.req && <QRCodeCanvas value={`lightning:${invoice.req.toUpperCase()}`} size={220} includeMargin={true}/>}
+        </div>
+        <div className="grid gap-3">
+          <Button variant="primary" onClick={handleManualCheck}>{txt('btn_check')}</Button>
+          <Button variant="secondary" onClick={() => window.location.href = `lightning:${invoice.req}`}>{txt('btn_wallet')}</Button>
+          <button onClick={() => setView('dashboard')} className="text-xs text-neutral-500 mt-4 font-bold uppercase">{txt('btn_cancel')}</button>
+        </div>
+      </div>
+    </Background>
+  );
+
+  if (view === 'game') {
+    // MAGIE: Wir laden den Text passend zur Sprache!
+    const questionIndex = questionIndices[currentQ];
+    
+    // Legacy Support: Falls alte DB Einträge Objekte sind
+    const isLegacy = typeof questionIndex === 'object';
+    
+    const questionData = isLegacy ? questionIndex : ALL_QUESTIONS[questionIndex][lang];
+    // Bei Legacy sind Options direkt im Objekt, bei Neu (Index) im ALL_QUESTIONS Array
+    const options = isLegacy ? questionIndex.options : questionData.options;
+    const correctIndex = isLegacy ? questionIndex.correct : ALL_QUESTIONS[questionIndex].correct;
+
+    return (
+      <Background>
+        <div className="w-full max-w-sm mx-auto flex flex-col justify-center min-h-[60vh] px-4">
+          <div className="flex justify-between items-end mb-4 px-1">
+            <span className="text-xs font-bold text-neutral-500 uppercase">{txt('game_q')} {currentQ + 1}/5</span>
+            <span className={`text-4xl font-black font-mono ${timeLeft < 5 ? 'text-red-500 drop-shadow-[0_0_10px_red]' : 'text-white'}`}>{timeLeft}</span>
+          </div>
+          <div className="w-full h-2 bg-neutral-900 rounded-full mb-10 overflow-hidden"><div className="h-full bg-orange-500 transition-all duration-1000 ease-linear" style={{ width: `${(timeLeft / 15) * 100}%` }}></div></div>
+          <h3 className="text-2xl font-bold text-white text-center mb-10 min-h-[100px]">"{questionData.q}"</h3>
+          <div className="grid gap-3">
+            {options.map((opt, idx) => {
+               let btnClass = "bg-neutral-900/50 hover:bg-orange-500 border-white/10";
+               const isCorrect = idx === correctIndex;
+               const isSelected = selectedAnswer === idx;
+
+               if (selectedAnswer !== null) {
+                 if (isCorrect) {
+                   btnClass = "bg-green-500 text-black border-green-500 shadow-[0_0_15px_rgba(34,197,94,0.6)]";
+                 } else if (isSelected) {
+                   btnClass = "bg-red-500 text-white border-red-500";
+                 } else {
+                   btnClass = "opacity-30 border-transparent";
+                 }
+               }
+
+               return (
+                 <button 
+                   key={idx} 
+                   onClick={() => handleAnswer(idx)} 
+                   disabled={selectedAnswer !== null} 
+                   className={`border p-5 rounded-2xl text-left transition-all active:scale-[0.95] flex items-center gap-4 ${btnClass}`}
+                 >
+                   <span className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-sm ${selectedAnswer !== null && isCorrect ? 'bg-black text-green-500' : 'bg-neutral-800 text-neutral-400'}`}>
+                     {String.fromCharCode(65 + idx)}
+                   </span>
+                   <span className="font-bold text-lg text-neutral-200">{opt}</span>
+                 </button>
+               );
+            })}
+          </div>
+        </div>
+      </Background>
+    );
+  }
+
+  if (view === 'result_final') {
+    const duel = activeDuel;
+    const iAmCreator = role === 'creator';
+    const myS = iAmCreator ? duel.creator_score : duel.challenger_score;
+    const myT = iAmCreator ? duel.creator_time : duel.challenger_time;
+    const opS = iAmCreator ? (duel.challenger_score ?? 0) : (duel.creator_score ?? 0);
+    const opT = iAmCreator ? (duel.challenger_time ?? 999) : (duel.creator_time ?? 999);
+    const won = myS > opS || (myS === opS && myT < opT);
+    const isFinished = duel.status === 'finished';
+
+    return (
+      <Background>
+         <div className="w-full max-w-sm text-center">
+            <div className={`mx-auto w-24 h-24 rounded-full flex items-center justify-center mb-8 shadow-2xl ring-4 ring-offset-4 ring-offset-black ${won && isFinished ? "bg-green-500 ring-green-500" : "bg-red-500 ring-red-500"}`}>
+               {won && isFinished ? <Trophy size={48} className="text-black animate-bounce"/> : <Flame size={48} className="text-black"/>}
+            </div>
+            <h2 className={`text-5xl font-black mb-10 uppercase ${won && isFinished ? "text-green-500" : "text-red-500"}`}>
+              {!isFinished ? txt('result_wait') : won ? txt('result_win') : txt('result_loss')}
+            </h2>
+            <div className="grid grid-cols-2 gap-4 mb-10">
+              <Card className="p-4 bg-white/5 border-orange-500/30">
+                <p className="text-[10px] font-bold text-neutral-500 uppercase">Du</p>
+                <p className="text-4xl font-black text-white font-mono">{myS}</p>
+                <p className="text-[10px] text-neutral-500 italic">{myT}s</p>
+              </Card>
+              <Card className="p-4 bg-white/5 opacity-50">
+                <p className="text-[10px] font-bold text-neutral-500 uppercase">Gegner</p>
+                <p className="text-4xl font-black text-white font-mono">{duel.status === 'finished' ? opS : '?'}</p>
+                <p className="text-[10px] text-neutral-500 italic">{duel.status === 'finished' ? opT + 's' : 'läuft...'}</p>
+              </Card>
+            </div>
+            {withdrawLink ? (
+              <div className="animate-in slide-in-from-bottom-5 duration-700">
+                <div className="bg-white p-4 rounded-3xl inline-block mb-6 shadow-2xl"><QRCodeCanvas value={`lightning:${withdrawLink.toUpperCase()}`} size={180}/></div>
+                <Button variant="success" onClick={() => window.location.href = `lightning:${withdrawLink}`}>{txt('btn_withdraw')}</Button>
+                <p className="text-orange-400 text-[10px] mt-4 font-mono animate-pulse uppercase tracking-widest italic">App springt nach Einlösung automatisch zurück</p>
+              </div>
+            ) : <button onClick={() => setView('dashboard')} className="text-neutral-500 font-black uppercase text-xs tracking-widest mt-6">{txt('btn_lobby')}</button>}
+         </div>
+      </Background>
+    );
+  }
 }
