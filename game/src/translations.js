@@ -31,7 +31,7 @@ export const TRANSLATIONS = {
     sats_won: "sats gewonnen",
     setup_title: "EINSATZ WÄHLEN",
     setup_target: "TARGET:",
-    btn_start: "START DUEL",
+    btn_start: "START DUELL",
     btn_cancel: "ABBRECHEN",
     pay_title: "ZAHLEN ZUM SPIELEN",
     btn_check: "STATUS PRÜFEN",
