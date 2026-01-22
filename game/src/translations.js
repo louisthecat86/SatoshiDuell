@@ -57,6 +57,11 @@ export const TRANSLATIONS = {
     setup_title: "EINSATZ WÄHLEN",
     setup_target: "TARGET:",
     setup_wager_label: "DEIN EINSATZ (SATS)",
+    lobby_challenges: "DICH HERAUSGEFORDERT 🫵",
+    btn_refund: "EINSATZ ZURÜCK",
+    refund_info: "Gegner hat 3 Tage nicht reagiert.",
+    refund_wait: "Warte auf Gegner...",
+    challenge_sent: "Herausforderung an",
   },
   en: {
     // NEUE EINTRÄGE:
@@ -115,6 +120,11 @@ export const TRANSLATIONS = {
     setup_title: "CHOOSE WAGER",
     setup_target: "TARGET:",
     setup_wager_label: "YOUR WAGER (SATS)",
+    lobby_challenges: "CHALLENGED YOU 🫵",
+    btn_refund: "REFUND WAGER",
+    refund_info: "Opponent inactive for 3 days.",
+    refund_wait: "Waiting for opponent...",
+    challenge_sent: "Challenge sent to",
   },
   es: {
     // NEUE EINTRÄGE:
@@ -173,5 +183,10 @@ export const TRANSLATIONS = {
     setup_title: "ELIGE APUESTA",
     setup_target: "OBJETIVO:",
     setup_wager_label: "TU APUESTA (SATS)",
+    lobby_challenges: "TE DESAFIÓ 🫵",
+    btn_refund: "REEMBOLSO",
+    refund_info: "Oponente inactivo por 3 días.",
+    refund_wait: "Esperando al oponente...",
+    challenge_sent: "Desafío enviado a",
   }
 };

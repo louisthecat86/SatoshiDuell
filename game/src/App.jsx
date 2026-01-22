@@ -26,14 +26,14 @@ import {
   Save, 
   Heart,
   Github,
-  CheckCircle // NEU: Für das Bestätigungs-Icon
+  CheckCircle,
+  RefreshCcw // Für den Refund Button
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { QRCodeCanvas } from 'qrcode.react';
 import { nip19 } from 'nostr-tools'; 
 
 // --- EIGENE IMPORTS ---
-// HINWEIS: Keine Fragen mehr im Code (Sicherheit), kommen per API
 import { TRANSLATIONS } from './translations'; 
 import Button from './components/Button';
 import Card from './components/Card';
@@ -44,7 +44,6 @@ const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_KEY;
 const LNBITS_URL = import.meta.env.VITE_LNBITS_URL;
 const INVOICE_KEY = import.meta.env.VITE_INVOICE_KEY; 
-// HINWEIS: ADMIN_KEY und DONATION_ADDRESS sind hier nicht mehr nötig (Backend only)
 
 const DEFAULT_RELAYS = [
   'wss://relay.damus.io',
@@ -53,6 +52,10 @@ const DEFAULT_RELAYS = [
 ];
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+// --- KONSTANTEN ---
+// 3 Tage in Millisekunden für den Refund-Timer
+const REFUND_TIMEOUT_MS = 3 * 24 * 60 * 60 * 1000; 
 
 // --- HELPER FUNKTIONEN ---
 
@@ -95,11 +98,15 @@ export default function App() {
   // Game & Lobby Data
   const [leaderboard, setLeaderboard] = useState([]);
   const [challengePlayer, setChallengePlayer] = useState(null);
-  const [duelsList, setDuelsList] = useState([]);
-  const [myDuels, setMyDuels] = useState([]);
+  
+  // -- NEUE LISTEN STRUKTUR FÜR TARGETED DUELS --
+  const [publicDuels, setPublicDuels] = useState([]);     // Offene Lobby (Jeder)
+  const [targetedDuels, setTargetedDuels] = useState([]); // Nur für MICH
+  const [myDuels, setMyDuels] = useState([]);             // Meine Historie
+  
   const [activeDuel, setActiveDuel] = useState(null);
   const [role, setRole] = useState(null); 
-  const [gameData, setGameData] = useState([]); // Speichert die Struktur {id: 5, order: [2,0,1,3]}
+  const [gameData, setGameData] = useState([]); 
   
   // Wetteinsatz
   const [wager, setWager] = useState(''); 
@@ -126,12 +133,12 @@ export default function App() {
   const [donationAmount, setDonationAmount] = useState(2100);
   const [donationInvoice, setDonationInvoice] = useState('');
   const [isDonationLoading, setIsDonationLoading] = useState(false);
-  const [isDonationSuccess, setIsDonationSuccess] = useState(false); // NEU: Steuert den Danke-Screen
+  const [isDonationSuccess, setIsDonationSuccess] = useState(false);
 
   // Helper für Übersetzungen
   const txt = (key) => TRANSLATIONS[lang]?.[key] || key;
 
-  // NEU: Helper zum Generieren der Spieldaten (braucht jetzt allQuestions als Parameter)
+  // Helper zum Generieren der Spieldaten
   const generateGameData = (questionsSource) => {
     if (!questionsSource || questionsSource.length === 0) return [];
     
@@ -191,13 +198,14 @@ export default function App() {
     }
   }, [isDataLoaded]);
 
-  // 3. Supabase Live Updates
+  // 3. Supabase Live Updates & Daten Laden
   useEffect(() => {
     if (view === 'dashboard' && user) {
-      fetchDuels(); fetchMyDuels(); fetchStats(); fetchLeaderboard();
+      fetchAllLobbyData();
+      
       const channel = supabase.channel('public:duels')
         .on('postgres_changes', { event: '*', schema: 'public', table: 'duels' }, () => {
-          fetchDuels(); fetchMyDuels(); fetchStats(); fetchLeaderboard();
+          fetchAllLobbyData();
         })
         .subscribe();
       return () => supabase.removeChannel(channel);
@@ -234,21 +242,19 @@ export default function App() {
     return () => clearInterval(interval);
   }, [view, withdrawId]);
 
-  // 7. Donation Auto-Close (NEU)
+  // 7. Donation Auto-Close
   useEffect(() => {
     if (view === 'donate' && isDonationSuccess) {
-      // Confetti zünden!
       confetti({
         particleCount: 150,
         spread: 100,
         origin: { y: 0.6 },
-        colors: ['#FFA500', '#ffffff', '#FF4500'] // Orange/Weiß Theme
+        colors: ['#FFA500', '#ffffff', '#FF4500']
       });
 
-      // Nach 3 Sekunden zurück zum Dashboard
       const timer = setTimeout(() => {
-        setIsDonationSuccess(false); // Reset
-        setDonationInvoice(''); // Reset
+        setIsDonationSuccess(false);
+        setDonationInvoice('');
         setView('dashboard');
       }, 3500);
 
@@ -367,7 +373,7 @@ export default function App() {
   const openDonation = () => { 
     setDonationInvoice(''); 
     setDonationAmount(2100); 
-    setIsDonationSuccess(false); // Reset success state
+    setIsDonationSuccess(false); 
     setView('donate'); 
   };
   
@@ -380,48 +386,93 @@ export default function App() {
     } catch (e) { console.error(e); alert("Connection Error"); }
     setIsDonationLoading(false);
   };
-
-  // Wird aufgerufen, wenn der Nutzer auf "Ich habe bezahlt" klickt
+  
   const handleConfirmDonation = () => {
     setIsDonationSuccess(true);
   };
 
   // --- DATEN LADEN & SPIEL ---
-  const fetchLeaderboard = async () => {
-    const { data } = await supabase.from('duels').select('*').eq('status', 'finished');
-    if (!data) return;
-    const playerStats = {};
-    data.forEach(d => {
-      const p1Won = d.creator_score > d.challenger_score || (d.creator_score === d.challenger_score && d.creator_time < d.challenger_time);
-      const winner = p1Won ? d.creator : d.challenger;
-      [d.creator, d.challenger].forEach(p => { if (!playerStats[p]) playerStats[p] = { name: p, wins: 0, satsWon: 0 }; if (p === winner) { playerStats[p].wins++; playerStats[p].satsWon += d.amount; } });
-    });
-    setLeaderboard(Object.values(playerStats).sort((a, b) => b.satsWon - a.satsWon).slice(0, 10));
-  };
   
-  const fetchStats = async () => {
+  // ZENTRALE FUNKTION: Lädt alle Daten und sortiert sie in die richtigen Listen
+  const fetchAllLobbyData = async () => {
     if (!user) return;
-    const { data } = await supabase.from('duels').select('*').or(`creator.eq.${user.name},challenger.eq.${user.name}`).eq('status', 'finished');
-    if (!data) return; let wins = 0, sats = 0;
-    data.forEach(d => {
-      let iAmCreator = d.creator === user.name;
-      let myS = iAmCreator ? d.creator_score : d.challenger_score;
-      let myT = iAmCreator ? d.creator_time : d.challenger_time;
-      let opS = iAmCreator ? d.challenger_score : d.creator_score;
-      let opT = iAmCreator ? d.challenger_time : d.creator_time;
-      if (myS > opS || (myS === opS && myT < opT)) { wins++; sats += d.amount; }
-    });
-    setStats({ wins, losses: data.length - wins, total: data.length, satsWon: sats });
+
+    // 1. Leaderboard & Stats
+    const { data: finishedDuels } = await supabase.from('duels').select('*').eq('status', 'finished');
+    if (finishedDuels) {
+      // Leaderboard berechnen
+      const playerStats = {};
+      let myWins = 0, mySats = 0;
+      
+      finishedDuels.forEach(d => {
+        // Winner Logic
+        const p1Won = d.creator_score > d.challenger_score || (d.creator_score === d.challenger_score && d.creator_time < d.challenger_time);
+        const winner = p1Won ? d.creator : d.challenger;
+        
+        // Leaderboard Update
+        [d.creator, d.challenger].forEach(p => { 
+          if (!playerStats[p]) playerStats[p] = { name: p, wins: 0, satsWon: 0 }; 
+          if (p === winner) { 
+            playerStats[p].wins++; 
+            playerStats[p].satsWon += d.amount; 
+          } 
+        });
+
+        // My Stats Update
+        if (d.creator === user.name || d.challenger === user.name) {
+          const amICreator = d.creator === user.name;
+          const iWon = (amICreator && p1Won) || (!amICreator && !p1Won);
+          if (iWon) { myWins++; mySats += d.amount; }
+        }
+      });
+      
+      setLeaderboard(Object.values(playerStats).sort((a, b) => b.satsWon - a.satsWon).slice(0, 10));
+      
+      // Meine Stats komplettieren (Total Games holen wir aus der History Abfrage)
+      setStats(prev => ({ ...prev, wins: myWins, satsWon: mySats }));
+    }
+
+    // 2. Offene Lobby (Niemandem zugewiesen)
+    const { data: publicData } = await supabase
+      .from('duels')
+      .select('*')
+      .eq('status', 'open')
+      .is('target_player', null)
+      .order('created_at', { ascending: false });
+    if (publicData) setPublicDuels(publicData);
+
+    // 3. Herausforderungen an MICH
+    const { data: targetData } = await supabase
+      .from('duels')
+      .select('*')
+      .eq('status', 'open')
+      .eq('target_player', user.name)
+      .order('created_at', { ascending: false });
+    if (targetData) setTargetedDuels(targetData);
+
+    // 4. Meine Geschichte (Erstellt von mir ODER mich betreffend)
+    const { data: myHistory } = await supabase
+      .from('duels')
+      .select('*')
+      .or(`creator.eq.${user.name},challenger.eq.${user.name}`)
+      .order('created_at', { ascending: false });
+    
+    if (myHistory) {
+      setMyDuels(myHistory);
+      // Update Total Games Stats
+      const finishedCount = myHistory.filter(d => d.status === 'finished').length;
+      setStats(prev => ({ ...prev, total: finishedCount, losses: finishedCount - prev.wins }));
+    }
   };
-  
-  const fetchDuels = async () => { const { data } = await supabase.from('duels').select('*').eq('status', 'open').or(`target_player.is.null,target_player.eq.${user.name}`).order('created_at', { ascending: false }); if (data) setDuelsList(data); };
-  
-  const fetchMyDuels = async () => { if (!user) return; const { data } = await supabase.from('duels').select('*').or(`creator.eq.${user.name},challenger.eq.${user.name}`).order('created_at', { ascending: false }); if (data) setMyDuels(data); };
+
+  // Wrapper für Kompatibilität, falls noch alte Calls existieren
+  const fetchLeaderboard = () => {}; 
+  const fetchStats = () => {};
+  const fetchDuels = () => {};
+  const fetchMyDuels = () => {};
   
   const checkPaymentStatus = async () => { if (!invoice.hash) return; try { const url = `${LNBITS_URL}/api/v1/payments/${invoice.hash}?ts=${Date.now()}`; const res = await fetch(url, { headers: { 'X-Api-Key': INVOICE_KEY } }); const data = await res.json(); if (data.paid === true || data.status === 'success') { setCheckingPayment(true); startGame(); } } catch(e) {} };
-  
   const checkWithdrawStatus = async () => { if (!withdrawId) return; try { const res = await fetch(`${LNBITS_URL}/withdraw/api/v1/links/${withdrawId}`, { headers: { 'X-Api-Key': INVOICE_KEY } }); const data = await res.json(); if (data.used >= 1 || data.spent === true) { confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } }); setTimeout(() => { setView('dashboard'); resetGameState(); setWithdrawId(''); }, 2000); } } catch(e) {} };
-  
   const handleManualCheck = async () => { setManualCheckLoading(true); await checkPaymentStatus(); setTimeout(() => setManualCheckLoading(false), 1000); };
   
   const resetGameState = () => { setWithdrawLink(''); setWithdrawId(''); setScore(0); setTotalTime(0); setCurrentQ(0); setInvoice({ req: '', hash: '', amount: 0 }); setChallengePlayer(null); setSelectedAnswer(null); };
@@ -443,6 +494,24 @@ export default function App() {
     if (rawQuestions && typeof rawQuestions[0] === 'number') { safeGameData = rawQuestions.map(id => ({ id: id, order: [0, 1, 2, 3] })); } 
     else { safeGameData = rawQuestions; }
     setGameData(safeGameData); setRole('challenger'); await fetchInvoice(duel.amount); 
+  };
+
+  const handleRefund = async (duel) => {
+    if (!confirm("Einsatz wirklich zurückfordern?")) return;
+    try {
+      const res = await fetch('/api/refund', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ amount: duel.amount, duelId: duel.id, reason: 'timeout' })
+      });
+      const data = await res.json();
+      if (data.lnurl) {
+        setWithdrawLink(data.lnurl);
+        setWithdrawId(data.id);
+        await supabase.from('duels').update({ status: 'refunded' }).eq('id', duel.id);
+        setView('result_final');
+      } else { alert("Fehler beim Erstellen des Refunds."); }
+    } catch (e) { console.error(e); alert("Verbindungsfehler"); }
   };
 
   const fetchInvoice = async (amountSat) => {
@@ -480,7 +549,17 @@ export default function App() {
 
   const openPastDuel = (duel) => { setActiveDuel(duel); const myRole = duel.creator === user.name ? 'creator' : 'challenger'; setRole(myRole); const myS = myRole === 'creator' ? duel.creator_score : duel.challenger_score; const myT = myRole === 'creator' ? duel.creator_time : duel.challenger_time; determineWinner(duel, myRole, myS, myT); };
   
-  const determineWinner = async (duel, myRole, myScore, myTime) => { setView('result_final'); const oppScore = myRole === 'creator' ? (duel.challenger_score || 0) : duel.creator_score; const oppTime = myRole === 'creator' ? (duel.challenger_time || 999) : duel.creator_time; const won = myScore > oppScore || (myScore === oppScore && myTime < oppTime); if (duel.status === 'finished' && won && !duel.claimed) { confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } }); await createWithdrawLink(duel.amount, duel.id); } };
+  const determineWinner = async (duel, myRole, myScore, myTime) => { 
+    if (duel.status === 'refunded') { setView('result_final'); return; }
+    setView('result_final'); 
+    const oppScore = myRole === 'creator' ? (duel.challenger_score || 0) : duel.creator_score; 
+    const oppTime = myRole === 'creator' ? (duel.challenger_time || 999) : duel.creator_time; 
+    const won = myScore > oppScore || (myScore === oppScore && myTime < oppTime); 
+    if (duel.status === 'finished' && won && !duel.claimed) { 
+      confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } }); 
+      await createWithdrawLink(duel.amount, duel.id); 
+    } 
+  };
   
   const createWithdrawLink = async (duelAmount, duelId) => { try { const res = await fetch('/api/claim', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ amount: duelAmount, duelId: duelId }) }); const data = await res.json(); if (data.lnurl) { setWithdrawLink(data.lnurl); setWithdrawId(data.id); await supabase.from('duels').update({ claimed: true }).eq('id', duelId); } } catch(e) { console.error("Withdraw Error:", e); } };
   
@@ -499,6 +578,7 @@ export default function App() {
     );
   }
 
+  // --- LANDING PAGE ---
   if (view === 'language_select') {
     return (
       <Background>
@@ -522,15 +602,8 @@ export default function App() {
              <p className="text-neutral-400 text-xs text-center leading-relaxed">{txt('welcome_text')}</p>
           </div>
           <Button variant="primary" onClick={acceptDisclaimer}>{txt('btn_understood')}</Button>
-          
-          <a 
-            href="https://github.com/louisthecat86/SatoshiDuell" 
-            target="_blank" 
-            rel="noopener noreferrer"
-            className="mt-8 flex items-center gap-2 text-white/20 hover:text-white/50 transition-colors text-[10px] uppercase tracking-widest"
-          >
-            <Github size={14} />
-            <span>Open Source Everything</span>
+          <a href="https://github.com/louisthecat86/SatoshiDuell" target="_blank" rel="noopener noreferrer" className="mt-8 flex items-center gap-2 text-white/20 hover:text-white/50 transition-colors text-[10px] uppercase tracking-widest">
+            <Github size={14} /><span>Open Source Everything</span>
           </a>
         </div>
       </Background>
@@ -564,9 +637,7 @@ export default function App() {
     );
   }
 
-  // --- DONATION VIEW (JETZT MIT DANKE SCREEN) ---
   if (view === 'donate') {
-    // FALL 1: Spende erfolgreich (DANKE Screen)
     if (isDonationSuccess) {
       return (
         <Background>
@@ -581,15 +652,12 @@ export default function App() {
         </Background>
       );
     }
-
-    // FALL 2: Spendenformular & QR Code
     return (
       <Background>
         <div className="w-full max-w-sm flex flex-col gap-6 animate-float text-center px-4">
           <Heart size={48} className="text-orange-500 mx-auto animate-pulse"/>
           <h2 className="text-2xl font-black text-white uppercase">{txt('donate_title')}</h2>
           <p className="text-neutral-400 text-sm">{txt('donate_text')}</p>
-          
           {!donationInvoice ? (
             <div className="flex flex-col gap-4">
                <input type="number" value={donationAmount} onChange={(e) => setDonationAmount(Number(e.target.value))} className="w-full p-4 rounded-xl bg-[#0a0a0a] border border-white/10 text-white font-mono text-2xl font-bold text-center outline-none focus:border-orange-500"/>
@@ -603,17 +671,9 @@ export default function App() {
           ) : (
             <div className="animate-in slide-in-from-bottom-5 flex flex-col gap-4">
                <div className="bg-white p-4 rounded-3xl inline-block mx-auto shadow-2xl"><QRCodeCanvas value={`lightning:${donationInvoice.toUpperCase()}`} size={220}/></div>
-               
                <div className="flex flex-col gap-2">
                  <Button variant="secondary" onClick={() => window.location.href = `lightning:${donationInvoice}`}>{txt('btn_wallet')}</Button>
-                 
-                 {/* NEU: BESTÄTIGUNGSBUTTON FÜR "DANKE"-SCREEN */}
-                 <button 
-                   onClick={handleConfirmDonation}
-                   className="w-full py-3 bg-green-600/20 border border-green-500/50 rounded-xl text-green-400 text-xs font-black uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-green-600/40 transition-all"
-                 >
-                   <CheckCircle size={16}/> Ich habe gesendet!
-                 </button>
+                 <button onClick={handleConfirmDonation} className="w-full py-3 bg-green-600/20 border border-green-500/50 rounded-xl text-green-400 text-xs font-black uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-green-600/40 transition-all"><CheckCircle size={16}/> Ich habe gesendet!</button>
                </div>
             </div>
           )}
@@ -657,6 +717,7 @@ export default function App() {
     );
   }
 
+  // --- DASHBOARD (MIT GETRENNTEN LISTEN) ---
   if (view === 'dashboard') {
     return (
       <Background>
@@ -675,43 +736,93 @@ export default function App() {
           <Button onClick={openCreateSetup} className="py-4 text-lg animate-neon"><Plus size={24}/> {txt('dashboard_new_duel')}</Button>
 
           <div className="flex-1 overflow-hidden flex flex-col gap-4">
+            
+            {/* 1. HERAUSFORDERUNGEN AN MICH (Nur sichtbar, wenn vorhanden) */}
+            {targetedDuels.length > 0 && (
+              <div className="flex flex-col gap-2 flex-shrink-0 animate-in slide-in-from-right duration-500">
+                 <div className="text-[10px] font-black text-purple-400 uppercase tracking-widest px-2 animate-pulse">{txt('lobby_challenges')}</div>
+                 <div className="space-y-2 pr-1">
+                   {targetedDuels.map(d => (
+                     <div key={d.id} className="bg-purple-500/10 p-3 rounded-xl flex justify-between items-center border border-purple-500/50 shadow-[0_0_15px_rgba(168,85,247,0.2)]">
+                       <div><p className="font-bold text-white text-xs uppercase">{d.creator} ⚔️</p><p className="text-[10px] text-purple-300 font-mono">{d.amount} sats</p></div>
+                       <button onClick={() => initJoinDuel(d)} className="bg-purple-500 text-white px-4 py-2 rounded-lg text-[10px] font-black uppercase hover:scale-105 transition-transform">ACCEPT</button>
+                     </div>
+                   ))}
+                 </div>
+              </div>
+            )}
+
+            {/* 2. OFFENE LOBBY (Nur öffentliche Duelle) */}
             <div className="flex flex-col gap-2 flex-1 overflow-hidden">
                <div className="text-[10px] font-black text-neutral-500 uppercase tracking-widest px-2">{txt('lobby_open')}</div>
                <div className="overflow-y-auto space-y-2 pr-1 custom-scrollbar">
-                 {duelsList.filter(d => d.creator !== user.name).map(d => (
+                 {publicDuels.filter(d => d.creator !== user.name).length === 0 && <p className="text-neutral-600 text-xs italic text-center py-4">Keine offenen Duelle</p>}
+                 {publicDuels.filter(d => d.creator !== user.name).map(d => (
                    <div key={d.id} className="bg-white/5 p-3 rounded-xl flex justify-between items-center border border-white/5">
-                     <div><p className="font-bold text-white text-xs uppercase">{d.creator} {d.target_player && "🎯"}</p><p className="text-[10px] text-orange-400 font-mono">{d.amount} sats</p></div>
+                     <div><p className="font-bold text-white text-xs uppercase">{d.creator}</p><p className="text-[10px] text-orange-400 font-mono">{d.amount} sats</p></div>
                      <button onClick={() => initJoinDuel(d)} className="bg-orange-500 text-black px-4 py-2 rounded-lg text-[10px] font-black uppercase">{txt('lobby_fight')}</button>
                    </div>
                  ))}
                </div>
             </div>
+
+            {/* 3. DEINE GESCHICHTE (Mit Refund Option) */}
             <div className="flex flex-col gap-2 flex-1 overflow-hidden">
                <div className="text-[10px] font-black text-neutral-500 uppercase tracking-widest px-2">{txt('lobby_history')}</div>
                <div className="overflow-y-auto space-y-2 pr-1 custom-scrollbar">
-                 {myDuels.map(d => (
-                   <div key={d.id} className="bg-neutral-900/50 p-3 rounded-xl border border-white/5 flex flex-col gap-2">
-                     <div className="flex justify-between items-center">
-                       <div className="text-left">
-                         <p className="text-neutral-400 font-bold uppercase text-xs">vs {d.creator === user.name ? (d.challenger || "???") : d.creator}</p>
-                         <p className="text-[10px] font-mono text-orange-500">{d.amount} sats</p>
+                 {myDuels.map(d => {
+                   const isMyOpenDuel = d.creator === user.name && d.status === 'open';
+                   // Check: Sind 3 Tage vergangen?
+                   const created = new Date(d.created_at).getTime();
+                   const now = Date.now();
+                   const canRefund = isMyOpenDuel && (now - created > REFUND_TIMEOUT_MS);
+
+                   return (
+                     <div key={d.id} className="bg-neutral-900/50 p-3 rounded-xl border border-white/5 flex flex-col gap-2">
+                       <div className="flex justify-between items-center">
+                         <div className="text-left">
+                           <p className="text-neutral-400 font-bold uppercase text-xs">
+                             {d.target_player 
+                               ? `${txt('challenge_sent')} ${d.target_player}` 
+                               : `vs ${d.creator === user.name ? (d.challenger || "???") : d.creator}`
+                             }
+                           </p>
+                           <p className="text-[10px] font-mono text-orange-500">{d.amount} sats</p>
+                         </div>
+                         {d.status === 'finished' ? (
+                           <button onClick={() => openPastDuel(d)} className="text-orange-500 font-black uppercase text-[10px]">{d.claimed ? txt('lobby_paid') : txt('lobby_details')}</button>
+                         ) : d.status === 'refunded' ? (
+                           <span className="text-red-500 font-black text-[10px] uppercase">REFUNDED</span>
+                         ) : canRefund ? (
+                           // REFUND BUTTON (Wenn Zeit abgelaufen)
+                           <button onClick={() => handleRefund(d)} className="bg-red-500/20 text-red-500 border border-red-500/50 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase hover:bg-red-500 hover:text-white transition-all flex items-center gap-1">
+                             <RefreshCcw size={10}/> {txt('btn_refund')}
+                           </button>
+                         ) : (
+                           // ANSONSTEN WARTEN
+                           <span className="animate-pulse text-neutral-600 uppercase font-black text-[10px]">
+                             {d.target_player ? txt('refund_wait') : txt('lobby_wait')}
+                           </span>
+                         )}
                        </div>
-                       {d.status === 'finished' ? (
-                         <button onClick={() => openPastDuel(d)} className="text-orange-500 font-black uppercase text-[10px]">{d.claimed ? txt('lobby_paid') : txt('lobby_details')}</button>
-                       ) : <span className="animate-pulse text-neutral-600 uppercase font-black text-[10px]">{txt('lobby_wait')}</span>}
+                       {/* NOSTR SHARE BUTTON (Nur wenn offen & kein Refund möglich) */}
+                       {d.status === 'open' && d.creator === user.name && !canRefund && (
+                         <button onClick={(e) => {e.stopPropagation(); shareDuelOnNostr(d);}} className="w-full bg-purple-500/10 hover:bg-purple-600 border border-purple-500/30 hover:border-purple-500 text-purple-300 hover:text-white py-2 rounded-lg flex items-center justify-center gap-2 transition-all group">
+                           <Share2 size={14} className="group-hover:animate-pulse"/>
+                           <span className="text-[10px] font-bold uppercase tracking-widest">{txt('share_nostr')}</span>
+                         </button>
+                       )}
                      </div>
-                     {d.status === 'open' && d.creator === user.name && (
-                       <button onClick={(e) => {e.stopPropagation(); shareDuelOnNostr(d);}} className="w-full bg-purple-500/10 hover:bg-purple-600 border border-purple-500/30 hover:border-purple-500 text-purple-300 hover:text-white py-2 rounded-lg flex items-center justify-center gap-2 transition-all group">
-                         <Share2 size={14} className="group-hover:animate-pulse"/>
-                         <span className="text-[10px] font-bold uppercase tracking-widest">{txt('share_nostr')}</span>
-                       </button>
-                     )}
-                   </div>
-                 ))}
+                   );
+                 })}
                </div>
             </div>
           </div>
           
+          <button onClick={openDonation} className="w-full py-2 bg-gradient-to-r from-orange-900/50 to-orange-600/50 border border-orange-500/30 rounded-xl text-white text-xs font-bold uppercase tracking-widest flex items-center justify-center gap-2 hover:brightness-125 transition-all shadow-lg mt-2">
+             <Heart size={14} className="fill-orange-500 text-orange-500"/> {txt('dashboard_donate')}
+          </button>
+
           <div className="flex flex-col gap-2 bg-neutral-900/50 p-3 rounded-2xl border border-white/5 mt-2">
             <div className="flex items-center gap-2 text-orange-500 text-[10px] font-black uppercase tracking-widest px-1"><Trophy size={14}/> {txt('leaderboard')}</div>
             <div className="space-y-1.5 max-h-[140px] overflow-y-auto custom-scrollbar">
@@ -727,12 +838,6 @@ export default function App() {
               ))}
             </div>
           </div>
-
-          {/* ORANGE SPENDEN BUTTON GANZ UNTEN */}
-          <button onClick={openDonation} className="w-full py-2 bg-gradient-to-r from-orange-900/50 to-orange-600/50 border border-orange-500/30 rounded-xl text-white text-xs font-bold uppercase tracking-widest flex items-center justify-center gap-2 hover:brightness-125 transition-all shadow-lg mt-2">
-             <Heart size={14} className="fill-orange-500 text-orange-500"/> {txt('dashboard_donate')}
-          </button>
-
         </div>
       </Background>
     );
@@ -745,17 +850,8 @@ export default function App() {
           <h2 className="text-xl font-black text-white mb-4 uppercase italic tracking-widest">
             {challengePlayer ? `${txt('setup_target')} ${challengePlayer.toUpperCase()}` : txt('setup_title')}
           </h2>
-          
           <p className="text-neutral-400 text-xs font-bold uppercase tracking-widest mb-2">{txt('setup_wager_label')}</p>
-          
-          <input 
-            type="number" 
-            value={wager} 
-            onChange={(e) => setWager(e.target.value)} 
-            placeholder="0"
-            className="text-6xl font-black text-orange-500 font-mono text-center bg-transparent w-full outline-none mb-10 placeholder:text-neutral-800"
-          />
-          
+          <input type="number" value={wager} onChange={(e) => setWager(e.target.value)} placeholder="0" className="text-6xl font-black text-orange-500 font-mono text-center bg-transparent w-full outline-none mb-10 placeholder:text-neutral-800"/>
           <div className="grid grid-cols-4 gap-2 mb-8">
             {[100, 500, 1000, 2100].map(amt => (
               <button key={amt} onClick={() => setWager(amt)} className={`py-2 rounded-lg text-xs font-bold border ${Number(wager) === amt ? 'bg-orange-500 text-black border-orange-500' : 'bg-neutral-800 text-neutral-400 border-white/5'}`}>{amt}</button>
@@ -841,6 +937,25 @@ export default function App() {
   }
 
   if (view === 'result_final') { 
+    // FALL: Refund Erfolgreich abgeschlossen (nur QR Code anzeigen)
+    if (activeDuel && activeDuel.status === 'refunded') {
+       return (
+         <Background>
+           <div className="w-full max-w-sm text-center">
+             <h2 className="text-4xl font-black text-white mb-8 uppercase">REFUND</h2>
+             <p className="text-neutral-400 mb-8">{txt('refund_info')}</p>
+             {withdrawLink && (
+                <div className="animate-in slide-in-from-bottom-5">
+                  <div className="bg-white p-4 rounded-3xl inline-block mb-6 shadow-2xl"><QRCodeCanvas value={`lightning:${withdrawLink.toUpperCase()}`} size={180}/></div>
+                  <Button variant="success" onClick={() => window.location.href = `lightning:${withdrawLink}`}>SATs ABHOLEN</Button>
+                </div>
+             )}
+             <button onClick={() => setView('dashboard')} className="text-neutral-500 font-black uppercase text-xs tracking-widest mt-6">{txt('btn_lobby')}</button>
+           </div>
+         </Background>
+       )
+    }
+
     const duel = activeDuel; 
     const iAmCreator = role === 'creator'; 
     const myS = iAmCreator ? duel.creator_score : duel.challenger_score; 
@@ -859,24 +974,7 @@ export default function App() {
               <Card className="p-4 bg-white/5 border-orange-500/30"><p className="text-[10px] font-bold text-neutral-500 uppercase">Du</p><p className="text-4xl font-black text-white font-mono">{myS}</p><p className="text-[10px] text-neutral-500 italic">{myT}s</p></Card>
               <Card className="p-4 bg-white/5 opacity-50"><p className="text-[10px] font-bold text-neutral-500 uppercase">Gegner</p><p className="text-4xl font-black text-white font-mono">{duel.status === 'finished' ? opS : '?'}</p><p className="text-[10px] text-neutral-500 italic">{duel.status === 'finished' ? opT + 's' : 'läuft...'}</p></Card>
             </div>
-            
-            {withdrawLink ? (
-              <div className="animate-in slide-in-from-bottom-5 duration-700">
-                <div className="bg-white p-4 rounded-3xl inline-block mb-6 shadow-2xl">
-                  <QRCodeCanvas value={`lightning:${withdrawLink.toUpperCase()}`} size={180}/>
-                </div>
-                <Button variant="success" onClick={() => window.location.href = `lightning:${withdrawLink}`}>
-                  {txt('btn_withdraw')}
-                </Button>
-                <p className="text-orange-400 text-[10px] mt-4 font-mono animate-pulse uppercase tracking-widest italic">
-                  App springt nach Einlösung automatisch zurück
-                </p>
-              </div>
-            ) : (
-              <button onClick={() => setView('dashboard')} className="text-neutral-500 font-black uppercase text-xs tracking-widest mt-6">
-                {txt('btn_lobby')}
-              </button>
-            )}
+            {withdrawLink ? (<div className="animate-in slide-in-from-bottom-5 duration-700"><div className="bg-white p-4 rounded-3xl inline-block mb-6 shadow-2xl"><QRCodeCanvas value={`lightning:${withdrawLink.toUpperCase()}`} size={180}/></div><Button variant="success" onClick={() => window.location.href = `lightning:${withdrawLink}`}>{txt('btn_withdraw')}</Button><p className="text-orange-400 text-[10px] mt-4 font-mono animate-pulse uppercase tracking-widest italic">App springt nach Einlösung automatisch zurück</p></div>) : <button onClick={() => setView('dashboard')} className="text-neutral-500 font-black uppercase text-xs tracking-widest mt-6">{txt('btn_lobby')}</button>}
          </div>
       </Background>
     ); 
