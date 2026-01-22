@@ -1,16 +1,39 @@
 import React, { useState, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { 
-  Zap, Trophy, Clock, User, Plus, Swords, RefreshCw, Copy, Check, 
-  ExternalLink, AlertTriangle, Loader2, LogOut, Fingerprint, Flame, 
-  History, Coins, Lock, Medal, Share2, Globe, Settings, Save, Heart,
-  Github 
+  Zap, 
+  Trophy, 
+  Clock, 
+  User, 
+  Plus, 
+  Swords, 
+  RefreshCw, 
+  Copy, 
+  Check, 
+  ExternalLink, 
+  AlertTriangle, 
+  Loader2, 
+  LogOut, 
+  Fingerprint, 
+  Flame, 
+  History, 
+  Coins, 
+  Lock, 
+  Medal, 
+  Share2, 
+  Globe, 
+  Settings, 
+  Save, 
+  Heart,
+  Github,
+  CheckCircle // NEU: Für das Bestätigungs-Icon
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { QRCodeCanvas } from 'qrcode.react';
 import { nip19 } from 'nostr-tools'; 
 
 // --- EIGENE IMPORTS ---
+// HINWEIS: Keine Fragen mehr im Code (Sicherheit), kommen per API
 import { TRANSLATIONS } from './translations'; 
 import Button from './components/Button';
 import Card from './components/Card';
@@ -21,6 +44,7 @@ const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_KEY;
 const LNBITS_URL = import.meta.env.VITE_LNBITS_URL;
 const INVOICE_KEY = import.meta.env.VITE_INVOICE_KEY; 
+// HINWEIS: ADMIN_KEY und DONATION_ADDRESS sind hier nicht mehr nötig (Backend only)
 
 const DEFAULT_RELAYS = [
   'wss://relay.damus.io',
@@ -44,47 +68,53 @@ async function hashPin(pin) {
 
 export default function App() {
   // --- STATE MANAGEMENT ---
+  
+  // Navigation & User
   const [view, setView] = useState('loading_data'); 
   const [lang, setLang] = useState('de'); 
   const [user, setUser] = useState(null);
   
-  // Daten vom Server
+  // Daten vom Server (Sicherheit)
   const [allQuestions, setAllQuestions] = useState([]);
   const [isDataLoaded, setIsDataLoaded] = useState(false);
 
-  // Login
+  // Login State
   const [loginInput, setLoginInput] = useState(''); 
   const [loginPin, setLoginPin] = useState(''); 
   const [loginError, setLoginError] = useState('');
   const [isLoginLoading, setIsLoginLoading] = useState(false);
   
-  // Settings
+  // Settings State
   const [newPin, setNewPin] = useState('');
   const [settingsMsg, setSettingsMsg] = useState('');
   
-  // Nostr
+  // Nostr Setup
   const [nostrSetupPubkey, setNostrSetupPubkey] = useState(null);
   const [nostrSetupName, setNostrSetupName] = useState('');
   
-  // Game & Lobby
+  // Game & Lobby Data
   const [leaderboard, setLeaderboard] = useState([]);
   const [challengePlayer, setChallengePlayer] = useState(null);
   const [duelsList, setDuelsList] = useState([]);
   const [myDuels, setMyDuels] = useState([]);
   const [activeDuel, setActiveDuel] = useState(null);
   const [role, setRole] = useState(null); 
-  const [gameData, setGameData] = useState([]); 
+  const [gameData, setGameData] = useState([]); // Speichert die Struktur {id: 5, order: [2,0,1,3]}
+  
+  // Wetteinsatz
   const [wager, setWager] = useState(''); 
+  
+  // Stats
   const [stats, setStats] = useState({ wins: 0, losses: 0, total: 0, satsWon: 0 });
   
-  // Quiz
+  // Quiz Logik 
   const [currentQ, setCurrentQ] = useState(0);
   const [score, setScore] = useState(0);
   const [timeLeft, setTimeLeft] = useState(15);
   const [totalTime, setTotalTime] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState(null); 
   
-  // Payment
+  // Payment & Withdraw
   const [invoice, setInvoice] = useState({ req: '', hash: '', amount: 0 });
   const [withdrawLink, setWithdrawLink] = useState('');
   const [withdrawId, setWithdrawId] = useState(''); 
@@ -92,19 +122,26 @@ export default function App() {
   const [copied, setCopied] = useState(false);
   const [manualCheckLoading, setManualCheckLoading] = useState(false);
 
-  // Donation
+  // Donation State
   const [donationAmount, setDonationAmount] = useState(2100);
   const [donationInvoice, setDonationInvoice] = useState('');
   const [isDonationLoading, setIsDonationLoading] = useState(false);
+  const [isDonationSuccess, setIsDonationSuccess] = useState(false); // NEU: Steuert den Danke-Screen
 
-  // Helper
+  // Helper für Übersetzungen
   const txt = (key) => TRANSLATIONS[lang]?.[key] || key;
 
-  // Generator
+  // NEU: Helper zum Generieren der Spieldaten (braucht jetzt allQuestions als Parameter)
   const generateGameData = (questionsSource) => {
     if (!questionsSource || questionsSource.length === 0) return [];
+    
+    // 1. Alle Indizes holen
     const allIndices = questionsSource.map((_, i) => i);
+    
+    // 2. 5 Zufällige auswählen
     const selectedIndices = allIndices.sort(() => 0.5 - Math.random()).slice(0, 5);
+    
+    // 3. Antwort-Reihenfolge mischen
     return selectedIndices.map(id => {
       return {
         id: id,
@@ -115,7 +152,7 @@ export default function App() {
 
   // --- INITIALISIERUNG ---
 
-  // 1. Fragen laden
+  // 1. Fragen vom Server laden
   useEffect(() => {
     const fetchQuestions = async () => {
       try {
@@ -126,13 +163,13 @@ export default function App() {
         setIsDataLoaded(true);
       } catch (e) {
         console.error("Failed to load questions", e);
-        alert("Fehler: Konnte Fragen nicht laden. Bitte Seite neu laden.");
+        alert("Fehler: Konnte Fragen nicht vom Server laden. Bitte Internet prüfen.");
       }
     };
     fetchQuestions();
   }, []);
 
-  // 2. Routing Logic (WICHTIG: Entscheidet ob Landingpage oder Login kommt)
+  // 2. User & Sprache laden
   useEffect(() => {
     if (!isDataLoaded) return; 
 
@@ -140,7 +177,6 @@ export default function App() {
     const storedUser = localStorage.getItem('satoshi_user');
     const savedPin = localStorage.getItem('saved_pin');
     
-    // Wenn Sprache da ist -> User war schonmal hier -> Weiterleiten
     if (savedLang) {
       setLang(savedLang);
       if (storedUser) {
@@ -151,12 +187,11 @@ export default function App() {
         if (savedPin) setLoginPin(savedPin);
       }
     } else {
-      // Wenn keine Sprache da ist -> Neuer User -> Landingpage zeigen!
       setView('language_select');
     }
   }, [isDataLoaded]);
 
-  // 3. Live Updates
+  // 3. Supabase Live Updates
   useEffect(() => {
     if (view === 'dashboard' && user) {
       fetchDuels(); fetchMyDuels(); fetchStats(); fetchLeaderboard();
@@ -169,7 +204,7 @@ export default function App() {
     }
   }, [view, user]);
 
-  // 4. Timer
+  // 4. Timer Logik
   useEffect(() => {
     let timer;
     if (view === 'game' && timeLeft > 0 && selectedAnswer === null) {
@@ -180,7 +215,7 @@ export default function App() {
     return () => clearInterval(timer);
   }, [view, timeLeft, selectedAnswer]);
 
-  // 5. Polling
+  // 5. Payment Polling
   useEffect(() => {
     let interval;
     if (view === 'payment' && invoice.hash && !checkingPayment) {
@@ -190,6 +225,7 @@ export default function App() {
     return () => clearInterval(interval);
   }, [view, invoice, checkingPayment]);
 
+  // 6. Withdraw Polling
   useEffect(() => {
     let interval;
     if (view === 'result_final' && withdrawId) {
@@ -198,11 +234,33 @@ export default function App() {
     return () => clearInterval(interval);
   }, [view, withdrawId]);
 
-  // --- LOGIK ---
+  // 7. Donation Auto-Close (NEU)
+  useEffect(() => {
+    if (view === 'donate' && isDonationSuccess) {
+      // Confetti zünden!
+      confetti({
+        particleCount: 150,
+        spread: 100,
+        origin: { y: 0.6 },
+        colors: ['#FFA500', '#ffffff', '#FF4500'] // Orange/Weiß Theme
+      });
+
+      // Nach 3 Sekunden zurück zum Dashboard
+      const timer = setTimeout(() => {
+        setIsDonationSuccess(false); // Reset
+        setDonationInvoice(''); // Reset
+        setView('dashboard');
+      }, 3500);
+
+      return () => clearTimeout(timer);
+    }
+  }, [view, isDonationSuccess]);
+
+
+  // --- LOGIK & NAVI ---
   
   const previewLanguage = (l) => { setLang(l); };
   
-  // Bestätigt den Disclaimer und speichert die Sprache -> Erst dann gehts weiter
   const acceptDisclaimer = () => {
     localStorage.setItem('satoshi_lang', lang);
     if (localStorage.getItem('satoshi_user')) {
@@ -211,6 +269,8 @@ export default function App() {
       setView('login');
     }
   };
+
+  // --- LOGIN LOGIK ---
 
   const handleSmartLogin = async (e) => {
     if (e) e.preventDefault();
@@ -304,7 +364,12 @@ export default function App() {
   };
 
   // --- DONATION LOGIC ---
-  const openDonation = () => { setDonationInvoice(''); setDonationAmount(2100); setView('donate'); };
+  const openDonation = () => { 
+    setDonationInvoice(''); 
+    setDonationAmount(2100); 
+    setIsDonationSuccess(false); // Reset success state
+    setView('donate'); 
+  };
   
   const handleGenerateDonation = async () => {
     setIsDonationLoading(true);
@@ -316,7 +381,12 @@ export default function App() {
     setIsDonationLoading(false);
   };
 
-  // --- DATEN & SPIEL ---
+  // Wird aufgerufen, wenn der Nutzer auf "Ich habe bezahlt" klickt
+  const handleConfirmDonation = () => {
+    setIsDonationSuccess(true);
+  };
+
+  // --- DATEN LADEN & SPIEL ---
   const fetchLeaderboard = async () => {
     const { data } = await supabase.from('duels').select('*').eq('status', 'finished');
     if (!data) return;
@@ -429,13 +499,10 @@ export default function App() {
     );
   }
 
-  // --- LANDING PAGE (SPRACHWAHL + DISCLAIMER + GITHUB) ---
   if (view === 'language_select') {
     return (
       <Background>
         <div className="w-full max-w-sm flex flex-col items-center justify-center min-h-[90vh] px-4 gap-6 animate-float">
-          
-          {/* HEADER */}
           <div className="flex flex-col items-center justify-center">
              <div className="relative mb-4">
                 <div className="absolute inset-0 bg-orange-500 blur-[50px] opacity-20 rounded-full"></div>
@@ -445,24 +512,17 @@ export default function App() {
                SATOSHI<span className="text-orange-500">DUELL</span>
              </h1>
           </div>
-
-          {/* SPRACH-BUTTONS */}
           <div className="flex gap-4 mb-2">
             <button onClick={() => previewLanguage('de')} className={`text-3xl p-3 rounded-xl border transition-all ${lang === 'de' ? 'bg-orange-500/20 border-orange-500 scale-110' : 'bg-black/40 border-white/10 hover:bg-white/10'}`}>🇩🇪</button>
             <button onClick={() => previewLanguage('en')} className={`text-3xl p-3 rounded-xl border transition-all ${lang === 'en' ? 'bg-orange-500/20 border-orange-500 scale-110' : 'bg-black/40 border-white/10 hover:bg-white/10'}`}>🇺🇸</button>
             <button onClick={() => previewLanguage('es')} className={`text-3xl p-3 rounded-xl border transition-all ${lang === 'es' ? 'bg-orange-500/20 border-orange-500 scale-110' : 'bg-black/40 border-white/10 hover:bg-white/10'}`}>🇪🇸</button>
           </div>
-
-          {/* DISCLAIMER BOX */}
           <div className="bg-black/40 p-4 rounded-xl border border-white/10 backdrop-blur-sm">
              <h3 className="text-orange-500 font-bold uppercase text-xs mb-2 tracking-widest text-center">{txt('welcome_disclaimer')}</h3>
              <p className="text-neutral-400 text-xs text-center leading-relaxed">{txt('welcome_text')}</p>
           </div>
-
-          {/* START BUTTON */}
           <Button variant="primary" onClick={acceptDisclaimer}>{txt('btn_understood')}</Button>
           
-          {/* GITHUB LINK GANZ UNTEN */}
           <a 
             href="https://github.com/louisthecat86/SatoshiDuell" 
             target="_blank" 
@@ -504,13 +564,32 @@ export default function App() {
     );
   }
 
+  // --- DONATION VIEW (JETZT MIT DANKE SCREEN) ---
   if (view === 'donate') {
+    // FALL 1: Spende erfolgreich (DANKE Screen)
+    if (isDonationSuccess) {
+      return (
+        <Background>
+          <div className="w-full max-w-sm flex flex-col gap-6 animate-float text-center px-4 items-center justify-center h-[80vh]">
+            <div className="relative">
+              <div className="absolute inset-0 bg-green-500 blur-[60px] opacity-40 rounded-full animate-pulse"></div>
+              <Heart size={120} className="text-green-500 fill-green-500 relative animate-bounce"/>
+            </div>
+            <h2 className="text-4xl font-black text-white uppercase drop-shadow-lg">{txt('donate_thanks')}</h2>
+            <p className="text-neutral-400 text-sm animate-pulse">Redirecting to Dashboard...</p>
+          </div>
+        </Background>
+      );
+    }
+
+    // FALL 2: Spendenformular & QR Code
     return (
       <Background>
         <div className="w-full max-w-sm flex flex-col gap-6 animate-float text-center px-4">
           <Heart size={48} className="text-orange-500 mx-auto animate-pulse"/>
           <h2 className="text-2xl font-black text-white uppercase">{txt('donate_title')}</h2>
           <p className="text-neutral-400 text-sm">{txt('donate_text')}</p>
+          
           {!donationInvoice ? (
             <div className="flex flex-col gap-4">
                <input type="number" value={donationAmount} onChange={(e) => setDonationAmount(Number(e.target.value))} className="w-full p-4 rounded-xl bg-[#0a0a0a] border border-white/10 text-white font-mono text-2xl font-bold text-center outline-none focus:border-orange-500"/>
@@ -522,10 +601,20 @@ export default function App() {
                <Button variant="primary" onClick={handleGenerateDonation} disabled={isDonationLoading}>{isDonationLoading ? <Loader2 className="animate-spin mx-auto"/> : txt('donate_btn')}</Button>
             </div>
           ) : (
-            <div className="animate-in slide-in-from-bottom-5">
-               <div className="bg-white p-4 rounded-3xl inline-block mb-6 shadow-2xl"><QRCodeCanvas value={`lightning:${donationInvoice.toUpperCase()}`} size={220}/></div>
-               <Button variant="secondary" onClick={() => window.location.href = `lightning:${donationInvoice}`}>{txt('btn_wallet')}</Button>
-               <p className="text-green-500 font-black mt-4 uppercase animate-bounce">{txt('donate_thanks')}</p>
+            <div className="animate-in slide-in-from-bottom-5 flex flex-col gap-4">
+               <div className="bg-white p-4 rounded-3xl inline-block mx-auto shadow-2xl"><QRCodeCanvas value={`lightning:${donationInvoice.toUpperCase()}`} size={220}/></div>
+               
+               <div className="flex flex-col gap-2">
+                 <Button variant="secondary" onClick={() => window.location.href = `lightning:${donationInvoice}`}>{txt('btn_wallet')}</Button>
+                 
+                 {/* NEU: BESTÄTIGUNGSBUTTON FÜR "DANKE"-SCREEN */}
+                 <button 
+                   onClick={handleConfirmDonation}
+                   className="w-full py-3 bg-green-600/20 border border-green-500/50 rounded-xl text-green-400 text-xs font-black uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-green-600/40 transition-all"
+                 >
+                   <CheckCircle size={16}/> Ich habe gesendet!
+                 </button>
+               </div>
             </div>
           )}
           <button onClick={() => setView('dashboard')} className="text-xs text-neutral-600 uppercase font-bold mt-4">{txt('settings_back')}</button>
@@ -639,6 +728,7 @@ export default function App() {
             </div>
           </div>
 
+          {/* ORANGE SPENDEN BUTTON GANZ UNTEN */}
           <button onClick={openDonation} className="w-full py-2 bg-gradient-to-r from-orange-900/50 to-orange-600/50 border border-orange-500/30 rounded-xl text-white text-xs font-bold uppercase tracking-widest flex items-center justify-center gap-2 hover:brightness-125 transition-all shadow-lg mt-2">
              <Heart size={14} className="fill-orange-500 text-orange-500"/> {txt('dashboard_donate')}
           </button>
