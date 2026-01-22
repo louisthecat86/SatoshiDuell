@@ -16,8 +16,8 @@ import Background from './components/Background';
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_KEY;
 const LNBITS_URL = import.meta.env.VITE_LNBITS_URL;
-const INVOICE_KEY = import.meta.env.VITE_INVOICE_KEY;
-const ADMIN_KEY = import.meta.env.VITE_ADMIN_KEY;
+const INVOICE_KEY = import.meta.env.VITE_INVOICE_KEY; 
+// HINWEIS: ADMIN_KEY wurde hier entfernt! Sicherheit! 🔒
 
 const DEFAULT_RELAYS = [
   'wss://relay.damus.io',
@@ -29,12 +29,8 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 // --- HELPER FUNKTIONEN ---
 
-// NEU: Gibt jetzt nur noch die NUMMERN (Indizes) der Fragen zurück
-// Das ist wichtig, damit der Spanier Frage #5 auf Spanisch sieht und der Deutsche #5 auf Deutsch.
 const getRandomQuestionIndices = () => {
-  // Erstellt ein Array von 0 bis Anzahl der Fragen [0, 1, 2, ... 100]
   const indices = ALL_QUESTIONS.map((_, i) => i);
-  // Mischt sie und nimmt die ersten 5
   return indices.sort(() => 0.5 - Math.random()).slice(0, 5);
 };
 
@@ -49,8 +45,8 @@ async function hashPin(pin) {
 // --- HAUPT APP ---
 
 export default function App() {
-  const [view, setView] = useState('language_select'); // Startet bei Sprachwahl
-  const [lang, setLang] = useState('de'); // Standardsprache
+  const [view, setView] = useState('language_select'); 
+  const [lang, setLang] = useState('de'); 
   const [user, setUser] = useState(null);
   
   // Login State
@@ -59,7 +55,7 @@ export default function App() {
   const [loginError, setLoginError] = useState('');
   const [isLoginLoading, setIsLoginLoading] = useState(false);
   
-  // Settings State (PIN ändern)
+  // Settings State
   const [newPin, setNewPin] = useState('');
   const [settingsMsg, setSettingsMsg] = useState('');
   
@@ -74,10 +70,7 @@ export default function App() {
   const [myDuels, setMyDuels] = useState([]);
   const [activeDuel, setActiveDuel] = useState(null);
   const [role, setRole] = useState(null); 
-  
-  // WICHTIG: Speichert jetzt [3, 12, 5, 99, 1] statt ganzer Objekte
   const [questionIndices, setQuestionIndices] = useState([]); 
-  
   const [wager, setWager] = useState(500); 
   const [stats, setStats] = useState({ wins: 0, losses: 0, total: 0, satsWon: 0 });
   
@@ -97,11 +90,7 @@ export default function App() {
   const [manualCheckLoading, setManualCheckLoading] = useState(false);
 
   // --- ÜBERSETZUNGS HELPER ---
-  const txt = (key) => {
-    // Holt den Text aus translations.js basierend auf 'lang' (de/en/es)
-    // Fallback: Zeigt den Key an, falls Übersetzung fehlt
-    return TRANSLATIONS[lang]?.[key] || key;
-  };
+  const txt = (key) => TRANSLATIONS[lang]?.[key] || key;
 
   // --- INITIALISIERUNG ---
 
@@ -116,17 +105,14 @@ export default function App() {
       setUser(JSON.parse(storedUser));
       setView('dashboard');
     } else if (savedLang && !storedUser) {
-      // Wenn Sprache gewählt, aber nicht eingeloggt -> Login
       setView('login');
       if (savedPin) setLoginPin(savedPin);
     } 
-    // Wenn gar nichts gespeichert -> Bleibt bei 'language_select'
   }, []);
 
   useEffect(() => {
     if (view === 'dashboard' && user) {
       fetchDuels(); fetchMyDuels(); fetchStats(); fetchLeaderboard();
-      
       const channel = supabase.channel('public:duels')
         .on('postgres_changes', { event: '*', schema: 'public', table: 'duels' }, () => {
           fetchDuels(); fetchMyDuels(); fetchStats(); fetchLeaderboard();
@@ -167,7 +153,6 @@ export default function App() {
   const selectLanguage = (l) => {
     setLang(l);
     localStorage.setItem('satoshi_lang', l);
-    // Navigiere weiter
     if (localStorage.getItem('satoshi_user')) {
       setView('dashboard');
     } else {
@@ -220,7 +205,7 @@ export default function App() {
         }
 
         if (existingUser.pin === 'nostr-auth' || existingUser.pin === 'extension-auth') {
-           setLoginError(txt('login_error_wrong_pin') + " (Auth Mode mismatch)"); // Vereinfacht
+           setLoginError(txt('login_error_wrong_pin')); 
         } else if (existingUser.pin === hashedPin) {
           finishLogin(existingUser.name, existingUser.pubkey);
         } else {
@@ -298,7 +283,6 @@ export default function App() {
   };
 
   const shareDuelOnNostr = async (duel) => {
-    // String Replacement für den Share-Text
     let shareString = txt('nostr_share_text');
     shareString = shareString.replace('{amount}', duel.amount).replace('{score}', duel.creator_score);
 
@@ -323,7 +307,7 @@ export default function App() {
     }
   };
 
-  // --- DATEN LADEN ---
+  // --- DATEN LADEN & SPIEL ---
 
   const fetchLeaderboard = async () => {
     const { data } = await supabase.from('duels').select('*').eq('status', 'finished');
@@ -371,16 +355,17 @@ export default function App() {
     if (!invoice.hash) return;
     try {
       const url = `${LNBITS_URL}/api/v1/payments/${invoice.hash}?ts=${Date.now()}`;
-      const res = await fetch(url, { headers: { 'X-Api-Key': ADMIN_KEY } });
+      const res = await fetch(url, { headers: { 'X-Api-Key': INVOICE_KEY } });
       const data = await res.json();
       if (data.paid === true || data.status === 'success') { setCheckingPayment(true); startGame(); } 
     } catch(e) {}
   };
 
+  // Status Check für Withdrawals - nutzt INVOICE_KEY (Read-Only), was sicherer ist als ADMIN_KEY
   const checkWithdrawStatus = async () => {
     if (!withdrawId) return;
     try {
-      const res = await fetch(`${LNBITS_URL}/withdraw/api/v1/links/${withdrawId}`, { headers: { 'X-Api-Key': ADMIN_KEY } });
+      const res = await fetch(`${LNBITS_URL}/withdraw/api/v1/links/${withdrawId}`, { headers: { 'X-Api-Key': INVOICE_KEY } });
       const data = await res.json();
       if (data.used >= 1 || data.spent === true) {
         confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
@@ -399,7 +384,6 @@ export default function App() {
   const startChallenge = (target) => { setChallengePlayer(target); openCreateSetup(); };
   const openCreateSetup = () => { resetGameState(); setWager(500); setView('create_setup'); };
   
-  // WICHTIG: Hier holen wir jetzt Indices [1, 55, 2] statt Objekte
   const submitCreateDuel = async () => { 
     const indices = getRandomQuestionIndices(); 
     setQuestionIndices(indices); 
@@ -410,7 +394,7 @@ export default function App() {
   const initJoinDuel = async (duel) => { 
     resetGameState(); 
     setActiveDuel(duel); 
-    setQuestionIndices(duel.questions); // Indices aus DB laden
+    setQuestionIndices(duel.questions); 
     setRole('challenger'); 
     await fetchInvoice(duel.amount); 
   };
@@ -435,20 +419,15 @@ export default function App() {
     setSelectedAnswer(index);
     setTotalTime(prev => prev + (15 - timeLeft)); 
 
-    // Die Nummer der aktuellen Frage
     const currentQuestionID = questionIndices[currentQ];
-    
-    // Fallback für alte Duelle in der DB (die noch Objekte waren)
-    // Wenn 'currentQuestionID' ein Objekt ist, ist es Legacy. Wenn es eine Zahl ist, ist es Neu.
     const isLegacy = typeof currentQuestionID === 'object';
-    
     const correctIndex = isLegacy ? currentQuestionID.correct : ALL_QUESTIONS[currentQuestionID].correct;
 
     const isCorrect = (index === correctIndex);
     if (isCorrect) setScore(s => s + 1);
 
     setTimeout(() => {
-      if (currentQ < 4) { // 5 Fragen (0-4)
+      if (currentQ < 4) { 
         setCurrentQ(p => p + 1);
         setTimeLeft(15);
         setSelectedAnswer(null);
@@ -462,7 +441,7 @@ export default function App() {
     if (role === 'creator') {
       await supabase.from('duels').insert([{
         creator: user.name, creator_score: finalScore, creator_time: totalTime, 
-        questions: questionIndices, // Wir speichern die Indices [1, 5, 2...]
+        questions: questionIndices, 
         status: 'open', amount: invoice.amount, target_player: challengePlayer
       }]);
       setView('dashboard');
@@ -495,28 +474,34 @@ export default function App() {
     }
   };
 
+  // 🔒 SICHERHEITS-UPDATE: Ruft jetzt die API Route auf, statt den Key direkt zu nutzen!
   const createWithdrawLink = async (duelAmount, duelId) => {
-    if (!ADMIN_KEY) return;
     try {
-      const prize = (duelAmount * 2); 
-      const res = await fetch(`${LNBITS_URL}/withdraw/api/v1/links`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Api-Key': ADMIN_KEY },
-        body: JSON.stringify({ title: `SatoshiDuell Win`, min_withdrawable: prize, max_withdrawable: prize, uses: 1, wait_time: 1, is_unique: true })
+      const res = await fetch('/api/claim', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ amount: duelAmount, duelId: duelId })
       });
       const data = await res.json();
-      if (data.lnurl) { setWithdrawLink(data.lnurl); setWithdrawId(data.id); await supabase.from('duels').update({ claimed: true }).eq('id', duelId); }
-    } catch(e) { console.error(e); }
+      
+      if (data.lnurl) { 
+        setWithdrawLink(data.lnurl); 
+        setWithdrawId(data.id); 
+        await supabase.from('duels').update({ claimed: true }).eq('id', duelId); 
+      } else {
+        console.error("API Error:", data);
+      }
+    } catch(e) { console.error("Withdraw Error:", e); }
   };
 
   const handleLogout = () => { 
     localStorage.clear(); 
     setUser(null); 
-    setView('language_select'); // Logout führt zur Sprachwahl
+    setView('language_select'); 
   };
 
   // --- VIEWS ---
 
-  // 1. NEUER VIEW: SPRACHWAHL (Erster Screen)
   if (view === 'language_select') return (
     <Background>
       <div className="w-full max-w-sm flex flex-col gap-8 animate-float text-center px-4">
@@ -584,8 +569,6 @@ export default function App() {
         </div>
 
         <Button variant="secondary" onClick={handleExtensionLogin}><Fingerprint size={18}/> {txt('btn_nostr_ext')}</Button>
-        
-        {/* SPRACHE WECHSELN BUTTON */}
         <button onClick={() => setView('language_select')} className="text-neutral-500 text-xs uppercase font-bold mt-4 hover:text-white">Change Language 🌐</button>
       </div>
     </Background>
@@ -681,7 +664,7 @@ export default function App() {
           <div className="space-y-1.5 max-h-[140px] overflow-y-auto custom-scrollbar">
             {leaderboard.map((p, i) => (
               <div key={p.name} className="flex justify-between items-center bg-black/20 p-2 rounded-lg text-xs">
-                <span className="text-neutral-500 font-mono w-5 text-center">{i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : i + 1}</span>
+                <span className="text-neutral-500 font-mono w-5 text-center">{i + 1}</span>
                 <span className="text-white font-bold uppercase flex-1 ml-2">{p.name}</span>
                 <div className="flex items-center gap-3">
                   <span className="text-orange-400 font-mono text-[10px]">{p.satsWon} sats</span>
@@ -732,14 +715,10 @@ export default function App() {
   );
 
   if (view === 'game') {
-    // MAGIE: Wir laden den Text passend zur Sprache!
     const questionIndex = questionIndices[currentQ];
-    
-    // Legacy Support: Falls alte DB Einträge Objekte sind
     const isLegacy = typeof questionIndex === 'object';
     
     const questionData = isLegacy ? questionIndex : ALL_QUESTIONS[questionIndex][lang];
-    // Bei Legacy sind Options direkt im Objekt, bei Neu (Index) im ALL_QUESTIONS Array
     const options = isLegacy ? questionIndex.options : questionData.options;
     const correctIndex = isLegacy ? questionIndex.correct : ALL_QUESTIONS[questionIndex].correct;
 
