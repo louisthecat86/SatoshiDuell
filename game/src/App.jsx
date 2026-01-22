@@ -25,14 +25,14 @@ import {
   Settings, 
   Save, 
   Heart,
-  Github // <--- NEU IMPORTIERT
+  Github
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { QRCodeCanvas } from 'qrcode.react';
 import { nip19 } from 'nostr-tools'; 
 
 // --- EIGENE IMPORTS ---
-import { ALL_QUESTIONS } from './questions';
+// WICHTIG: Kein Import von questions.js mehr!
 import { TRANSLATIONS } from './translations'; 
 import Button from './components/Button';
 import Card from './components/Card';
@@ -122,11 +122,17 @@ export default function App() {
   // Helper
   const txt = (key) => TRANSLATIONS[lang]?.[key] || key;
 
-  // Game Generator
+  // Generiert das Spiel (Nimmt jetzt die Fragen als Parameter an!)
   const generateGameData = (questionsSource) => {
     if (!questionsSource || questionsSource.length === 0) return [];
+    
+    // 1. Alle Indizes holen
     const allIndices = questionsSource.map((_, i) => i);
+    
+    // 2. 5 Zufällige auswählen
     const selectedIndices = allIndices.sort(() => 0.5 - Math.random()).slice(0, 5);
+    
+    // 3. Antwort-Reihenfolge mischen
     return selectedIndices.map(id => {
       return {
         id: id,
@@ -137,6 +143,7 @@ export default function App() {
 
   // --- INITIALISIERUNG ---
 
+  // 1. Fragen vom Server laden
   useEffect(() => {
     const fetchQuestions = async () => {
       try {
@@ -147,12 +154,14 @@ export default function App() {
         setIsDataLoaded(true);
       } catch (e) {
         console.error("Failed to load questions", e);
-        alert("Fehler: Konnte Fragen nicht vom Server laden. Bitte Internet prüfen.");
+        // Falls Fehler, bleibt der Loading Screen oder man zeigt Error an
+        alert("Fehler: Konnte Fragen nicht laden. Bitte Seite neu laden.");
       }
     };
     fetchQuestions();
   }, []);
 
+  // 2. User & Sprache laden (Erst wenn Fragen da sind)
   useEffect(() => {
     if (!isDataLoaded) return; 
 
@@ -174,6 +183,7 @@ export default function App() {
     }
   }, [isDataLoaded]);
 
+  // 3. Live Updates
   useEffect(() => {
     if (view === 'dashboard' && user) {
       fetchDuels(); fetchMyDuels(); fetchStats(); fetchLeaderboard();
@@ -186,6 +196,7 @@ export default function App() {
     }
   }, [view, user]);
 
+  // 4. Timer Logik
   useEffect(() => {
     let timer;
     if (view === 'game' && timeLeft > 0 && selectedAnswer === null) {
@@ -196,6 +207,7 @@ export default function App() {
     return () => clearInterval(timer);
   }, [view, timeLeft, selectedAnswer]);
 
+  // 5. Polling
   useEffect(() => {
     let interval;
     if (view === 'payment' && invoice.hash && !checkingPayment) {
@@ -216,6 +228,7 @@ export default function App() {
   // --- LOGIK ---
   
   const previewLanguage = (l) => { setLang(l); };
+  
   const acceptDisclaimer = () => {
     localStorage.setItem('satoshi_lang', lang);
     if (localStorage.getItem('satoshi_user')) {
@@ -316,7 +329,7 @@ export default function App() {
     } else { navigator.clipboard.writeText(shareString); alert("Copied to clipboard!"); }
   };
 
-  // --- DONATION LOGIC ---
+  // --- DONATION ---
   const openDonation = () => { setDonationInvoice(''); setDonationAmount(2100); setView('donate'); };
   
   const handleGenerateDonation = async () => {
@@ -329,7 +342,7 @@ export default function App() {
     setIsDonationLoading(false);
   };
 
-  // --- DATEN LADEN & SPIEL ---
+  // --- DATEN & SPIEL ---
   const fetchLeaderboard = async () => {
     const { data } = await supabase.from('duels').select('*').eq('status', 'finished');
     if (!data) return;
@@ -358,7 +371,6 @@ export default function App() {
   };
   
   const fetchDuels = async () => { const { data } = await supabase.from('duels').select('*').eq('status', 'open').or(`target_player.is.null,target_player.eq.${user.name}`).order('created_at', { ascending: false }); if (data) setDuelsList(data); };
-  
   const fetchMyDuels = async () => { if (!user) return; const { data } = await supabase.from('duels').select('*').or(`creator.eq.${user.name},challenger.eq.${user.name}`).order('created_at', { ascending: false }); if (data) setMyDuels(data); };
   
   const checkPaymentStatus = async () => { if (!invoice.hash) return; try { const url = `${LNBITS_URL}/api/v1/payments/${invoice.hash}?ts=${Date.now()}`; const res = await fetch(url, { headers: { 'X-Api-Key': INVOICE_KEY } }); const data = await res.json(); if (data.paid === true || data.status === 'success') { setCheckingPayment(true); startGame(); } } catch(e) {} };
@@ -375,6 +387,7 @@ export default function App() {
   
   const submitCreateDuel = async () => { 
     if (!wager || Number(wager) <= 0) { alert("Bitte einen Einsatz wählen!"); return; }
+    // Hier verwenden wir jetzt die geladenen allQuestions!
     const gameConfig = generateGameData(allQuestions); 
     setGameData(gameConfig); setRole('creator'); await fetchInvoice(Number(wager)); 
   };
@@ -401,6 +414,7 @@ export default function App() {
     
     const roundConfig = gameData[currentQ];
     const originalIndex = roundConfig.order[displayIndex];
+    // Zugriff auf allQuestions (State)
     const correctIndex = allQuestions[roundConfig.id].correct;
 
     const isCorrect = (originalIndex === correctIndex);
@@ -425,7 +439,21 @@ export default function App() {
   
   const determineWinner = async (duel, myRole, myScore, myTime) => { setView('result_final'); const oppScore = myRole === 'creator' ? (duel.challenger_score || 0) : duel.creator_score; const oppTime = myRole === 'creator' ? (duel.challenger_time || 999) : duel.creator_time; const won = myScore > oppScore || (myScore === oppScore && myTime < oppTime); if (duel.status === 'finished' && won && !duel.claimed) { confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } }); await createWithdrawLink(duel.amount, duel.id); } };
   
-  const createWithdrawLink = async (duelAmount, duelId) => { try { const res = await fetch('/api/claim', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ amount: duelAmount, duelId: duelId }) }); const data = await res.json(); if (data.lnurl) { setWithdrawLink(data.lnurl); setWithdrawId(data.id); await supabase.from('duels').update({ claimed: true }).eq('id', duelId); } } catch(e) { console.error("Withdraw Error:", e); } };
+  const createWithdrawLink = async (duelAmount, duelId) => { 
+    try { 
+      const res = await fetch('/api/claim', { 
+        method: 'POST', 
+        headers: { 'Content-Type': 'application/json' }, 
+        body: JSON.stringify({ amount: duelAmount, duelId: duelId }) 
+      }); 
+      const data = await res.json(); 
+      if (data.lnurl) { 
+        setWithdrawLink(data.lnurl); 
+        setWithdrawId(data.id); 
+        await supabase.from('duels').update({ claimed: true }).eq('id', duelId); 
+      } 
+    } catch(e) { console.error("Withdraw Error:", e); } 
+  };
   
   const handleLogout = () => { localStorage.clear(); setUser(null); setView('language_select'); };
 
@@ -466,7 +494,6 @@ export default function App() {
           </div>
           <Button variant="primary" onClick={acceptDisclaimer}>{txt('btn_understood')}</Button>
           
-          {/* NEU: GITHUB LINK GANZ UNTEN */}
           <a 
             href="https://github.com/louisthecat86/SatoshiDuell" 
             target="_blank" 
