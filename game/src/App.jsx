@@ -98,7 +98,7 @@ export default function App() {
   const [leaderboard, setLeaderboard] = useState([]);
   const [challengePlayer, setChallengePlayer] = useState(null);
   
-  // LISTEN (GETRENNT)
+  // LISTEN
   const [publicDuels, setPublicDuels] = useState([]);     
   const [targetedDuels, setTargetedDuels] = useState([]); 
   const [myDuels, setMyDuels] = useState([]);             
@@ -116,12 +116,13 @@ export default function App() {
   const [totalTime, setTotalTime] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState(null); 
   
-  // Payment
+  // Payment & Withdraw
   const [invoice, setInvoice] = useState({ req: '', hash: '', amount: 0 });
   const [withdrawLink, setWithdrawLink] = useState('');
   const [withdrawId, setWithdrawId] = useState(''); 
   const [checkingPayment, setCheckingPayment] = useState(false);
   const [manualCheckLoading, setManualCheckLoading] = useState(false);
+  const [invoiceCopied, setInvoiceCopied] = useState(false); // NEU: Feedback für Invoice Copy
 
   // Donation
   const [donationAmount, setDonationAmount] = useState(2100);
@@ -311,17 +312,19 @@ export default function App() {
     } catch (e) { setSettingsMsg("Error saving."); }
   };
 
+  // --- NOSTR TEILEN LOGIK (NEU: NUR COPY) ---
   const shareDuelOnNostr = async (duel) => {
     let shareString = txt('nostr_share_text');
     shareString = shareString.replace('{amount}', duel.amount).replace('{score}', duel.creator_score);
-    if (window.nostr) {
-      try {
-        const event = { kind: 1, created_at: Math.floor(Date.now() / 1000), tags: [['t', 'satoshiDuell'], ['t', 'bitcoin']], content: shareString };
-        const signedEvent = await window.nostr.signEvent(event);
-        DEFAULT_RELAYS.forEach(url => { const ws = new WebSocket(url); ws.onopen = () => { ws.send(JSON.stringify(["EVENT", signedEvent])); ws.close(); }; });
-        alert("Sent to Nostr! ⚡");
-      } catch (e) { alert("Sign Error."); }
-    } else { navigator.clipboard.writeText(shareString); alert("Copied to clipboard!"); }
+    
+    // NEU: Einfach in Zwischenablage kopieren, statt window.nostr zu nutzen
+    try {
+      await navigator.clipboard.writeText(shareString);
+      alert(txt('nostr_copied')); // "Text kopiert!"
+    } catch (e) {
+      console.error(e);
+      alert("Fehler beim Kopieren.");
+    }
   };
 
   // --- DONATION LOGIC ---
@@ -339,7 +342,6 @@ export default function App() {
 
   // --- DATEN LADEN & SPIEL ---
   
-  // ZENTRALE FUNKTION MIT KORREKTER FILTERUNG
   const fetchAllLobbyData = async () => {
     if (!user) return;
 
@@ -369,12 +371,11 @@ export default function App() {
     const { data: allOpen } = await supabase.from('duels').select('*').eq('status', 'open').order('created_at', { ascending: false });
     
     if (allOpen) {
-      // 2a. PUBLIC DUELS: STRENGE FILTERUNG!
-      // Nur wenn target_player null, undefined oder leer ist
+      // 2a. PUBLIC DUELS
       const publicData = allOpen.filter(d => !d.target_player || d.target_player.trim() === '');
       setPublicDuels(publicData);
 
-      // 2b. TARGETED DUELS: Nur Duelle, die an MICH gerichtet sind
+      // 2b. TARGETED DUELS
       const targetData = allOpen.filter(d => d.target_player === user.name);
       setTargetedDuels(targetData);
     }
@@ -405,11 +406,10 @@ export default function App() {
   const resetGameState = () => { 
     setWithdrawLink(''); setWithdrawId(''); setScore(0); setTotalTime(0); setCurrentQ(0); 
     setInvoice({ req: '', hash: '', amount: 0 }); 
-    // WICHTIG: Hier resetten wir challengePlayer NICHT, das passiert im openCreateSetup
     setSelectedAnswer(null); 
+    setInvoiceCopied(false); // Reset Copy State
   };
   
-  // SCHWERT-KLICK: Setzt den Target Player
   const startChallenge = (target) => { 
     setChallengePlayer(target); 
     resetGameState();
@@ -417,9 +417,8 @@ export default function App() {
     setView('create_setup'); 
   };
   
-  // PLUS-KLICK: Muss Target Player zwingend leeren!
   const openCreateSetup = () => { 
-    setChallengePlayer(null); // RESET FÜR ÖFFENTLICHES SPIEL
+    setChallengePlayer(null); 
     resetGameState(); 
     setWager(''); 
     setView('create_setup'); 
@@ -488,7 +487,7 @@ export default function App() {
         questions: gameData, 
         status: 'open', 
         amount: invoice.amount, 
-        target_player: challengePlayer // Hier wird entschieden ob Public oder Private!
+        target_player: challengePlayer 
       }]); 
       setView('dashboard');
     } else {
@@ -656,9 +655,9 @@ export default function App() {
             <div className="flex flex-col gap-2 flex-1 overflow-hidden">
                <div className="text-[10px] font-black text-neutral-500 uppercase tracking-widest px-2">{txt('lobby_open')}</div>
                <div className="overflow-y-auto space-y-2 pr-1 custom-scrollbar">
-                 {/* WICHTIG: Doppelte Filterung für maximale Sicherheit */}
-                 {publicDuels.filter(d => d.creator !== user.name && (!d.target_player || d.target_player === '')).length === 0 && <p className="text-neutral-600 text-xs italic text-center py-4">Keine offenen Duelle</p>}
-                 {publicDuels.filter(d => d.creator !== user.name && (!d.target_player || d.target_player === '')).map(d => (
+                 {/* WICHTIG: Hier nutzen wir publicDuels, nicht mehr die gemischte Liste! */}
+                 {publicDuels.filter(d => d.creator !== user.name).length === 0 && <p className="text-neutral-600 text-xs italic text-center py-4">Keine offenen Duelle</p>}
+                 {publicDuels.filter(d => d.creator !== user.name).map(d => (
                    <div key={d.id} className="bg-white/5 p-3 rounded-xl flex justify-between items-center border border-white/5">
                      <div><p className="font-bold text-white text-xs uppercase">{d.creator}</p><p className="text-[10px] text-orange-400 font-mono">{d.amount} sats</p></div>
                      <button onClick={() => initJoinDuel(d)} className="bg-orange-500 text-black px-4 py-2 rounded-lg text-[10px] font-black uppercase">{txt('lobby_fight')}</button>
@@ -768,6 +767,22 @@ export default function App() {
         <div className="w-full max-w-sm text-center">
           <h2 className="text-2xl font-black text-white mb-8 uppercase">{txt('pay_title')}</h2>
           <div className="bg-white p-4 rounded-3xl mx-auto mb-8 flex justify-center shadow-2xl">{invoice.req && <QRCodeCanvas value={`lightning:${invoice.req.toUpperCase()}`} size={220} includeMargin={true}/>}</div>
+          
+          {/* NEU: KOPIER BUTTON FÜR INVOICE */}
+          <div className="my-4 flex justify-center">
+             <button 
+               onClick={() => {
+                 navigator.clipboard.writeText(invoice.req);
+                 setInvoiceCopied(true);
+                 setTimeout(() => setInvoiceCopied(false), 2000);
+               }}
+               className="flex items-center gap-2 bg-neutral-800 hover:bg-neutral-700 text-neutral-400 hover:text-white px-4 py-2 rounded-full text-xs font-bold transition-all border border-white/5"
+             >
+               {invoiceCopied ? <Check size={14} className="text-green-500"/> : <Copy size={14}/>}
+               {txt('btn_copy_invoice')}
+             </button>
+          </div>
+
           <div className="grid gap-3"><Button variant="primary" onClick={handleManualCheck}>{txt('btn_check')}</Button><Button variant="secondary" onClick={() => window.location.href = `lightning:${invoice.req}`}>{txt('btn_wallet')}</Button><button onClick={() => setView('dashboard')} className="text-xs text-neutral-500 mt-4 font-bold uppercase">{txt('btn_cancel')}</button></div>
         </div>
       </Background>
