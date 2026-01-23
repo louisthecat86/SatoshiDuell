@@ -65,6 +65,8 @@ export const TRANSLATIONS = {
     btn_copy_invoice: "INVOICE KOPIEREN", // <--- NEU
     nostr_copied: "Text kopiert! Einfach in deinem Nostr-Client einfügen.",
     btn_nostr_ext: "LOGIN MIT EXTENSION / SIGNER (Alby, Amber...)",
+    btn_copy_invoice: "INVOICE KOPIEREN",
+    btn_copy_withdraw: "CODE KOPIEREN", // <--- NEU
     setup_wager_label: "DEIN EINSATZ (SATS)",
     setup_refund_info: "ℹ️ Fairness-Garantie: Wenn dein Gegner die Herausforderung nicht innerhalb von 3 Tagen annimmt, kannst du deinen Einsatz in der Historie zurückfordern.",
     // ...
@@ -134,6 +136,8 @@ export const TRANSLATIONS = {
     btn_copy_invoice: "COPY INVOICE",
     nostr_copied: "Text copied! Paste it into your Nostr client.",
     btn_nostr_ext: "LOGIN WITH EXTENSION / SIGNER (Alby, Amber...)",
+    btn_copy_invoice: "COPY INVOICE",
+    btn_copy_withdraw: "COPY CODE", // <--- NEU
     setup_wager_label: "YOUR WAGER (SATS)",
     setup_refund_info: "ℹ️ Fairness Guarantee: If your opponent does not accept within 3 days, you can claim a refund in your history.",
   },
@@ -202,6 +206,8 @@ export const TRANSLATIONS = {
     btn_copy_invoice: "COPIAR FACTURA",
     nostr_copied: "¡Texto copiado! Pégalo en tu cliente Nostr.",
     btn_nostr_ext: "ENTRAR CON EXTENSIÓN / SIGNER",
+    btn_copy_invoice: "COPIAR FACTURA",
+    btn_copy_withdraw: "COPIAR CÓDIGO", // <--- NEU
     setup_wager_label: "TU APUESTA (SATS)",
     setup_refund_info: "ℹ️ Garantía de justicia: Si tu oponente no acepta en 3 días, puedes reclamar un reembolso en tu historial.",
   }

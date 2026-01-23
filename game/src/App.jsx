@@ -98,7 +98,7 @@ export default function App() {
   const [leaderboard, setLeaderboard] = useState([]);
   const [challengePlayer, setChallengePlayer] = useState(null);
   
-  // LISTEN
+  // LISTEN (GETRENNT)
   const [publicDuels, setPublicDuels] = useState([]);     
   const [targetedDuels, setTargetedDuels] = useState([]); 
   const [myDuels, setMyDuels] = useState([]);             
@@ -116,13 +116,16 @@ export default function App() {
   const [totalTime, setTotalTime] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState(null); 
   
-  // Payment & Withdraw
+  // Payment
   const [invoice, setInvoice] = useState({ req: '', hash: '', amount: 0 });
-  const [withdrawLink, setWithdrawLink] = useState('');
-  const [withdrawId, setWithdrawId] = useState(''); 
   const [checkingPayment, setCheckingPayment] = useState(false);
   const [manualCheckLoading, setManualCheckLoading] = useState(false);
-  const [invoiceCopied, setInvoiceCopied] = useState(false); // NEU: Feedback für Invoice Copy
+  const [invoiceCopied, setInvoiceCopied] = useState(false);
+
+  // Withdraw
+  const [withdrawLink, setWithdrawLink] = useState('');
+  const [withdrawId, setWithdrawId] = useState(''); 
+  const [withdrawCopied, setWithdrawCopied] = useState(false); // NEU: Withdraw Copy State
 
   // Donation
   const [donationAmount, setDonationAmount] = useState(2100);
@@ -312,15 +315,12 @@ export default function App() {
     } catch (e) { setSettingsMsg("Error saving."); }
   };
 
-  // --- NOSTR TEILEN LOGIK (NEU: NUR COPY) ---
   const shareDuelOnNostr = async (duel) => {
     let shareString = txt('nostr_share_text');
     shareString = shareString.replace('{amount}', duel.amount).replace('{score}', duel.creator_score);
-    
-    // NEU: Einfach in Zwischenablage kopieren, statt window.nostr zu nutzen
     try {
       await navigator.clipboard.writeText(shareString);
-      alert(txt('nostr_copied')); // "Text kopiert!"
+      alert(txt('nostr_copied')); 
     } catch (e) {
       console.error(e);
       alert("Fehler beim Kopieren.");
@@ -371,11 +371,8 @@ export default function App() {
     const { data: allOpen } = await supabase.from('duels').select('*').eq('status', 'open').order('created_at', { ascending: false });
     
     if (allOpen) {
-      // 2a. PUBLIC DUELS
       const publicData = allOpen.filter(d => !d.target_player || d.target_player.trim() === '');
       setPublicDuels(publicData);
-
-      // 2b. TARGETED DUELS
       const targetData = allOpen.filter(d => d.target_player === user.name);
       setTargetedDuels(targetData);
     }
@@ -407,7 +404,8 @@ export default function App() {
     setWithdrawLink(''); setWithdrawId(''); setScore(0); setTotalTime(0); setCurrentQ(0); 
     setInvoice({ req: '', hash: '', amount: 0 }); 
     setSelectedAnswer(null); 
-    setInvoiceCopied(false); // Reset Copy State
+    setInvoiceCopied(false); 
+    setWithdrawCopied(false); // NEU: Reset Withdraw
   };
   
   const startChallenge = (target) => { 
@@ -636,7 +634,7 @@ export default function App() {
 
           <div className="flex-1 overflow-hidden flex flex-col gap-4">
             
-            {/* 1. HERAUSFORDERUNGEN AN MICH (Nur sichtbar, wenn vorhanden) */}
+            {/* 1. HERAUSFORDERUNGEN AN MICH */}
             {targetedDuels.length > 0 && (
               <div className="flex flex-col gap-2 flex-shrink-0 animate-in slide-in-from-right duration-500">
                  <div className="text-[10px] font-black text-purple-400 uppercase tracking-widest px-2 animate-pulse">{txt('lobby_challenges')}</div>
@@ -655,9 +653,9 @@ export default function App() {
             <div className="flex flex-col gap-2 flex-1 overflow-hidden">
                <div className="text-[10px] font-black text-neutral-500 uppercase tracking-widest px-2">{txt('lobby_open')}</div>
                <div className="overflow-y-auto space-y-2 pr-1 custom-scrollbar">
-                 {/* WICHTIG: Hier nutzen wir publicDuels, nicht mehr die gemischte Liste! */}
-                 {publicDuels.filter(d => d.creator !== user.name).length === 0 && <p className="text-neutral-600 text-xs italic text-center py-4">Keine offenen Duelle</p>}
-                 {publicDuels.filter(d => d.creator !== user.name).map(d => (
+                 {/* WICHTIG: Doppelte Filterung für maximale Sicherheit */}
+                 {publicDuels.filter(d => d.creator !== user.name && (!d.target_player || d.target_player === '')).length === 0 && <p className="text-neutral-600 text-xs italic text-center py-4">Keine offenen Duelle</p>}
+                 {publicDuels.filter(d => d.creator !== user.name && (!d.target_player || d.target_player === '')).map(d => (
                    <div key={d.id} className="bg-white/5 p-3 rounded-xl flex justify-between items-center border border-white/5">
                      <div><p className="font-bold text-white text-xs uppercase">{d.creator}</p><p className="text-[10px] text-orange-400 font-mono">{d.amount} sats</p></div>
                      <button onClick={() => initJoinDuel(d)} className="bg-orange-500 text-black px-4 py-2 rounded-lg text-[10px] font-black uppercase">{txt('lobby_fight')}</button>
@@ -768,7 +766,7 @@ export default function App() {
           <h2 className="text-2xl font-black text-white mb-8 uppercase">{txt('pay_title')}</h2>
           <div className="bg-white p-4 rounded-3xl mx-auto mb-8 flex justify-center shadow-2xl">{invoice.req && <QRCodeCanvas value={`lightning:${invoice.req.toUpperCase()}`} size={220} includeMargin={true}/>}</div>
           
-          {/* NEU: KOPIER BUTTON FÜR INVOICE */}
+          {/* KOPIER BUTTON FÜR INVOICE */}
           <div className="my-4 flex justify-center">
              <button 
                onClick={() => {
@@ -820,6 +818,11 @@ export default function App() {
              {withdrawLink && (
                 <div className="animate-in slide-in-from-bottom-5">
                   <div className="bg-white p-4 rounded-3xl inline-block mb-6 shadow-2xl"><QRCodeCanvas value={`lightning:${withdrawLink.toUpperCase()}`} size={180}/></div>
+                  <div className="my-4 flex justify-center">
+                     <button onClick={() => { navigator.clipboard.writeText(withdrawLink); setWithdrawCopied(true); setTimeout(() => setWithdrawCopied(false), 2000); }} className="flex items-center gap-2 bg-neutral-800 hover:bg-neutral-700 text-neutral-400 hover:text-white px-4 py-2 rounded-full text-xs font-bold transition-all border border-white/5">
+                       {withdrawCopied ? <Check size={14} className="text-green-500"/> : <Copy size={14}/>} {txt('btn_copy_withdraw')}
+                     </button>
+                  </div>
                   <Button variant="success" onClick={() => window.location.href = `lightning:${withdrawLink}`}>SATs ABHOLEN</Button>
                 </div>
              )}
@@ -847,7 +850,20 @@ export default function App() {
               <Card className="p-4 bg-white/5 border-orange-500/30"><p className="text-[10px] font-bold text-neutral-500 uppercase">Du</p><p className="text-4xl font-black text-white font-mono">{myS}</p><p className="text-[10px] text-neutral-500 italic">{myT}s</p></Card>
               <Card className="p-4 bg-white/5 opacity-50"><p className="text-[10px] font-bold text-neutral-500 uppercase">Gegner</p><p className="text-4xl font-black text-white font-mono">{duel.status === 'finished' ? opS : '?'}</p><p className="text-[10px] text-neutral-500 italic">{duel.status === 'finished' ? opT + 's' : 'läuft...'}</p></Card>
             </div>
-            {withdrawLink ? (<div className="animate-in slide-in-from-bottom-5 duration-700"><div className="bg-white p-4 rounded-3xl inline-block mb-6 shadow-2xl"><QRCodeCanvas value={`lightning:${withdrawLink.toUpperCase()}`} size={180}/></div><Button variant="success" onClick={() => window.location.href = `lightning:${withdrawLink}`}>{txt('btn_withdraw')}</Button><p className="text-orange-400 text-[10px] mt-4 font-mono animate-pulse uppercase tracking-widest italic">App springt nach Einlösung automatisch zurück</p></div>) : <button onClick={() => setView('dashboard')} className="text-neutral-500 font-black uppercase text-xs tracking-widest mt-6">{txt('btn_lobby')}</button>}
+            {withdrawLink ? (
+              <div className="animate-in slide-in-from-bottom-5 duration-700">
+                <div className="bg-white p-4 rounded-3xl inline-block mb-6 shadow-2xl"><QRCodeCanvas value={`lightning:${withdrawLink.toUpperCase()}`} size={180}/></div>
+                <div className="my-4 flex justify-center">
+                   <button onClick={() => { navigator.clipboard.writeText(withdrawLink); setWithdrawCopied(true); setTimeout(() => setWithdrawCopied(false), 2000); }} className="flex items-center gap-2 bg-neutral-800 hover:bg-neutral-700 text-neutral-400 hover:text-white px-4 py-2 rounded-full text-xs font-bold transition-all border border-white/5">
+                     {withdrawCopied ? <Check size={14} className="text-green-500"/> : <Copy size={14}/>} {txt('btn_copy_withdraw')}
+                   </button>
+                </div>
+                <Button variant="success" onClick={() => window.location.href = `lightning:${withdrawLink}`}>{txt('btn_withdraw')}</Button>
+                <p className="text-orange-400 text-[10px] mt-4 font-mono animate-pulse uppercase tracking-widest italic">App springt nach Einlösung automatisch zurück</p>
+              </div>
+            ) : (
+              <button onClick={() => setView('dashboard')} className="text-neutral-500 font-black uppercase text-xs tracking-widest mt-6">{txt('btn_lobby')}</button>
+            )}
          </div>
       </Background>
     ); 
