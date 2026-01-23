@@ -64,7 +64,7 @@ export const TRANSLATIONS = {
     challenge_sent: "Herausforderung an",
     btn_copy_invoice: "INVOICE KOPIEREN", // <--- NEU
     nostr_copied: "Text kopiert! Einfach in deinem Nostr-Client einfügen.",
-    btn_nostr_ext: "LOGIN MIT EXTENSION / SIGNER (Alby, Amber...)",
+    btn_nostr_ext: "LOGIN MIT EXTENSION / SIGNER",
     btn_copy_invoice: "INVOICE KOPIEREN",
     btn_copy_withdraw: "CODE KOPIEREN", // <--- NEU
     setup_wager_label: "DEIN EINSATZ (SATS)",
@@ -135,7 +135,7 @@ export const TRANSLATIONS = {
     challenge_sent: "Challenge sent to",
     btn_copy_invoice: "COPY INVOICE",
     nostr_copied: "Text copied! Paste it into your Nostr client.",
-    btn_nostr_ext: "LOGIN WITH EXTENSION / SIGNER (Alby, Amber...)",
+    btn_nostr_ext: "LOGIN WITH EXTENSION / SIGNER",
     btn_copy_invoice: "COPY INVOICE",
     btn_copy_withdraw: "COPY CODE", // <--- NEU
     setup_wager_label: "YOUR WAGER (SATS)",
