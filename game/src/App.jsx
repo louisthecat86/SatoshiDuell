@@ -136,15 +136,50 @@ export default function App() {
   // Helper
   const txt = (key) => TRANSLATIONS[lang]?.[key] || key;
 
-  // Generator
+// --- INTELLIGENTER GENERATOR (Fisher-Yates + History) ---
   const generateGameData = (questionsSource) => {
     if (!questionsSource || questionsSource.length === 0) return [];
-    const allIndices = questionsSource.map((_, i) => i);
-    const selectedIndices = allIndices.sort(() => 0.5 - Math.random()).slice(0, 5);
+
+    // 1. Hole die Historie der bereits gespielten Fragen
+    let playedIds = JSON.parse(localStorage.getItem('played_questions') || '[]');
+
+    // 2. Filtere alle Fragen heraus, die wir schon hatten
+    let availableIndices = questionsSource
+      .map((_, i) => i)
+      .filter(id => !playedIds.includes(id));
+
+    // 3. Wenn weniger als 5 Fragen übrig sind (Pool erschöpft), setze Historie zurück
+    if (availableIndices.length < 5) {
+      playedIds = [];
+      availableIndices = questionsSource.map((_, i) => i);
+    }
+
+    // 4. Fisher-Yates Shuffle (Der ECHTE Zufall)
+    // Dieser Algorithmus mischt perfekt gleichmäßig
+    for (let i = availableIndices.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [availableIndices[i], availableIndices[j]] = [availableIndices[j], availableIndices[i]];
+    }
+
+    // 5. Die ersten 5 auswählen
+    const selectedIndices = availableIndices.slice(0, 5);
+
+    // 6. Die neuen Fragen zur Historie hinzufügen und speichern
+    const newHistory = [...playedIds, ...selectedIndices];
+    localStorage.setItem('played_questions', JSON.stringify(newHistory));
+
+    // 7. Struktur für das Spiel bauen (Antworten mischen wir auch mit Fisher-Yates)
     return selectedIndices.map(id => {
+      const order = [0, 1, 2, 3];
+      // Antworten mischen
+      for (let i = order.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [order[i], order[j]] = [order[j], order[i]];
+      }
+      
       return {
         id: id,
-        order: [0, 1, 2, 3].sort(() => 0.5 - Math.random()) 
+        order: order
       };
     });
   };
