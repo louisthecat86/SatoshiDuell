@@ -34,7 +34,7 @@ import {
   AlertCircle,
   Bell,
   Shield,
-  Search // Nur noch die Icons, die wir wirklich nutzen!
+  Search 
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { QRCodeCanvas } from 'qrcode.react';
@@ -120,7 +120,8 @@ export default function App() {
   const [score, setScore] = useState(0);
   const [timeLeft, setTimeLeft] = useState(15.0); 
   const [totalTime, setTotalTime] = useState(0);
-  const [selectedAnswer, setSelectedAnswer] = useState(null); 
+  const [selectedAnswer, setSelectedAnswer] = useState(null);
+  const [isProcessingGame, setIsProcessingGame] = useState(false); // Fix für Hängenbleiben
   
   // Payment & Withdraw
   const [invoice, setInvoice] = useState({ req: '', hash: '', amount: 0 });
@@ -130,6 +131,7 @@ export default function App() {
   const [manualCheckLoading, setManualCheckLoading] = useState(false);
   const [invoiceCopied, setInvoiceCopied] = useState(false);
   const [withdrawCopied, setWithdrawCopied] = useState(false);
+  const [isClaiming, setIsClaiming] = useState(false); // Fix für Mehrfach-Auszahlung
 
   // Donation
   const [donationAmount, setDonationAmount] = useState(2100);
@@ -247,7 +249,7 @@ export default function App() {
       timer = setInterval(() => {
         setTimeLeft(t => Math.max(0, t - 0.1));
       }, 100);
-    } else if (view === 'game' && timeLeft === 0 && selectedAnswer === null) {
+    } else if (view === 'game' && timeLeft <= 0 && selectedAnswer === null) {
       handleAnswer(-1); 
     }
     return () => clearInterval(timer);
@@ -308,6 +310,7 @@ export default function App() {
         if (nameFromInput && existingUser.pubkey) { setLoginError(txt('login_error_nostr')); setIsLoginLoading(false); return; }
         if (existingUser.pin === 'nostr-auth' || existingUser.pin === 'extension-auth') { setLoginError(txt('login_error_wrong_pin')); } 
         else if (existingUser.pin === hashedPin) { 
+            // Admin Status aus der DB laden
             finishLogin(existingUser.name, existingUser.pubkey, existingUser.is_admin); 
         } 
         else { setLoginError(txt('login_error_wrong_pin')); }
@@ -482,6 +485,8 @@ export default function App() {
     setSelectedAnswer(null); 
     setInvoiceCopied(false); 
     setWithdrawCopied(false); 
+    setIsProcessingGame(false);
+    setIsClaiming(false);
     setDashboardView('home'); 
   };
   
@@ -538,7 +543,7 @@ export default function App() {
     try { const res = await fetch(`${LNBITS_URL}/api/v1/payments`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Api-Key': INVOICE_KEY }, body: JSON.stringify({ out: false, amount: amountSat, memo: `SatoshiDuell`, expiry: 600 }) }); const data = await res.json(); setInvoice({ req: data.payment_request || data.bolt11, hash: data.payment_hash, amount: amountSat }); setCheckingPayment(false); setView('payment'); } catch (e) { alert("LNbits Error"); setView('dashboard'); }
   };
 
-  const startGame = () => { setCurrentQ(0); setScore(0); setTotalTime(0); setTimeLeft(15.0); setSelectedAnswer(null); setView('game'); };
+  const startGame = () => { setCurrentQ(0); setScore(0); setTotalTime(0); setTimeLeft(15.0); setSelectedAnswer(null); setIsProcessingGame(false); setView('game'); };
 
   const handleAnswer = (displayIndex) => {
     if (selectedAnswer !== null) return; 
@@ -555,21 +560,72 @@ export default function App() {
     }, 2000);
   };
 
+  // --- KRITISCHER FIX: KEIN AUTO-CLAIM MEHR ---
   const finishGameLogic = async (finalScore = score) => {
-    if (role === 'creator') {
-      await supabase.from('duels').insert([{ 
-        creator: user.name, 
-        creator_score: finalScore, 
-        creator_time: totalTime, 
-        questions: gameData, 
-        status: 'open', 
-        amount: invoice.amount, 
-        target_player: challengePlayer 
-      }]); 
-      setView('dashboard');
-    } else {
-      const { data } = await supabase.from('duels').update({ challenger: user.name, challenger_score: finalScore, challenger_time: totalTime, status: 'finished' }).eq('id', activeDuel.id).select();
-      if (data) { setActiveDuel(data[0]); determineWinner(data[0], 'challenger', finalScore, totalTime); }
+    if (isProcessingGame) return; // Schutz
+    setIsProcessingGame(true);
+
+    try {
+      if (role === 'creator') {
+        await supabase.from('duels').insert([{ 
+          creator: user.name, 
+          creator_score: finalScore, 
+          creator_time: totalTime, 
+          questions: gameData, 
+          status: 'open', 
+          amount: invoice.amount, 
+          target_player: challengePlayer 
+        }]); 
+        setView('dashboard');
+      } else {
+        const { data } = await supabase.from('duels').update({ 
+            challenger: user.name, 
+            challenger_score: finalScore, 
+            challenger_time: totalTime, 
+            status: 'finished' 
+        }).eq('id', activeDuel.id).select();
+        
+        if (data) { 
+            setActiveDuel(data[0]); 
+            // Hier KEIN automatischer Aufruf von createWithdrawLink mehr!
+            determineWinner(data[0], 'challenger', finalScore, totalTime); 
+        }
+      }
+    } catch (e) {
+      console.error(e);
+      alert("Fehler beim Speichern des Spiels.");
+      setIsProcessingGame(false);
+    }
+  };
+
+  // --- MANUELLER CLAIM (NEUE FUNKTION) ---
+  const handleClaimReward = async () => {
+    if (isClaiming) return;
+    setIsClaiming(true);
+    try {
+        const res = await fetch('/api/claim', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ amount: activeDuel.amount, duelId: activeDuel.id })
+        });
+        const data = await res.json();
+        
+        if (data.error === 'ALREADY_PAID') {
+            alert("Bereits ausgezahlt!");
+            setActiveDuel(prev => ({...prev, claimed: true}));
+        } else if (data.lnurl) {
+            setWithdrawLink(data.lnurl);
+            setWithdrawId(data.id);
+            setActiveDuel(prev => ({...prev, claimed: true}));
+            confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
+        } else {
+            alert("Fehler beim Erstellen der Auszahlung.");
+        }
+    } catch (e) {
+        console.error("Claim Error:", e);
+        alert("Verbindungsfehler.");
+    } finally {
+        setIsClaiming(false);
     }
   };
 
@@ -578,16 +634,8 @@ export default function App() {
   const determineWinner = async (duel, myRole, myScore, myTime) => { 
     if (duel.status === 'refunded') { setView('result_final'); return; }
     setView('result_final'); 
-    const oppScore = myRole === 'creator' ? (duel.challenger_score || 0) : duel.creator_score; 
-    const oppTime = myRole === 'creator' ? (duel.challenger_time || 999) : duel.creator_time; 
-    const won = myScore > oppScore || (myScore === oppScore && myTime < oppTime); 
-    if (duel.status === 'finished' && won && !duel.claimed) { 
-      confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } }); 
-      await createWithdrawLink(duel.amount, duel.id); 
-    } 
+    // Hier passiert nichts weiter außer View-Wechsel. Der User muss klicken.
   };
-  
-  const createWithdrawLink = async (duelAmount, duelId) => { try { const res = await fetch('/api/claim', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ amount: duelAmount, duelId: duelId }) }); const data = await res.json(); if (data.lnurl) { setWithdrawLink(data.lnurl); setWithdrawId(data.id); await supabase.from('duels').update({ claimed: true }).eq('id', duelId); } } catch(e) { console.error("Withdraw Error:", e); } };
   
   const handleLogout = () => { localStorage.clear(); setUser(null); setView('language_select'); };
 
@@ -916,14 +964,12 @@ export default function App() {
       );
     }
 
-    // --- NEU: ADMIN VIEW MIT FILTER & SUCHE ---
+    // --- ADMIN VIEW MIT FILTER & SUCHE ---
     if (dashboardView === 'admin') {
-      // 1. Statistiken berechnen
       const totalGames = adminDuels.length;
       const openGames = adminDuels.filter(d => d.status === 'open').length;
       const totalVolume = adminDuels.reduce((acc, d) => acc + (d.status !== 'refunded' ? d.amount : 0), 0);
 
-      // 2. Filter Logik
       const filteredDuels = adminDuels.filter(d => {
          const matchesSearch = d.creator.toLowerCase().includes(adminSearch.toLowerCase()) || 
                                (d.challenger && d.challenger.toLowerCase().includes(adminSearch.toLowerCase())) ||
@@ -1108,9 +1154,17 @@ export default function App() {
             <div className={`mx-auto w-24 h-24 rounded-full flex items-center justify-center mb-8 shadow-2xl ring-4 ring-offset-4 ring-offset-black ${won && isFinished ? "bg-green-500 ring-green-500" : "bg-red-500 ring-red-500"}`}>{won && isFinished ? <Trophy size={48} className="text-black animate-bounce"/> : <Flame size={48} className="text-black"/>}</div>
             <h2 className={`text-5xl font-black mb-10 uppercase ${won && isFinished ? "text-green-500" : "text-red-500"}`}>{!isFinished ? txt('result_wait') : won ? txt('result_win') : txt('result_loss')}</h2>
             <div className="grid grid-cols-2 gap-4 mb-10">
-              <Card className="p-4 bg-white/5 border-orange-500/30"><p className="text-[10px] font-bold text-neutral-500 uppercase">Du</p><p className="text-4xl font-black text-white font-mono">{myS}</p><p className="text-[10px] text-neutral-500 italic">{myT.toFixed(1)}s</p></Card>
+              <Card className="p-4 bg-white/5 border-orange-500/30"><p className="text-[10px] font-bold text-neutral-500 uppercase">Du</p><p className="text-4xl font-black text-white font-mono">{myS}</p><p className="text-[10px] text-neutral-500 italic">{myT?.toFixed(1)}s</p></Card>
               <Card className="p-4 bg-white/5 opacity-50"><p className="text-[10px] font-bold text-neutral-500 uppercase">Gegner</p><p className="text-4xl font-black text-white font-mono">{duel.status === 'finished' ? opS : '?'}</p><p className="text-[10px] text-neutral-500 italic">{duel.status === 'finished' ? (typeof opT === 'number' ? opT.toFixed(1) + 's' : opT) : 'läuft...'}</p></Card>
             </div>
+            
+            {/* MANUELLER CLAIM BUTTON - DER FIX! */}
+            {isFinished && won && !duel.claimed && !withdrawLink && (
+             <Button onClick={handleClaimReward} disabled={isClaiming} className="bg-green-500 text-black animate-pulse">
+               {isClaiming ? <Loader2 className="animate-spin mx-auto"/> : txt('btn_withdraw')}
+             </Button>
+            )}
+
             {withdrawLink ? (
               <div className="animate-in slide-in-from-bottom-5 duration-700">
                 <div className="bg-white p-4 rounded-3xl inline-block mb-6 shadow-2xl"><QRCodeCanvas value={`lightning:${withdrawLink.toUpperCase()}`} size={180}/></div>

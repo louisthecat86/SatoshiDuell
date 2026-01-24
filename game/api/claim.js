@@ -1,63 +1,77 @@
-export default async function handler(req, res) {
-  // Debugging: Sehen, ob die Funktion überhaupt startet
-  console.log("API /api/claim wurde aufgerufen");
+import { createClient } from '@supabase/supabase-js';
 
+export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const ADMIN_KEY = process.env.LNBITS_ADMIN_KEY;
-  const LNBITS_URL = process.env.VITE_LNBITS_URL;
+  const { duelId, amount } = req.body;
 
-  // Debugging: Prüfen ob Variablen da sind (ohne den Key zu leaken!)
-  console.log("URL Config:", LNBITS_URL ? "Vorhanden" : "FEHLT");
-  console.log("Key Config:", ADMIN_KEY ? "Vorhanden" : "FEHLT");
-
-  if (!ADMIN_KEY || !LNBITS_URL) {
-    console.error("Server Config Error: Variablen fehlen in Vercel");
-    return res.status(500).json({ error: 'Server Config Error' });
+  if (!duelId || !amount) {
+    return res.status(400).json({ error: 'Missing data' });
   }
 
-  const { amount, duelId } = req.body;
-  console.log(`Versuche Auszahlung: ${amount} Sats für Duel ${duelId}`);
+  // 1. Supabase Admin-Client erstellen
+  const supabaseAdmin = createClient(
+    process.env.VITE_SUPABASE_URL,
+    process.env.SUPABASE_SERVICE_ROLE_KEY
+  );
 
   try {
-    const prize = amount * 2;
-    
-    // Wichtig: Sicherstellen, dass URL kein Slash am Ende hat, sonst gibt es //api
-    const cleanUrl = LNBITS_URL.replace(/\/$/, '');
-    const targetUrl = `${cleanUrl}/withdraw/api/v1/links`;
-    
-    console.log("Sende Anfrage an:", targetUrl);
+    // 2. SICHERHEITSCHECK: Ist das Spiel schon als 'claimed' markiert?
+    const { data: duel, error: fetchError } = await supabaseAdmin
+      .from('duels')
+      .select('claimed, status')
+      .eq('id', duelId)
+      .single();
 
-    const lnbitsResponse = await fetch(targetUrl, {
+    if (fetchError || !duel) {
+      return res.status(404).json({ error: 'Duel not found' });
+    }
+
+    // WICHTIG: Wenn schon ausgezahlt, sofort STOPPEN!
+    if (duel.claimed === true) {
+      console.warn(`Duel ${duelId} already claimed. Blocking double spend.`);
+      return res.status(400).json({ error: 'ALREADY_PAID' });
+    }
+
+    // 3. Wenn noch nicht ausgezahlt, erst JETZT LNbits rufen
+    const lnbitsResponse = await fetch(`${process.env.VITE_LNBITS_URL}/withdraw/api/v1/links`, {
       method: 'POST',
-      headers: { 
-        'Content-Type': 'application/json', 
-        'X-Api-Key': ADMIN_KEY 
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Api-Key': process.env.VITE_INVOICE_KEY // Admin Key für Withdraws
       },
-      body: JSON.stringify({ 
-        title: `SatoshiDuell Win #${duelId}`, 
-        min_withdrawable: prize, 
-        max_withdrawable: prize, 
-        uses: 1, 
-        wait_time: 1, 
-        is_unique: true 
+      body: JSON.stringify({
+        title: `SatoshiDuell Win #${duelId}`,
+        min_withdrawable: amount,
+        max_withdrawable: amount,
+        uses: 1,
+        wait_time: 1
       })
     });
 
-    const data = await lnbitsResponse.json();
-    console.log("LNbits Antwort:", data);
+    const lnbitsData = await lnbitsResponse.json();
 
-    if (!data.lnurl) {
-        console.error("LNbits hat keinen Link zurückgegeben!", data);
-        return res.status(500).json({ error: 'LNbits Error', details: data });
+    if (!lnbitsData.lnurl) {
+      throw new Error('LNbits did not return LNURL');
     }
-    
-    return res.status(200).json(data);
+
+    // 4. Datenbank SOFORT auf claimed setzen
+    const { error: updateError } = await supabaseAdmin
+      .from('duels')
+      .update({ claimed: true })
+      .eq('id', duelId);
+
+    if (updateError) {
+      console.error("Database update failed, but link generated!", updateError);
+      // Kritischer Fehler, aber Link wurde erstellt. 
+    }
+
+    return res.status(200).json(lnbitsData);
 
   } catch (error) {
-    console.error("Fetch Error:", error);
-    return res.status(500).json({ error: 'Communication failed', details: error.message });
+    console.error("Claim Error:", error);
+    return res.status(500).json({ error: 'Internal Server Error' });
   }
 }
