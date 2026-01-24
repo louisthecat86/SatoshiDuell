@@ -1,40 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { 
-  Zap, 
-  Trophy, 
-  Clock, 
-  User, 
-  Plus, 
-  Swords, 
-  RefreshCw, 
-  Copy, 
-  Check, 
-  ExternalLink, 
-  AlertTriangle, 
-  Loader2, 
-  LogOut, 
-  Fingerprint, 
-  Flame, 
-  History, 
-  Coins, 
-  Lock, 
-  Medal, 
-  Share2, 
-  Globe, 
-  Settings, 
-  Save, 
-  Heart,
-  Github,
-  CheckCircle,
-  RefreshCcw,
-  Rocket,
-  ArrowLeft,
-  Users,
-  AlertCircle,
-  Bell,
-  Shield,
-  Search 
+  Zap, Trophy, Clock, User, Plus, Swords, RefreshCw, Copy, Check, 
+  ExternalLink, AlertTriangle, Loader2, LogOut, Fingerprint, Flame, 
+  History, Coins, Lock, Medal, Share2, Globe, Settings, Save, Heart, 
+  Github, CheckCircle, RefreshCcw, Rocket, ArrowLeft, Users, AlertCircle, 
+  Bell, Shield, Search 
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { QRCodeCanvas } from 'qrcode.react';
@@ -571,7 +542,7 @@ export default function App() {
         const { error } = await supabase.from('duels').insert([{ 
           creator: user.name, 
           creator_score: finalScore, 
-          creator_time: cleanTime, // Nutzung der gerundeten Zeit
+          creator_time: cleanTime, 
           questions: gameData, 
           status: 'open', 
           amount: invoice.amount, 
@@ -583,7 +554,7 @@ export default function App() {
         const { data, error } = await supabase.from('duels').update({ 
             challenger: user.name, 
             challenger_score: finalScore, 
-            challenger_time: cleanTime, // Nutzung der gerundeten Zeit
+            challenger_time: cleanTime, 
             status: 'finished' 
         }).eq('id', activeDuel.id).select();
         
@@ -610,6 +581,7 @@ export default function App() {
     setView('result_final'); 
   };
   
+  // WICHTIG: Hier fangen wir den Fehler von api/claim.js ab und zeigen ihn an!
   const handleClaimReward = async () => {
     if (isClaiming) return;
     setIsClaiming(true);
@@ -621,20 +593,18 @@ export default function App() {
         });
         const data = await res.json();
         
-        if (data.error === 'ALREADY_PAID') {
-            alert("Bereits ausgezahlt!");
-            setActiveDuel(prev => ({...prev, claimed: true}));
+        if (res.status !== 200) {
+            // ZEIGE DEN ECHTEN FEHLER AN (z.B. "Unauthorized" oder "Insufficient Funds")
+            alert("Auszahlungsfehler: " + (data.details || data.error || "Unbekannter Fehler"));
         } else if (data.lnurl) {
             setWithdrawLink(data.lnurl);
             setWithdrawId(data.id);
             setActiveDuel(prev => ({...prev, claimed: true}));
             confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
-        } else {
-            alert("Fehler beim Erstellen der Auszahlung.");
         }
     } catch (e) {
         console.error("Claim Error:", e);
-        alert("Verbindungsfehler.");
+        alert("Verbindungsfehler: " + e.message);
     } finally {
         setIsClaiming(false);
     }

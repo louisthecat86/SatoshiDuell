@@ -8,42 +8,47 @@ export default async function handler(req, res) {
   const { duelId, amount } = req.body;
 
   if (!duelId || !amount) {
-    return res.status(400).json({ error: 'Missing data' });
+    return res.status(400).json({ error: 'Missing data: duelId or amount' });
   }
 
-  // 1. Supabase Admin-Client erstellen
+  // Debugging: Loggen, ob Variablen da sind (NICHT die Keys selbst loggen!)
+  console.log(`Processing claim for Duel ${duelId}, Amount: ${amount}`);
+  if (!process.env.VITE_LNBITS_URL) console.error("MISSING VITE_LNBITS_URL");
+  if (!process.env.VITE_INVOICE_KEY) console.error("MISSING VITE_INVOICE_KEY");
+
   const supabaseAdmin = createClient(
     process.env.VITE_SUPABASE_URL,
     process.env.SUPABASE_SERVICE_ROLE_KEY
   );
 
   try {
-    // 2. SICHERHEITSCHECK: Ist das Spiel schon als 'claimed' markiert?
+    // 1. Check: Wurde schon ausgezahlt?
     const { data: duel, error: fetchError } = await supabaseAdmin
       .from('duels')
-      .select('claimed, status')
+      .select('claimed')
       .eq('id', duelId)
       .single();
 
     if (fetchError || !duel) {
-      return res.status(404).json({ error: 'Duel not found' });
+      return res.status(404).json({ error: 'Duel not found in DB' });
     }
 
-    // WICHTIG: Wenn schon ausgezahlt, sofort STOPPEN!
     if (duel.claimed === true) {
-      console.warn(`Duel ${duelId} already claimed. Blocking double spend.`);
       return res.status(400).json({ error: 'ALREADY_PAID' });
     }
 
-    // 3. Wenn noch nicht ausgezahlt, erst JETZT LNbits rufen
-    const lnbitsResponse = await fetch(`${process.env.VITE_LNBITS_URL}/withdraw/api/v1/links`, {
+    // 2. LNbits Anfragen
+    // WICHTIG: Hier muss der ADMIN KEY verwendet werden!
+    const lnbitsUrl = `${process.env.VITE_LNBITS_URL}/withdraw/api/v1/links`;
+    
+    const lnbitsResponse = await fetch(lnbitsUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'X-Api-Key': process.env.VITE_INVOICE_KEY // Admin Key für Withdraws
+        'X-Api-Key': process.env.VITE_INVOICE_KEY 
       },
       body: JSON.stringify({
-        title: `SatoshiDuell Win #${duelId}`,
+        title: `SatoshiDuell #${duelId}`,
         min_withdrawable: amount,
         max_withdrawable: amount,
         uses: 1,
@@ -53,25 +58,26 @@ export default async function handler(req, res) {
 
     const lnbitsData = await lnbitsResponse.json();
 
-    if (!lnbitsData.lnurl) {
-      throw new Error('LNbits did not return LNURL');
+    // 3. LNbits Fehler abfangen
+    if (!lnbitsResponse.ok || !lnbitsData.lnurl) {
+      console.error("LNbits Error Response:", lnbitsData);
+      // Gib den genauen Fehler von LNbits zurück (z.B. "Wallet has insufficient funds")
+      return res.status(500).json({ 
+        error: 'LNbits Error', 
+        details: lnbitsData.detail || lnbitsData.message || 'Unknown LNbits error' 
+      });
     }
 
-    // 4. Datenbank SOFORT auf claimed setzen
-    const { error: updateError } = await supabaseAdmin
+    // 4. In DB als claimed markieren
+    await supabaseAdmin
       .from('duels')
       .update({ claimed: true })
       .eq('id', duelId);
 
-    if (updateError) {
-      console.error("Database update failed, but link generated!", updateError);
-      // Kritischer Fehler, aber Link wurde erstellt. 
-    }
-
     return res.status(200).json(lnbitsData);
 
   } catch (error) {
-    console.error("Claim Error:", error);
-    return res.status(500).json({ error: 'Internal Server Error' });
+    console.error("Server Internal Error:", error);
+    return res.status(500).json({ error: 'Internal Server Error', details: error.message });
   }
 }
