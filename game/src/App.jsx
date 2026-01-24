@@ -28,10 +28,13 @@ import {
   Github,
   CheckCircle,
   RefreshCcw,
-  Rocket,       // NEU für Pre-Game
-  ArrowLeft,    // NEU für Navigation
-  Users,        // NEU für Kacheln
-  AlertCircle   // NEU für Kacheln
+  Rocket,
+  ArrowLeft,
+  Users,
+  AlertCircle,
+  Bell,
+  BellOff,
+  Shield
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { QRCodeCanvas } from 'qrcode.react';
@@ -71,7 +74,7 @@ export default function App() {
   
   // Navigation & User
   const [view, setView] = useState('loading_data'); 
-  // NEU: Sub-Navigation im Dashboard ('home', 'lobby', 'challenges', 'leaderboard', 'history')
+  // Sub-Navigation im Dashboard ('home', 'lobby', 'challenges', 'leaderboard', 'history', 'settings')
   const [dashboardView, setDashboardView] = useState('home'); 
   
   const [lang, setLang] = useState('de'); 
@@ -87,9 +90,10 @@ export default function App() {
   const [loginError, setLoginError] = useState('');
   const [isLoginLoading, setIsLoginLoading] = useState(false);
   
-  // Settings
+  // Settings & Notifications
   const [newPin, setNewPin] = useState('');
   const [settingsMsg, setSettingsMsg] = useState('');
+  const [notificationsEnabled, setNotificationsEnabled] = useState(false);
   
   // Nostr
   const [nostrSetupPubkey, setNostrSetupPubkey] = useState(null);
@@ -135,34 +139,22 @@ export default function App() {
   // Helper
   const txt = (key) => TRANSLATIONS[lang]?.[key] || key;
 
-  // Generator (Zufall + History Logic)
+  // Generator
   const generateGameData = (questionsSource) => {
     if (!questionsSource || questionsSource.length === 0) return [];
-    
-    // 1. Gespielte Fragen laden
     let playedIds = JSON.parse(localStorage.getItem('played_questions') || '[]');
-    
-    // 2. Verfügbare filtern
     let availableIndices = questionsSource.map((_, i) => i).filter(id => !playedIds.includes(id));
-    
-    // 3. Reset wenn alle gespielt
     if (availableIndices.length < 5) {
       playedIds = [];
       availableIndices = questionsSource.map((_, i) => i);
     }
-    
-    // 4. Mischen (Fisher-Yates)
     for (let i = availableIndices.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [availableIndices[i], availableIndices[j]] = [availableIndices[j], availableIndices[i]];
     }
-    
-    // 5. Auswählen & Speichern
     const selectedIndices = availableIndices.slice(0, 5);
     const newHistory = [...playedIds, ...selectedIndices];
     localStorage.setItem('played_questions', JSON.stringify(newHistory));
-    
-    // 6. Antworten mischen
     return selectedIndices.map(id => {
       const order = [0, 1, 2, 3];
       for (let i = order.length - 1; i > 0; i--) {
@@ -197,6 +189,11 @@ export default function App() {
     const storedUser = localStorage.getItem('satoshi_user');
     const savedPin = localStorage.getItem('saved_pin');
     
+    // Check Notifications Permission on Load
+    if (Notification.permission === 'granted') {
+      setNotificationsEnabled(true);
+    }
+
     if (savedLang) {
       setLang(savedLang);
       if (storedUser) {
@@ -214,9 +211,36 @@ export default function App() {
   useEffect(() => {
     if (view === 'dashboard' && user) {
       fetchAllLobbyData();
+      
+      // REALTIME LISTENER + NOTIFICATION LOGIC
       const channel = supabase.channel('public:duels')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'duels' }, () => {
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'duels' }, (payload) => {
           fetchAllLobbyData();
+          
+          // Benachrichtigungs-Logik
+          if (Notification.permission === 'granted' && payload.eventType === 'INSERT') {
+             const newDuel = payload.new;
+             if (newDuel.target_player === user.name) {
+                new Notification("SatoshiDuell", { body: txt('msg_challenged'), icon: '/logo.png' });
+             }
+          }
+          if (Notification.permission === 'granted' && payload.eventType === 'UPDATE') {
+             const updatedDuel = payload.new;
+             if (updatedDuel.status === 'finished') {
+                // Check ob ich gewonnen habe
+                const iAmCreator = updatedDuel.creator === user.name;
+                const iAmChallenger = updatedDuel.challenger === user.name;
+                
+                if (iAmCreator || iAmChallenger) {
+                   const creatorWon = updatedDuel.creator_score > updatedDuel.challenger_score || (updatedDuel.creator_score === updatedDuel.challenger_score && updatedDuel.creator_time < updatedDuel.challenger_time);
+                   const iWon = (iAmCreator && creatorWon) || (iAmChallenger && !creatorWon);
+                   
+                   if (iWon) {
+                      new Notification("SatoshiDuell", { body: txt('msg_won'), icon: '/logo.png' });
+                   }
+                }
+             }
+          }
         })
         .subscribe();
       return () => supabase.removeChannel(channel);
@@ -343,8 +367,22 @@ export default function App() {
       const hashed = await hashPin(newPin);
       await supabase.from('players').update({ pin: hashed }).eq('name', user.name);
       setSettingsMsg(txt('settings_saved')); localStorage.setItem('saved_pin', newPin);
-      setTimeout(() => { setView('dashboard'); setSettingsMsg(''); setNewPin(''); }, 1500);
+      setTimeout(() => { setNewPin(''); setSettingsMsg(''); }, 1500);
     } catch (e) { setSettingsMsg("Error saving."); }
+  };
+
+  const toggleNotifications = async () => {
+    if (!notificationsEnabled) {
+      const permission = await Notification.requestPermission();
+      if (permission === 'granted') {
+        setNotificationsEnabled(true);
+        new Notification("SatoshiDuell", { body: "Benachrichtigungen aktiviert!", icon: '/logo.png' });
+      } else {
+        alert("Benachrichtigungen wurden blockiert. Bitte im Browser erlauben.");
+      }
+    } else {
+      setNotificationsEnabled(false);
+    }
   };
 
   const shareDuelOnNostr = async (duel) => {
@@ -622,21 +660,12 @@ export default function App() {
     );
   }
 
+  // Diese View wird jetzt nicht mehr direkt genutzt (ist im Dashboard integriert), 
+  // aber wir lassen sie als Fallback falls eine alte State-Logik greift.
   if (view === 'settings') {
-    return (
-      <Background>
-        <div className="w-full max-w-sm flex flex-col gap-6 animate-float text-center px-4">
-          <h2 className="text-2xl font-black text-white uppercase">{txt('settings_title')}</h2>
-          <p className="text-neutral-400 text-sm">{txt('settings_text')}</p>
-          <div className="flex flex-col gap-4">
-             <input type="password" placeholder={txt('pin_placeholder')} value={newPin} onChange={(e) => setNewPin(e.target.value)} className="w-full p-4 rounded-xl bg-[#0a0a0a] border border-white/10 text-white outline-none focus:border-orange-500 font-bold text-center shadow-lg"/>
-             {settingsMsg && <p className={`text-xs font-bold ${settingsMsg.includes('!') ? 'text-green-500' : 'text-red-500'}`}>{settingsMsg}</p>}
-             <Button variant="primary" onClick={handleUpdatePin}><Save size={18}/> {txt('settings_save')}</Button>
-             <button onClick={() => setView('dashboard')} className="text-xs text-neutral-600 uppercase font-bold mt-4">{txt('settings_back')}</button>
-          </div>
-        </div>
-      </Background>
-    );
+     // Wir leiten direkt auf Dashboard Settings um, falls dies aufgerufen wird
+     setTimeout(() => { setView('dashboard'); setDashboardView('settings'); }, 0);
+     return null;
   }
 
   if (view === 'nostr_setup') {
@@ -654,7 +683,6 @@ export default function App() {
   // --- DASHBOARD (NEU STRUKTURIERT) ---
   if (view === 'dashboard') {
     
-    // Prüfen auf nicht abgeholte Gewinne (Für Alarm-Anzeige)
     const unclaimedWin = myDuels.find(d => 
       d.status === 'finished' && 
       !d.claimed && 
@@ -662,7 +690,6 @@ export default function App() {
         (d.challenger === user.name && d.challenger_score > d.creator_score) )
     );
 
-    // Filter für Badges (Zähler)
     const publicCount = publicDuels.filter(d => d.creator !== user.name).length;
     const challengeCount = targetedDuels.length;
 
@@ -678,7 +705,7 @@ export default function App() {
                 <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-orange-500 to-yellow-500 flex items-center justify-center font-black text-black text-xl">{user.name.charAt(0).toUpperCase()}</div>
                 <div className="text-left"><p className="font-bold text-white text-sm uppercase">{user.name}</p><p className="text-[10px] text-orange-400 font-mono">{stats.satsWon.toLocaleString()} {txt('sats_won')}</p></div>
               </div>
-              <div className="flex gap-2"><button onClick={() => setView('settings')} className="p-2 text-neutral-500 hover:text-white"><Settings size={18}/></button><button onClick={handleLogout} className="p-2 text-neutral-500 hover:text-white"><LogOut size={18}/></button></div>
+              <div className="flex gap-2"><button onClick={() => setDashboardView('settings')} className="p-2 text-neutral-500 hover:text-white"><Settings size={18}/></button><button onClick={handleLogout} className="p-2 text-neutral-500 hover:text-white"><LogOut size={18}/></button></div>
             </Card>
 
             {/* ALARM: GEWINN ABHOLEN */}
@@ -692,33 +719,39 @@ export default function App() {
             {/* Aktion: Neues Duell */}
             <Button onClick={openCreateSetup} className="py-5 text-lg animate-neon shadow-lg mb-2"><Plus size={24}/> {txt('dashboard_new_duel')}</Button>
 
-            {/* DAS GRID (4 Kacheln) */}
-            <div className="grid grid-cols-2 gap-3 flex-1 overflow-y-auto pb-4">
+            {/* DAS GRID (5 Kacheln) */}
+            <div className="grid grid-cols-2 gap-1.5 flex-1 overflow-y-auto pb-4">
               
               {/* Kachel 1: Offene Duelle */}
-              <button onClick={() => setDashboardView('lobby')} className="bg-neutral-900/60 border border-white/5 hover:border-orange-500/50 hover:bg-neutral-800 p-4 rounded-2xl flex flex-col items-center justify-center gap-2 aspect-square transition-all group relative">
-                <Users size={32} className="text-orange-500 group-hover:scale-110 transition-transform"/>
-                <span className="text-xs font-bold text-neutral-300 uppercase tracking-widest text-center">{txt('tile_lobby')}</span>
-                {publicCount > 0 && <span className="absolute top-3 right-3 bg-orange-500 text-black text-[10px] font-black w-6 h-6 rounded-full flex items-center justify-center shadow-lg">{publicCount}</span>}
+              <button onClick={() => setDashboardView('lobby')} className="bg-neutral-900/60 border border-white/5 hover:border-orange-500/50 hover:bg-neutral-800 p-4 rounded-2xl flex flex-col items-center justify-center gap-2 aspect-[4/3] transition-all group relative">
+                <Users size={28} className="text-orange-500 group-hover:scale-110 transition-transform"/>
+                <span className="text-[10px] font-bold text-neutral-300 uppercase tracking-widest text-center">{txt('tile_lobby')}</span>
+                {publicCount > 0 && <span className="absolute top-2 right-2 bg-orange-500 text-black text-[10px] font-black w-5 h-5 rounded-full flex items-center justify-center shadow-lg">{publicCount}</span>}
               </button>
 
               {/* Kachel 2: Herausforderungen */}
-              <button onClick={() => setDashboardView('challenges')} className="bg-neutral-900/60 border border-white/5 hover:border-purple-500/50 hover:bg-neutral-800 p-4 rounded-2xl flex flex-col items-center justify-center gap-2 aspect-square transition-all group relative">
-                <Swords size={32} className={`text-purple-500 group-hover:scale-110 transition-transform ${challengeCount > 0 ? 'animate-pulse' : ''}`}/>
-                <span className="text-xs font-bold text-neutral-300 uppercase tracking-widest text-center">{txt('tile_challenges')}</span>
-                {challengeCount > 0 && <span className="absolute top-3 right-3 bg-purple-500 text-white text-[10px] font-black w-6 h-6 rounded-full flex items-center justify-center shadow-lg">{challengeCount}</span>}
+              <button onClick={() => setDashboardView('challenges')} className="bg-neutral-900/60 border border-white/5 hover:border-purple-500/50 hover:bg-neutral-800 p-4 rounded-2xl flex flex-col items-center justify-center gap-2 aspect-[4/3] transition-all group relative">
+                <Swords size={28} className={`text-purple-500 group-hover:scale-110 transition-transform ${challengeCount > 0 ? 'animate-pulse' : ''}`}/>
+                <span className="text-[10px] font-bold text-neutral-300 uppercase tracking-widest text-center">{txt('tile_challenges')}</span>
+                {challengeCount > 0 && <span className="absolute top-2 right-2 bg-purple-500 text-white text-[10px] font-black w-5 h-5 rounded-full flex items-center justify-center shadow-lg">{challengeCount}</span>}
               </button>
 
               {/* Kachel 3: Bestenliste */}
-              <button onClick={() => setDashboardView('leaderboard')} className="bg-neutral-900/60 border border-white/5 hover:border-yellow-500/50 hover:bg-neutral-800 p-4 rounded-2xl flex flex-col items-center justify-center gap-2 aspect-square transition-all group">
-                <Trophy size={32} className="text-yellow-500 group-hover:scale-110 transition-transform"/>
-                <span className="text-xs font-bold text-neutral-300 uppercase tracking-widest text-center">{txt('tile_leaderboard')}</span>
+              <button onClick={() => setDashboardView('leaderboard')} className="bg-neutral-900/60 border border-white/5 hover:border-yellow-500/50 hover:bg-neutral-800 p-4 rounded-2xl flex flex-col items-center justify-center gap-2 aspect-[4/3] transition-all group">
+                <Trophy size={28} className="text-yellow-500 group-hover:scale-110 transition-transform"/>
+                <span className="text-[10px] font-bold text-neutral-300 uppercase tracking-widest text-center">{txt('tile_leaderboard')}</span>
               </button>
 
               {/* Kachel 4: Historie */}
-              <button onClick={() => setDashboardView('history')} className="bg-neutral-900/60 border border-white/5 hover:border-blue-500/50 hover:bg-neutral-800 p-4 rounded-2xl flex flex-col items-center justify-center gap-2 aspect-square transition-all group">
-                <History size={32} className="text-blue-500 group-hover:scale-110 transition-transform"/>
-                <span className="text-xs font-bold text-neutral-300 uppercase tracking-widest text-center">{txt('tile_history')}</span>
+              <button onClick={() => setDashboardView('history')} className="bg-neutral-900/60 border border-white/5 hover:border-blue-500/50 hover:bg-neutral-800 p-4 rounded-2xl flex flex-col items-center justify-center gap-2 aspect-[4/3] transition-all group">
+                <History size={28} className="text-blue-500 group-hover:scale-110 transition-transform"/>
+                <span className="text-[10px] font-bold text-neutral-300 uppercase tracking-widest text-center">{txt('tile_history')}</span>
+              </button>
+
+              {/* Kachel 5: Einstellungen (Volle Breite) */}
+              <button onClick={() => setDashboardView('settings')} className="col-span-2 bg-neutral-900/60 border border-white/5 hover:border-neutral-500 hover:bg-neutral-800 p-4 rounded-2xl flex flex-row items-center justify-center gap-3 aspect-[4/1] transition-all group">
+                <Settings size={20} className="text-neutral-400 group-hover:rotate-45 transition-transform"/>
+                <span className="text-xs font-bold text-neutral-300 uppercase tracking-widest text-center">{txt('tile_settings')}</span>
               </button>
             </div>
 
@@ -731,7 +764,7 @@ export default function App() {
       );
     }
 
-    // --- SUB-VIEW: LOBBY (OFFENE SPIELE) ---
+    // --- SUB-VIEW: LOBBY ---
     if (dashboardView === 'lobby') {
       const list = publicDuels.filter(d => d.creator !== user.name);
       return (
@@ -832,6 +865,44 @@ export default function App() {
                   </div>
                 );
               })}
+            </div>
+          </div>
+        </Background>
+      );
+    }
+
+    // --- NEU: SUB-VIEW: SETTINGS ---
+    if (dashboardView === 'settings') {
+      return (
+        <Background>
+          <div className="w-full max-w-md flex flex-col h-[95vh] gap-4 px-2">
+            <div className="flex items-center gap-4 py-4"><button onClick={() => setDashboardView('home')} className="bg-white/10 p-2 rounded-xl hover:bg-white/20 transition-colors"><ArrowLeft className="text-white"/></button><h2 className="text-xl font-black text-white uppercase tracking-widest text-neutral-400">{txt('tile_settings')}</h2></div>
+            
+            <div className="flex-1 overflow-y-auto space-y-4 px-2">
+               
+               {/* 1. Benachrichtigungen */}
+               <div className="bg-white/5 p-4 rounded-2xl border border-white/5">
+                  <div className="flex items-center gap-3 mb-4 text-orange-500"><Bell size={20}/><span className="text-sm font-bold uppercase">{txt('settings_notifications')}</span></div>
+                  <div className="flex justify-between items-center">
+                     <p className="text-neutral-400 text-xs">{txt('settings_notifications_desc')}</p>
+                     <button onClick={toggleNotifications} className={`w-12 h-6 rounded-full p-1 transition-colors ${notificationsEnabled ? 'bg-green-500' : 'bg-neutral-700'}`}>
+                        <div className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform ${notificationsEnabled ? 'translate-x-6' : 'translate-x-0'}`}></div>
+                     </button>
+                  </div>
+                  {!notificationsEnabled && <p className="text-[10px] text-neutral-600 mt-2 italic">{txt('perm_request')}</p>}
+               </div>
+
+               {/* 2. Sicherheit (PIN) */}
+               <div className="bg-white/5 p-4 rounded-2xl border border-white/5">
+                  <div className="flex items-center gap-3 mb-4 text-blue-500"><Shield size={20}/><span className="text-sm font-bold uppercase">{txt('settings_security')}</span></div>
+                  <p className="text-neutral-400 text-xs mb-3">{txt('settings_change_pin')}</p>
+                  <div className="flex gap-2">
+                     <input type="password" placeholder="****" value={newPin} onChange={(e) => setNewPin(e.target.value)} className="w-full p-3 rounded-xl bg-black/40 border border-white/10 text-white text-center font-bold outline-none focus:border-blue-500"/>
+                     <button onClick={handleUpdatePin} className="bg-blue-500 text-white px-4 rounded-xl"><Save size={18}/></button>
+                  </div>
+                  {settingsMsg && <p className={`text-xs font-bold mt-2 ${settingsMsg.includes('!') ? 'text-green-500' : 'text-red-500'}`}>{settingsMsg}</p>}
+               </div>
+
             </div>
           </div>
         </Background>
