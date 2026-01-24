@@ -35,7 +35,11 @@ import {
   Bell,
   BellOff,
   Shield,
-  Eye
+  Eye,
+  Search,      // NEU
+  Filter,      // NEU
+  TrendingUp,  // NEU
+  Activity     // NEU
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { QRCodeCanvas } from 'qrcode.react';
@@ -93,8 +97,10 @@ export default function App() {
   const [settingsMsg, setSettingsMsg] = useState('');
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
   
-  // Admin Data
+  // Admin Data & Search
   const [adminDuels, setAdminDuels] = useState([]);
+  const [adminSearch, setAdminSearch] = useState(''); // NEU
+  const [adminFilter, setAdminFilter] = useState('all'); // NEU 'all', 'open', 'finished'
   
   // Nostr
   const [nostrSetupPubkey, setNostrSetupPubkey] = useState(null);
@@ -307,7 +313,6 @@ export default function App() {
         if (nameFromInput && existingUser.pubkey) { setLoginError(txt('login_error_nostr')); setIsLoginLoading(false); return; }
         if (existingUser.pin === 'nostr-auth' || existingUser.pin === 'extension-auth') { setLoginError(txt('login_error_wrong_pin')); } 
         else if (existingUser.pin === hashedPin) { 
-            // LOGIN ERFOLGREICH: Auch Admin-Status übergeben!
             finishLogin(existingUser.name, existingUser.pubkey, existingUser.is_admin); 
         } 
         else { setLoginError(txt('login_error_wrong_pin')); }
@@ -317,14 +322,12 @@ export default function App() {
           const { data: nameTaken } = await supabase.from('players').select('*').eq('name', nameFromInput).single();
           if(nameTaken) { setLoginError(txt('login_error_taken')); setIsLoginLoading(false); return; }
           await supabase.from('players').insert([{ name: nameFromInput, pin: hashedPin }]);
-          // Neuer User ist nie Admin
           finishLogin(nameFromInput, null, false);
         }
       }
     } catch (err) { console.error(err); setLoginError("Error."); } finally { if (!nostrSetupPubkey) setIsLoginLoading(false); }
   };
 
-  // Update: Nimmt jetzt isAdmin entgegen
   const finishLogin = (name, pubkey, isAdmin = false) => {
     const userObj = { name, pubkey, isAdmin };
     setUser(userObj); 
@@ -414,7 +417,6 @@ export default function App() {
 
   // --- ADMIN LOGIC ---
   const fetchAdminData = async () => {
-    // Doppelter Check: Nur laden wenn DB Flag true ist
     if (!user.isAdmin) return;
     const { data } = await supabase.from('duels').select('*').order('created_at', { ascending: false });
     if (data) setAdminDuels(data);
@@ -724,7 +726,7 @@ export default function App() {
 
             <Button onClick={openCreateSetup} className="py-5 text-lg animate-neon shadow-lg mb-2"><Plus size={24}/> {txt('dashboard_new_duel')}</Button>
 
-            {/* DAS GRID (5 Kacheln) */}
+            {/* DAS GRID (5 Kacheln) - gap-1 */}
             <div className="grid grid-cols-2 gap-1 flex-1 overflow-y-auto pb-4">
               
               <button onClick={() => setDashboardView('lobby')} className="bg-neutral-900/60 border border-white/5 hover:border-orange-500/50 hover:bg-neutral-800 p-4 rounded-2xl flex flex-col items-center justify-center gap-2 aspect-[4/3] transition-all group relative">
@@ -919,49 +921,83 @@ export default function App() {
       );
     }
 
+    // --- NEU: ADMIN VIEW MIT FILTER & SUCHE ---
     if (dashboardView === 'admin') {
+      // 1. Statistiken berechnen
+      const totalGames = adminDuels.length;
+      const openGames = adminDuels.filter(d => d.status === 'open').length;
+      const totalVolume = adminDuels.reduce((acc, d) => acc + (d.status !== 'refunded' ? d.amount : 0), 0);
+
+      // 2. Filter Logik
+      const filteredDuels = adminDuels.filter(d => {
+         const matchesSearch = d.creator.toLowerCase().includes(adminSearch.toLowerCase()) || 
+                               (d.challenger && d.challenger.toLowerCase().includes(adminSearch.toLowerCase())) ||
+                               d.id.toString().includes(adminSearch);
+         
+         if (!matchesSearch) return false;
+         
+         if (adminFilter === 'open') return d.status === 'open';
+         if (adminFilter === 'finished') return d.status === 'finished' || d.status === 'refunded';
+         return true;
+      });
+
       return (
         <Background>
           <div className="w-full max-w-md flex flex-col h-[95vh] gap-4 px-2">
+            
+            {/* Header */}
             <div className="flex items-center gap-4 py-4"><button onClick={() => setDashboardView('settings')} className="bg-white/10 p-2 rounded-xl hover:bg-white/20 transition-colors"><ArrowLeft className="text-white"/></button><h2 className="text-xl font-black text-red-500 uppercase tracking-widest">{txt('admin_title')}</h2></div>
             
-            <div className="flex-1 overflow-y-auto space-y-2 custom-scrollbar">
-              <table className="w-full text-[10px] text-left text-neutral-400">
-                <thead className="text-xs uppercase bg-white/5 text-neutral-200">
-                  <tr>
-                    <th className="p-2">ID</th>
-                    <th className="p-2">Match</th>
-                    <th className="p-2">Win</th>
-                    <th className="p-2">Status</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-white/5">
-                  {adminDuels.map(d => {
-                    const winner = d.creator_score > d.challenger_score ? d.creator : (d.challenger_score > d.creator_score ? d.challenger : 'Draw');
-                    return (
-                      <tr key={d.id} className="hover:bg-white/5">
-                        <td className="p-2 font-mono">{d.id}</td>
-                        <td className="p-2">
-                          <div className="flex flex-col"><span className="text-white font-bold">{d.creator}</span><span className="text-neutral-500">vs</span><span className="text-white font-bold">{d.challenger || '?'}</span></div>
-                        </td>
-                        <td className="p-2">
-                          <div className="flex flex-col">
-                             <span className="text-green-400 font-bold">{winner}</span>
-                             <span className="font-mono text-[8px]">{d.creator_score}:{d.challenger_score}</span>
-                          </div>
-                        </td>
-                        <td className="p-2">
-                          <div className="flex flex-col gap-1">
-                            <span className={`px-1 rounded text-[8px] w-fit ${d.status==='finished'?'bg-green-500/20 text-green-400':d.status==='refunded'?'bg-red-500/20 text-red-400':'bg-blue-500/20 text-blue-400'}`}>{d.status}</span>
-                            {d.claimed && <span className="text-yellow-500 font-bold">PAID</span>}
-                            {!d.claimed && d.status === 'finished' && <span className="text-neutral-600">OPEN</span>}
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+            {/* Stats Dashboard */}
+            <div className="grid grid-cols-3 gap-2 mb-2">
+               <div className="bg-white/5 p-2 rounded-xl text-center border border-white/5"><div className="text-neutral-500 text-[8px] uppercase font-bold mb-1">{txt('admin_stats_total')}</div><div className="text-white font-mono font-bold text-lg">{totalGames}</div></div>
+               <div className="bg-white/5 p-2 rounded-xl text-center border border-white/5"><div className="text-neutral-500 text-[8px] uppercase font-bold mb-1">{txt('admin_stats_open')}</div><div className="text-orange-500 font-mono font-bold text-lg">{openGames}</div></div>
+               <div className="bg-white/5 p-2 rounded-xl text-center border border-white/5"><div className="text-neutral-500 text-[8px] uppercase font-bold mb-1">{txt('admin_stats_volume')}</div><div className="text-green-500 font-mono font-bold text-xs mt-1">{totalVolume.toLocaleString()}</div></div>
+            </div>
+
+            {/* Suche & Filter */}
+            <div className="flex gap-2 mb-2">
+               <div className="relative flex-1">
+                  <Search size={14} className="absolute left-3 top-3 text-neutral-500"/>
+                  <input type="text" placeholder={txt('admin_search_placeholder')} value={adminSearch} onChange={(e) => setAdminSearch(e.target.value)} className="w-full pl-9 pr-3 py-2 bg-black/40 border border-white/10 rounded-xl text-xs text-white outline-none focus:border-red-500"/>
+               </div>
+               <div className="flex bg-black/40 rounded-xl p-1 border border-white/10">
+                  <button onClick={() => setAdminFilter('all')} className={`px-3 py-1 rounded-lg text-[10px] font-bold transition-all ${adminFilter === 'all' ? 'bg-white/20 text-white' : 'text-neutral-500'}`}>{txt('admin_filter_all')}</button>
+                  <button onClick={() => setAdminFilter('open')} className={`px-3 py-1 rounded-lg text-[10px] font-bold transition-all ${adminFilter === 'open' ? 'bg-white/20 text-white' : 'text-neutral-500'}`}>{txt('admin_filter_open')}</button>
+                  <button onClick={() => setAdminFilter('finished')} className={`px-3 py-1 rounded-lg text-[10px] font-bold transition-all ${adminFilter === 'finished' ? 'bg-white/20 text-white' : 'text-neutral-500'}`}>{txt('admin_filter_finished')}</button>
+               </div>
+            </div>
+
+            {/* Liste */}
+            <div className="flex-1 overflow-y-auto space-y-2 custom-scrollbar pr-1">
+              {filteredDuels.length === 0 && <p className="text-center text-neutral-600 text-xs italic py-10">Keine Ergebnisse</p>}
+              {filteredDuels.map(d => {
+                 const winner = d.creator_score > d.challenger_score ? d.creator : (d.challenger_score > d.creator_score ? d.challenger : 'Draw');
+                 return (
+                   <div key={d.id} className="bg-neutral-900/80 border border-white/5 p-3 rounded-xl flex flex-col gap-2">
+                      <div className="flex justify-between items-center border-b border-white/5 pb-2">
+                         <span className="font-mono text-[10px] text-neutral-500">ID: {d.id}</span>
+                         <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${d.status === 'open' ? 'bg-orange-500/20 text-orange-500' : d.status === 'finished' ? 'bg-green-500/20 text-green-500' : 'bg-red-500/20 text-red-500'}`}>{d.status.toUpperCase()}</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                         <div className="flex flex-col">
+                            <div className="text-xs font-bold text-white flex items-center gap-2">
+                               {d.creator} <span className="text-neutral-600 text-[10px] font-normal">vs</span> {d.challenger || '?'}
+                            </div>
+                            <div className="text-[10px] text-neutral-400 mt-1">
+                               Score: <span className="font-mono text-white">{d.creator_score ?? '-'}</span> : <span className="font-mono text-white">{d.challenger_score ?? '-'}</span>
+                            </div>
+                         </div>
+                         <div className="flex flex-col items-end">
+                            <span className="font-mono text-xs text-white font-bold">{d.amount} sats</span>
+                            {d.status === 'finished' && (
+                               d.claimed ? <span className="text-[8px] text-yellow-500 font-bold mt-1">PAID OUT</span> : <span className="text-[8px] text-neutral-500 mt-1">UNCLAIMED</span>
+                            )}
+                         </div>
+                      </div>
+                   </div>
+                 );
+              })}
             </div>
           </div>
         </Background>
@@ -969,6 +1005,7 @@ export default function App() {
     }
   }
 
+  // --- PRE_GAME VIEW ---
   if (view === 'pre_game') {
      if (!checkingPayment) { confetti({ particleCount: 150, spread: 100, origin: { y: 0.6 } }); }
      return (

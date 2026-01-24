@@ -85,6 +85,14 @@ export const TRANSLATIONS = {
     admin_amount: "Einsatz",
     admin_claimed: "Abgeholt?",
     admin_details: "Details"
+    admin_title: "ADMIN DASHBOARD",
+    admin_search_placeholder: "Suche Spieler oder ID...",
+    admin_filter_all: "Alle",
+    admin_filter_open: "Offen",
+    admin_filter_finished: "Beendet",
+    admin_stats_total: "Total Spiele",
+    admin_stats_open: "Offen",
+    admin_stats_volume: "Volumen (Sats)",
   },
   en: {
     welcome_disclaimer: "DISCLAIMER",
@@ -172,6 +180,14 @@ export const TRANSLATIONS = {
     admin_amount: "Wager",
     admin_claimed: "Claimed?",
     admin_details: "Details"
+    admin_title: "ADMIN DASHBOARD",
+    admin_search_placeholder: "Search player or ID...",
+    admin_filter_all: "All",
+    admin_filter_open: "Open",
+    admin_filter_finished: "Finished",
+    admin_stats_total: "Total Games",
+    admin_stats_open: "Open",
+    admin_stats_volume: "Volume (Sats)",
   },
   es: {
     welcome_disclaimer: "DESCARGO DE RESPONSABILIDAD",
@@ -258,6 +274,13 @@ export const TRANSLATIONS = {
     admin_winner: "Ganador",
     admin_amount: "Apuesta",
     admin_claimed: "¿Reclamado?",
-    admin_details: "Detalles"
+    admin_details: "Detalles"admin_title: "PANEL DE ADMIN",
+    admin_search_placeholder: "Buscar jugador o ID...",
+    admin_filter_all: "Todos",
+    admin_filter_open: "Abierto",
+    admin_filter_finished: "Terminado",
+    admin_stats_total: "Total Juegos",
+    admin_stats_open: "Abierto",
+    admin_stats_volume: "Volumen (Sats)",
   }
 };
