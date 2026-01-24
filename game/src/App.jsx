@@ -310,6 +310,7 @@ export default function App() {
         if (nameFromInput && existingUser.pubkey) { setLoginError(txt('login_error_nostr')); setIsLoginLoading(false); return; }
         if (existingUser.pin === 'nostr-auth' || existingUser.pin === 'extension-auth') { setLoginError(txt('login_error_wrong_pin')); } 
         else if (existingUser.pin === hashedPin) { 
+            // LOGIN ERFOLGREICH
             finishLogin(existingUser.name, existingUser.pubkey, existingUser.is_admin); 
         } 
         else { setLoginError(txt('login_error_wrong_pin')); }
@@ -595,7 +596,7 @@ export default function App() {
       }
     } catch (e) {
       console.error(e);
-      alert("Fehler beim Speichern des Spiels.");
+      alert("Speicherfehler: " + (e.message || JSON.stringify(e)));
       setIsProcessingGame(false);
     }
   };
