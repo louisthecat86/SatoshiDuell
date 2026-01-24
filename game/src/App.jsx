@@ -121,7 +121,7 @@ export default function App() {
   const [timeLeft, setTimeLeft] = useState(15.0); 
   const [totalTime, setTotalTime] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState(null);
-  const [isProcessingGame, setIsProcessingGame] = useState(false); // Fix für Hängenbleiben
+  const [isProcessingGame, setIsProcessingGame] = useState(false); 
   
   // Payment & Withdraw
   const [invoice, setInvoice] = useState({ req: '', hash: '', amount: 0 });
@@ -131,7 +131,7 @@ export default function App() {
   const [manualCheckLoading, setManualCheckLoading] = useState(false);
   const [invoiceCopied, setInvoiceCopied] = useState(false);
   const [withdrawCopied, setWithdrawCopied] = useState(false);
-  const [isClaiming, setIsClaiming] = useState(false); // Fix für Mehrfach-Auszahlung
+  const [isClaiming, setIsClaiming] = useState(false);
 
   // Donation
   const [donationAmount, setDonationAmount] = useState(2100);
@@ -310,7 +310,6 @@ export default function App() {
         if (nameFromInput && existingUser.pubkey) { setLoginError(txt('login_error_nostr')); setIsLoginLoading(false); return; }
         if (existingUser.pin === 'nostr-auth' || existingUser.pin === 'extension-auth') { setLoginError(txt('login_error_wrong_pin')); } 
         else if (existingUser.pin === hashedPin) { 
-            // Admin Status aus der DB laden
             finishLogin(existingUser.name, existingUser.pubkey, existingUser.is_admin); 
         } 
         else { setLoginError(txt('login_error_wrong_pin')); }
@@ -560,14 +559,13 @@ export default function App() {
     }, 2000);
   };
 
-  // --- KRITISCHER FIX: KEIN AUTO-CLAIM MEHR ---
   const finishGameLogic = async (finalScore = score) => {
-    if (isProcessingGame) return; // Schutz
+    if (isProcessingGame) return; 
     setIsProcessingGame(true);
 
     try {
       if (role === 'creator') {
-        await supabase.from('duels').insert([{ 
+        const { error } = await supabase.from('duels').insert([{ 
           creator: user.name, 
           creator_score: finalScore, 
           creator_time: totalTime, 
@@ -575,20 +573,24 @@ export default function App() {
           status: 'open', 
           amount: invoice.amount, 
           target_player: challengePlayer 
-        }]); 
+        }]);
+        if (error) throw error;
         setView('dashboard');
       } else {
-        const { data } = await supabase.from('duels').update({ 
+        const { data, error } = await supabase.from('duels').update({ 
             challenger: user.name, 
             challenger_score: finalScore, 
             challenger_time: totalTime, 
             status: 'finished' 
         }).eq('id', activeDuel.id).select();
         
-        if (data) { 
+        if (error) throw error;
+        
+        if (data && data.length > 0) {
             setActiveDuel(data[0]); 
-            // Hier KEIN automatischer Aufruf von createWithdrawLink mehr!
-            determineWinner(data[0], 'challenger', finalScore, totalTime); 
+            setView('result_final'); 
+        } else {
+            throw new Error("Fehler beim Laden des Spielstatus");
         }
       }
     } catch (e) {
@@ -598,7 +600,13 @@ export default function App() {
     }
   };
 
-  // --- MANUELLER CLAIM (NEUE FUNKTION) ---
+  const openPastDuel = (duel) => { setActiveDuel(duel); const myRole = duel.creator === user.name ? 'creator' : 'challenger'; setRole(myRole); const myS = myRole === 'creator' ? duel.creator_score : duel.challenger_score; const myT = myRole === 'creator' ? duel.creator_time : duel.challenger_time; determineWinner(duel, myRole, myS, myT); };
+  
+  const determineWinner = async (duel, myRole, myScore, myTime) => { 
+    if (duel.status === 'refunded') { setView('result_final'); return; }
+    setView('result_final'); 
+  };
+  
   const handleClaimReward = async () => {
     if (isClaiming) return;
     setIsClaiming(true);
@@ -629,14 +637,6 @@ export default function App() {
     }
   };
 
-  const openPastDuel = (duel) => { setActiveDuel(duel); const myRole = duel.creator === user.name ? 'creator' : 'challenger'; setRole(myRole); const myS = myRole === 'creator' ? duel.creator_score : duel.challenger_score; const myT = myRole === 'creator' ? duel.creator_time : duel.challenger_time; determineWinner(duel, myRole, myS, myT); };
-  
-  const determineWinner = async (duel, myRole, myScore, myTime) => { 
-    if (duel.status === 'refunded') { setView('result_final'); return; }
-    setView('result_final'); 
-    // Hier passiert nichts weiter außer View-Wechsel. Der User muss klicken.
-  };
-  
   const handleLogout = () => { localStorage.clear(); setUser(null); setView('language_select'); };
 
   // --- VIEWS ---
@@ -964,7 +964,7 @@ export default function App() {
       );
     }
 
-    // --- ADMIN VIEW MIT FILTER & SUCHE ---
+    // --- NEU: ADMIN VIEW MIT FILTER & SUCHE ---
     if (dashboardView === 'admin') {
       const totalGames = adminDuels.length;
       const openGames = adminDuels.filter(d => d.status === 'open').length;
@@ -1110,6 +1110,14 @@ export default function App() {
           <div className="w-full h-2 bg-neutral-900 rounded-full mb-10 overflow-hidden"><div className="h-full bg-orange-500 transition-all duration-1000 ease-linear" style={{ width: `${(timeLeft / 15) * 100}%` }}></div></div>
           <h3 className="text-2xl font-bold text-white text-center mb-10 min-h-[100px]">"{questionData.q}"</h3>
           <div className="grid gap-3">{[0,1,2,3].map((displayIndex) => { const originalOptionIndex = shuffledOrder[displayIndex]; const optionText = originalOptions[originalOptionIndex]; let btnClass = "bg-neutral-900/50 hover:bg-orange-500 border-white/10"; const isCorrect = originalOptionIndex === correctIndex; const isSelected = selectedAnswer === displayIndex; if (selectedAnswer !== null) { if (isCorrect) btnClass = "bg-green-500 text-black border-green-500 shadow-[0_0_15px_rgba(34,197,94,0.6)]"; else if (isSelected) btnClass = "bg-red-500 text-white border-red-500"; else btnClass = "opacity-30 border-transparent"; } return (<button key={`${currentQ}-${displayIndex}`} onClick={() => handleAnswer(displayIndex)} disabled={selectedAnswer !== null} className={`border p-5 rounded-2xl text-left transition-all active:scale-[0.95] flex items-center gap-4 ${btnClass}`}><span className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-sm ${selectedAnswer !== null && isCorrect ? 'bg-black text-green-500' : 'bg-neutral-800 text-neutral-400'}`}>{String.fromCharCode(65 + displayIndex)}</span><span className="font-bold text-lg text-neutral-200">{optionText}</span></button>); })}</div>
+          
+          {/* LADE-OVERLAY BEIM SPEICHERN */}
+          {isProcessingGame && (
+            <div className="absolute inset-0 bg-black/80 flex flex-col items-center justify-center z-50 animate-in fade-in">
+                <Loader2 size={64} className="text-orange-500 animate-spin mb-4"/>
+                <p className="text-white font-black text-xl animate-pulse">FINISHING...</p>
+            </div>
+          )}
         </div>
       </Background>
     );
@@ -1154,7 +1162,7 @@ export default function App() {
             <div className={`mx-auto w-24 h-24 rounded-full flex items-center justify-center mb-8 shadow-2xl ring-4 ring-offset-4 ring-offset-black ${won && isFinished ? "bg-green-500 ring-green-500" : "bg-red-500 ring-red-500"}`}>{won && isFinished ? <Trophy size={48} className="text-black animate-bounce"/> : <Flame size={48} className="text-black"/>}</div>
             <h2 className={`text-5xl font-black mb-10 uppercase ${won && isFinished ? "text-green-500" : "text-red-500"}`}>{!isFinished ? txt('result_wait') : won ? txt('result_win') : txt('result_loss')}</h2>
             <div className="grid grid-cols-2 gap-4 mb-10">
-              <Card className="p-4 bg-white/5 border-orange-500/30"><p className="text-[10px] font-bold text-neutral-500 uppercase">Du</p><p className="text-4xl font-black text-white font-mono">{myS}</p><p className="text-[10px] text-neutral-500 italic">{myT?.toFixed(1)}s</p></Card>
+              <Card className="p-4 bg-white/5 border-orange-500/30"><p className="text-[10px] font-bold text-neutral-500 uppercase">Du</p><p className="text-4xl font-black text-white font-mono">{myS}</p><p className="text-[10px] text-neutral-500 italic">{myT.toFixed(1)}s</p></Card>
               <Card className="p-4 bg-white/5 opacity-50"><p className="text-[10px] font-bold text-neutral-500 uppercase">Gegner</p><p className="text-4xl font-black text-white font-mono">{duel.status === 'finished' ? opS : '?'}</p><p className="text-[10px] text-neutral-500 italic">{duel.status === 'finished' ? (typeof opT === 'number' ? opT.toFixed(1) + 's' : opT) : 'läuft...'}</p></Card>
             </div>
             
