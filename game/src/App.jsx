@@ -310,7 +310,6 @@ export default function App() {
         if (nameFromInput && existingUser.pubkey) { setLoginError(txt('login_error_nostr')); setIsLoginLoading(false); return; }
         if (existingUser.pin === 'nostr-auth' || existingUser.pin === 'extension-auth') { setLoginError(txt('login_error_wrong_pin')); } 
         else if (existingUser.pin === hashedPin) { 
-            // LOGIN ERFOLGREICH
             finishLogin(existingUser.name, existingUser.pubkey, existingUser.is_admin); 
         } 
         else { setLoginError(txt('login_error_wrong_pin')); }
@@ -564,12 +563,15 @@ export default function App() {
     if (isProcessingGame) return; 
     setIsProcessingGame(true);
 
+    // FIX: Runden auf 1 Nachkommastelle, damit DB nicht meckert (Integer Error)
+    const cleanTime = parseFloat(totalTime.toFixed(1));
+
     try {
       if (role === 'creator') {
         const { error } = await supabase.from('duels').insert([{ 
           creator: user.name, 
           creator_score: finalScore, 
-          creator_time: totalTime, 
+          creator_time: cleanTime, // Nutzung der gerundeten Zeit
           questions: gameData, 
           status: 'open', 
           amount: invoice.amount, 
@@ -581,7 +583,7 @@ export default function App() {
         const { data, error } = await supabase.from('duels').update({ 
             challenger: user.name, 
             challenger_score: finalScore, 
-            challenger_time: totalTime, 
+            challenger_time: cleanTime, // Nutzung der gerundeten Zeit
             status: 'finished' 
         }).eq('id', activeDuel.id).select();
         
@@ -1163,7 +1165,7 @@ export default function App() {
             <div className={`mx-auto w-24 h-24 rounded-full flex items-center justify-center mb-8 shadow-2xl ring-4 ring-offset-4 ring-offset-black ${won && isFinished ? "bg-green-500 ring-green-500" : "bg-red-500 ring-red-500"}`}>{won && isFinished ? <Trophy size={48} className="text-black animate-bounce"/> : <Flame size={48} className="text-black"/>}</div>
             <h2 className={`text-5xl font-black mb-10 uppercase ${won && isFinished ? "text-green-500" : "text-red-500"}`}>{!isFinished ? txt('result_wait') : won ? txt('result_win') : txt('result_loss')}</h2>
             <div className="grid grid-cols-2 gap-4 mb-10">
-              <Card className="p-4 bg-white/5 border-orange-500/30"><p className="text-[10px] font-bold text-neutral-500 uppercase">Du</p><p className="text-4xl font-black text-white font-mono">{myS}</p><p className="text-[10px] text-neutral-500 italic">{myT.toFixed(1)}s</p></Card>
+              <Card className="p-4 bg-white/5 border-orange-500/30"><p className="text-[10px] font-bold text-neutral-500 uppercase">Du</p><p className="text-4xl font-black text-white font-mono">{myS}</p><p className="text-[10px] text-neutral-500 italic">{myT?.toFixed(1)}s</p></Card>
               <Card className="p-4 bg-white/5 opacity-50"><p className="text-[10px] font-bold text-neutral-500 uppercase">Gegner</p><p className="text-4xl font-black text-white font-mono">{duel.status === 'finished' ? opS : '?'}</p><p className="text-[10px] text-neutral-500 italic">{duel.status === 'finished' ? (typeof opT === 'number' ? opT.toFixed(1) + 's' : opT) : 'läuft...'}</p></Card>
             </div>
             
