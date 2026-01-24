@@ -98,7 +98,7 @@ export default function App() {
   const [leaderboard, setLeaderboard] = useState([]);
   const [challengePlayer, setChallengePlayer] = useState(null);
   
-  // LISTEN (GETRENNT)
+  // LISTEN
   const [publicDuels, setPublicDuels] = useState([]);     
   const [targetedDuels, setTargetedDuels] = useState([]); 
   const [myDuels, setMyDuels] = useState([]);             
@@ -116,16 +116,16 @@ export default function App() {
   const [totalTime, setTotalTime] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState(null); 
   
-  // Payment
+  // Payment & Withdraw
   const [invoice, setInvoice] = useState({ req: '', hash: '', amount: 0 });
+  const [withdrawLink, setWithdrawLink] = useState('');
+  const [withdrawId, setWithdrawId] = useState(''); 
   const [checkingPayment, setCheckingPayment] = useState(false);
   const [manualCheckLoading, setManualCheckLoading] = useState(false);
   const [invoiceCopied, setInvoiceCopied] = useState(false);
 
-  // Withdraw
-  const [withdrawLink, setWithdrawLink] = useState('');
-  const [withdrawId, setWithdrawId] = useState(''); 
-  const [withdrawCopied, setWithdrawCopied] = useState(false); // NEU: Withdraw Copy State
+  // Withdraw State
+  const [withdrawCopied, setWithdrawCopied] = useState(false);
 
   // Donation
   const [donationAmount, setDonationAmount] = useState(2100);
@@ -136,51 +136,36 @@ export default function App() {
   // Helper
   const txt = (key) => TRANSLATIONS[lang]?.[key] || key;
 
-// --- INTELLIGENTER GENERATOR (Fisher-Yates + History) ---
+  // Generator (Fisher-Yates + History Logic)
   const generateGameData = (questionsSource) => {
     if (!questionsSource || questionsSource.length === 0) return [];
 
-    // 1. Hole die Historie der bereits gespielten Fragen
     let playedIds = JSON.parse(localStorage.getItem('played_questions') || '[]');
-
-    // 2. Filtere alle Fragen heraus, die wir schon hatten
     let availableIndices = questionsSource
       .map((_, i) => i)
       .filter(id => !playedIds.includes(id));
 
-    // 3. Wenn weniger als 5 Fragen übrig sind (Pool erschöpft), setze Historie zurück
     if (availableIndices.length < 5) {
       playedIds = [];
       availableIndices = questionsSource.map((_, i) => i);
     }
 
-    // 4. Fisher-Yates Shuffle (Der ECHTE Zufall)
-    // Dieser Algorithmus mischt perfekt gleichmäßig
     for (let i = availableIndices.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [availableIndices[i], availableIndices[j]] = [availableIndices[j], availableIndices[i]];
     }
 
-    // 5. Die ersten 5 auswählen
     const selectedIndices = availableIndices.slice(0, 5);
-
-    // 6. Die neuen Fragen zur Historie hinzufügen und speichern
     const newHistory = [...playedIds, ...selectedIndices];
     localStorage.setItem('played_questions', JSON.stringify(newHistory));
 
-    // 7. Struktur für das Spiel bauen (Antworten mischen wir auch mit Fisher-Yates)
     return selectedIndices.map(id => {
       const order = [0, 1, 2, 3];
-      // Antworten mischen
       for (let i = order.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
         [order[i], order[j]] = [order[j], order[i]];
       }
-      
-      return {
-        id: id,
-        order: order
-      };
+      return { id: id, order: order };
     });
   };
 
@@ -318,7 +303,16 @@ export default function App() {
   };
 
   const handleExtensionLogin = async () => {
-    if (!window.nostr) { alert("No Nostr Extension found!"); return; }
+    if (!window.nostr) { 
+      // Smart Error für Mobile Chrome Nutzer
+      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+      if (isMobile) {
+        alert("In diesem Browser fehlt die Schnittstelle.\n\nTIPP: Öffne diese Seite in der 'Amethyst' App oder nutze den 'Kiwi Browser'!");
+      } else {
+        alert("Keine Nostr-Extension gefunden!\nBitte installiere Alby oder nos2x.");
+      }
+      return; 
+    }
     try {
       const pubkey = await window.nostr.getPublicKey();
       setLoginInput(nip19.npubEncode(pubkey)); 
@@ -440,7 +434,7 @@ export default function App() {
     setInvoice({ req: '', hash: '', amount: 0 }); 
     setSelectedAnswer(null); 
     setInvoiceCopied(false); 
-    setWithdrawCopied(false); // NEU: Reset Withdraw
+    setWithdrawCopied(false); 
   };
   
   const startChallenge = (target) => { 
@@ -457,10 +451,13 @@ export default function App() {
     setView('create_setup'); 
   };
   
+  // WICHTIG: Neues 9999 Limit eingebaut!
   const submitCreateDuel = async () => { 
-    if (!wager || Number(wager) <= 0) { alert("Bitte einen Einsatz wählen!"); return; }
+    const val = Number(wager);
+    if (!wager || val <= 0) { alert("Bitte einen Einsatz wählen!"); return; }
+    if (val > 9999) { alert("Maximal 9999 Sats erlaubt!"); return; } // Limit
     const gameConfig = generateGameData(allQuestions); 
-    setGameData(gameConfig); setRole('creator'); await fetchInvoice(Number(wager)); 
+    setGameData(gameConfig); setRole('creator'); await fetchInvoice(val); 
   };
   
   const initJoinDuel = async (duel) => { 
@@ -688,9 +685,8 @@ export default function App() {
             <div className="flex flex-col gap-2 flex-1 overflow-hidden">
                <div className="text-[10px] font-black text-neutral-500 uppercase tracking-widest px-2">{txt('lobby_open')}</div>
                <div className="overflow-y-auto space-y-2 pr-1 custom-scrollbar">
-                 {/* WICHTIG: Doppelte Filterung für maximale Sicherheit */}
-                 {publicDuels.filter(d => d.creator !== user.name && (!d.target_player || d.target_player === '')).length === 0 && <p className="text-neutral-600 text-xs italic text-center py-4">Keine offenen Duelle</p>}
-                 {publicDuels.filter(d => d.creator !== user.name && (!d.target_player || d.target_player === '')).map(d => (
+                 {publicDuels.filter(d => d.creator !== user.name).length === 0 && <p className="text-neutral-600 text-xs italic text-center py-4">Keine offenen Duelle</p>}
+                 {publicDuels.filter(d => d.creator !== user.name).map(d => (
                    <div key={d.id} className="bg-white/5 p-3 rounded-xl flex justify-between items-center border border-white/5">
                      <div><p className="font-bold text-white text-xs uppercase">{d.creator}</p><p className="text-[10px] text-orange-400 font-mono">{d.amount} sats</p></div>
                      <button onClick={() => initJoinDuel(d)} className="bg-orange-500 text-black px-4 py-2 rounded-lg text-[10px] font-black uppercase">{txt('lobby_fight')}</button>
@@ -783,7 +779,9 @@ export default function App() {
             {challengePlayer ? `${txt('setup_target')} ${challengePlayer.toUpperCase()}` : txt('setup_title')}
           </h2>
           <p className="text-neutral-400 text-xs font-bold uppercase tracking-widest mb-2">{txt('setup_wager_label')}</p>
-          <input type="number" value={wager} onChange={(e) => setWager(e.target.value)} placeholder="0" className="text-6xl font-black text-orange-500 font-mono text-center bg-transparent w-full outline-none mb-10 placeholder:text-neutral-800"/>
+          
+          {/* MAX WERT: 9999 */}
+          <input type="number" max="9999" value={wager} onChange={(e) => setWager(e.target.value)} placeholder="0" className="text-6xl font-black text-orange-500 font-mono text-center bg-transparent w-full outline-none mb-10 placeholder:text-neutral-800"/>
           
           <p className="text-[10px] text-neutral-500 mb-8 italic">{txt('setup_refund_info')}</p>
 
