@@ -1,11 +1,40 @@
 import React, { useState, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { 
-  Zap, Trophy, Clock, User, Plus, Swords, RefreshCw, Copy, Check, 
-  ExternalLink, AlertTriangle, Loader2, LogOut, Fingerprint, Flame, 
-  History, Coins, Lock, Medal, Share2, Globe, Settings, Save, Heart, 
-  Github, CheckCircle, RefreshCcw, Rocket, ArrowLeft, Users, AlertCircle, 
-  Bell, Shield, Search 
+  Zap, 
+  Trophy, 
+  Clock, 
+  User, 
+  Plus, 
+  Swords, 
+  RefreshCw, 
+  Copy, 
+  Check, 
+  ExternalLink, 
+  AlertTriangle, 
+  Loader2, 
+  LogOut, 
+  Fingerprint, 
+  Flame, 
+  History, 
+  Coins, 
+  Lock, 
+  Medal, 
+  Share2, 
+  Globe, 
+  Settings, 
+  Save, 
+  Heart,
+  Github,
+  CheckCircle,
+  RefreshCcw,
+  Rocket,
+  ArrowLeft,
+  Users,
+  AlertCircle,
+  Bell,
+  Shield,
+  Search 
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { QRCodeCanvas } from 'qrcode.react';
@@ -545,7 +574,7 @@ export default function App() {
     if (isProcessingGame) return; 
     setIsProcessingGame(true);
 
-    // FIX: Runden auf 1 Nachkommastelle
+    // FIX: Runden auf 1 Nachkommastelle, damit DB nicht meckert (Integer Error)
     const cleanTime = parseFloat((totalTime || 0).toFixed(1));
 
     try {
@@ -600,7 +629,7 @@ export default function App() {
         const res = await fetch('/api/claim', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ amount: activeDuel.amount, duelId: activeDuel.id })
+            body: JSON.stringify({ duelId: activeDuel.id })
         });
         const data = await res.json();
         
@@ -1159,8 +1188,8 @@ export default function App() {
     
     return (
       <Background>
-         <div className="w-full max-w-sm text-center">
-            <div className={`mx-auto w-24 h-24 rounded-full flex items-center justify-center mb-8 shadow-2xl ring-4 ring-offset-4 ring-offset-black ${won && isFinished ? "bg-green-500 ring-green-500" : "bg-red-500 ring-red-500"}`}>{won && isFinished ? <Trophy size={48} className="text-black animate-bounce"/> : <Flame size={48} className="text-black"/>}</div>
+         <div className="w-full max-w-sm text-center mt-10">
+            <div className={`mx-auto w-24 h-24 rounded-full flex items-center justify-center mb-6 ring-4 ring-offset-4 ring-offset-black ${won && isFinished ? "bg-green-500 ring-green-500" : "bg-red-500 ring-red-500"}`}>{won && isFinished ? <Trophy size={48} className="text-black animate-bounce"/> : <Flame size={48} className="text-black"/>}</div>
             <h2 className={`text-5xl font-black mb-10 uppercase ${won && isFinished ? "text-green-500" : "text-red-500"}`}>{!isFinished ? txt('result_wait') : won ? txt('result_win') : txt('result_loss')}</h2>
             <div className="grid grid-cols-2 gap-4 mb-10">
               <Card className="p-4 bg-white/5 border-orange-500/30"><p className="text-[10px] font-bold text-neutral-500 uppercase">Du</p><p className="text-4xl font-black text-white font-mono">{myS}</p><p className="text-[10px] text-neutral-500 italic">{myT?.toFixed(1)}s</p></Card>
@@ -1169,9 +1198,12 @@ export default function App() {
             
             {/* MANUELLER CLAIM BUTTON - DER FIX! */}
             {isFinished && won && !duel.claimed && !withdrawLink && (
-             <Button onClick={handleClaimReward} disabled={isClaiming} className="bg-green-500 text-black animate-pulse">
-               {isClaiming ? <Loader2 className="animate-spin mx-auto"/> : txt('btn_withdraw')}
-             </Button>
+             <div className="flex flex-col gap-2">
+                <div className="bg-orange-500/10 border border-orange-500/50 p-2 rounded-xl mb-2 text-orange-400 text-[10px] font-black uppercase tracking-widest">JACKPOT: {duel.amount * 2} SATS</div>
+                <Button onClick={handleClaimReward} disabled={isClaiming} className="bg-green-500 text-black animate-pulse">
+                  {isClaiming ? <Loader2 className="animate-spin mx-auto"/> : `${txt('btn_withdraw')} (${duel.amount * 2} Sats)`}
+                </Button>
+             </div>
             )}
 
             {withdrawLink ? (
