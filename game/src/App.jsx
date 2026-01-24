@@ -519,7 +519,18 @@ export default function App() {
     if (selectedAnswer !== null) return; 
     setSelectedAnswer(displayIndex);
     setTotalTime(prev => prev + (15.0 - timeLeft)); 
+    
+    // SAFE GUARD: Existiert die Frage überhaupt?
     const roundConfig = gameData[currentQ];
+    if (!allQuestions[roundConfig.id]) {
+       // Wenn Frage fehlt: Nicht crashen, sondern als "falsch" werten und weitermachen
+       setTimeout(() => {
+         if (currentQ < 4) { setCurrentQ(p => p + 1); setTimeLeft(15.0); setSelectedAnswer(null); } 
+         else { finishGameLogic(score); }
+       }, 500);
+       return;
+    }
+
     const originalIndex = roundConfig.order[displayIndex];
     const correctIndex = allQuestions[roundConfig.id].correct;
     const isCorrect = (originalIndex === correctIndex);
@@ -534,8 +545,8 @@ export default function App() {
     if (isProcessingGame) return; 
     setIsProcessingGame(true);
 
-    // FIX: Runden auf 1 Nachkommastelle, damit DB nicht meckert (Integer Error)
-    const cleanTime = parseFloat(totalTime.toFixed(1));
+    // FIX: Runden auf 1 Nachkommastelle
+    const cleanTime = parseFloat((totalTime || 0).toFixed(1));
 
     try {
       if (role === 'creator') {
@@ -594,7 +605,6 @@ export default function App() {
         const data = await res.json();
         
         if (res.status !== 200) {
-            // ZEIGE DEN ECHTEN FEHLER AN (z.B. "Unauthorized" oder "Insufficient Funds")
             alert("Auszahlungsfehler: " + (data.details || data.error || "Unbekannter Fehler"));
         } else if (data.lnurl) {
             setWithdrawLink(data.lnurl);
@@ -1072,7 +1082,22 @@ export default function App() {
     const roundConfig = gameData[currentQ];
     const questionID = roundConfig.id;
     const shuffledOrder = roundConfig.order;
-    const questionData = allQuestions[questionID][lang];
+    const questionData = allQuestions[questionID]?.[lang]; // Safe Access
+    
+    // SAFE GUARD 1: Fehlende Frage
+    if (!questionData) {
+       return (
+         <Background>
+           <div className="w-full max-w-sm mx-auto flex flex-col justify-center min-h-[60vh] px-4 text-center">
+             <AlertTriangle size={64} className="text-red-500 mx-auto mb-4"/>
+             <h3 className="text-xl font-bold text-white mb-2">Fehler beim Laden der Frage</h3>
+             <p className="text-neutral-400 text-xs mb-8">Diese Frage existiert nicht mehr in der Datenbank. Das Spiel wird beendet.</p>
+             <Button onClick={() => finishGameLogic(score)}>Trotzdem beenden</Button>
+           </div>
+         </Background>
+       );
+    }
+
     const originalOptions = questionData.options;
     const correctIndex = allQuestions[questionID].correct;
 
@@ -1119,6 +1144,9 @@ export default function App() {
          </Background>
        )
     }
+
+    // SAFE GUARD 2: Prüfen ob Daten da sind
+    if (!activeDuel) return <Background><div className="text-white text-center mt-20">Lade Ergebnisse...</div></Background>;
 
     const duel = activeDuel; 
     const iAmCreator = role === 'creator'; 
