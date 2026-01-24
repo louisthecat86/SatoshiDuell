@@ -27,7 +27,11 @@ import {
   Heart,
   Github,
   CheckCircle,
-  RefreshCcw 
+  RefreshCcw,
+  Rocket,       // NEU für Pre-Game
+  ArrowLeft,    // NEU für Navigation
+  Users,        // NEU für Kacheln
+  AlertCircle   // NEU für Kacheln
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { QRCodeCanvas } from 'qrcode.react';
@@ -44,12 +48,6 @@ const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_KEY;
 const LNBITS_URL = import.meta.env.VITE_LNBITS_URL;
 const INVOICE_KEY = import.meta.env.VITE_INVOICE_KEY; 
-
-const DEFAULT_RELAYS = [
-  'wss://relay.damus.io',
-  'wss://relay.primal.net',
-  'wss://nos.lol'
-];
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
@@ -73,6 +71,9 @@ export default function App() {
   
   // Navigation & User
   const [view, setView] = useState('loading_data'); 
+  // NEU: Sub-Navigation im Dashboard ('home', 'lobby', 'challenges', 'leaderboard', 'history')
+  const [dashboardView, setDashboardView] = useState('home'); 
+  
   const [lang, setLang] = useState('de'); 
   const [user, setUser] = useState(null);
   
@@ -123,8 +124,6 @@ export default function App() {
   const [checkingPayment, setCheckingPayment] = useState(false);
   const [manualCheckLoading, setManualCheckLoading] = useState(false);
   const [invoiceCopied, setInvoiceCopied] = useState(false);
-
-  // Withdraw State
   const [withdrawCopied, setWithdrawCopied] = useState(false);
 
   // Donation
@@ -136,29 +135,34 @@ export default function App() {
   // Helper
   const txt = (key) => TRANSLATIONS[lang]?.[key] || key;
 
-  // Generator (Fisher-Yates + History Logic)
+  // Generator (Zufall + History Logic)
   const generateGameData = (questionsSource) => {
     if (!questionsSource || questionsSource.length === 0) return [];
-
+    
+    // 1. Gespielte Fragen laden
     let playedIds = JSON.parse(localStorage.getItem('played_questions') || '[]');
-    let availableIndices = questionsSource
-      .map((_, i) => i)
-      .filter(id => !playedIds.includes(id));
-
+    
+    // 2. Verfügbare filtern
+    let availableIndices = questionsSource.map((_, i) => i).filter(id => !playedIds.includes(id));
+    
+    // 3. Reset wenn alle gespielt
     if (availableIndices.length < 5) {
       playedIds = [];
       availableIndices = questionsSource.map((_, i) => i);
     }
-
+    
+    // 4. Mischen (Fisher-Yates)
     for (let i = availableIndices.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [availableIndices[i], availableIndices[j]] = [availableIndices[j], availableIndices[i]];
     }
-
+    
+    // 5. Auswählen & Speichern
     const selectedIndices = availableIndices.slice(0, 5);
     const newHistory = [...playedIds, ...selectedIndices];
     localStorage.setItem('played_questions', JSON.stringify(newHistory));
-
+    
+    // 6. Antworten mischen
     return selectedIndices.map(id => {
       const order = [0, 1, 2, 3];
       for (let i = order.length - 1; i > 0; i--) {
@@ -304,7 +308,6 @@ export default function App() {
 
   const handleExtensionLogin = async () => {
     if (!window.nostr) { 
-      // Smart Error für Mobile Chrome Nutzer
       const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
       if (isMobile) {
         alert("In diesem Browser fehlt die Schnittstelle.\n\nTIPP: Öffne diese Seite in der 'Amethyst' App oder nutze den 'Kiwi Browser'!");
@@ -356,7 +359,6 @@ export default function App() {
     }
   };
 
-  // --- DONATION LOGIC ---
   const openDonation = () => { setDonationInvoice(''); setDonationAmount(2100); setIsDonationSuccess(false); setView('donate'); };
   const handleGenerateDonation = async () => {
     setIsDonationLoading(true);
@@ -373,8 +375,6 @@ export default function App() {
   
   const fetchAllLobbyData = async () => {
     if (!user) return;
-
-    // 1. Leaderboard & Stats
     const { data: finishedDuels } = await supabase.from('duels').select('*').eq('status', 'finished');
     if (finishedDuels) {
       const playerStats = {};
@@ -395,24 +395,18 @@ export default function App() {
       setLeaderboard(Object.values(playerStats).sort((a, b) => b.satsWon - a.satsWon).slice(0, 10));
       setStats(prev => ({ ...prev, wins: myWins, satsWon: mySats }));
     }
-
-    // 2. ALLE offenen Duelle laden
     const { data: allOpen } = await supabase.from('duels').select('*').eq('status', 'open').order('created_at', { ascending: false });
-    
     if (allOpen) {
       const publicData = allOpen.filter(d => !d.target_player || d.target_player.trim() === '');
       setPublicDuels(publicData);
       const targetData = allOpen.filter(d => d.target_player === user.name);
       setTargetedDuels(targetData);
     }
-
-    // 3. Meine Geschichte
     const { data: myHistory } = await supabase
       .from('duels')
       .select('*')
       .or(`creator.eq.${user.name},challenger.eq.${user.name}`)
       .order('created_at', { ascending: false });
-    
     if (myHistory) {
       setMyDuels(myHistory);
       const finishedCount = myHistory.filter(d => d.status === 'finished').length;
@@ -420,12 +414,19 @@ export default function App() {
     }
   };
 
-  const fetchLeaderboard = () => {}; 
-  const fetchStats = () => {};
-  const fetchDuels = () => {};
-  const fetchMyDuels = () => {};
-  
-  const checkPaymentStatus = async () => { if (!invoice.hash) return; try { const url = `${LNBITS_URL}/api/v1/payments/${invoice.hash}?ts=${Date.now()}`; const res = await fetch(url, { headers: { 'X-Api-Key': INVOICE_KEY } }); const data = await res.json(); if (data.paid === true || data.status === 'success') { setCheckingPayment(true); startGame(); } } catch(e) {} };
+  const checkPaymentStatus = async () => { 
+    if (!invoice.hash) return; 
+    try { 
+      const url = `${LNBITS_URL}/api/v1/payments/${invoice.hash}?ts=${Date.now()}`; 
+      const res = await fetch(url, { headers: { 'X-Api-Key': INVOICE_KEY } }); 
+      const data = await res.json(); 
+      if (data.paid === true || data.status === 'success') { 
+        setCheckingPayment(true); 
+        setView('pre_game'); 
+      } 
+    } catch(e) {} 
+  };
+
   const checkWithdrawStatus = async () => { if (!withdrawId) return; try { const res = await fetch(`${LNBITS_URL}/withdraw/api/v1/links/${withdrawId}`, { headers: { 'X-Api-Key': INVOICE_KEY } }); const data = await res.json(); if (data.used >= 1 || data.spent === true) { confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } }); setTimeout(() => { setView('dashboard'); resetGameState(); setWithdrawId(''); }, 2000); } } catch(e) {} };
   const handleManualCheck = async () => { setManualCheckLoading(true); await checkPaymentStatus(); setTimeout(() => setManualCheckLoading(false), 1000); };
   
@@ -435,6 +436,7 @@ export default function App() {
     setSelectedAnswer(null); 
     setInvoiceCopied(false); 
     setWithdrawCopied(false); 
+    setDashboardView('home'); 
   };
   
   const startChallenge = (target) => { 
@@ -451,11 +453,10 @@ export default function App() {
     setView('create_setup'); 
   };
   
-  // WICHTIG: Neues 9999 Limit eingebaut!
   const submitCreateDuel = async () => { 
     const val = Number(wager);
     if (!wager || val <= 0) { alert("Bitte einen Einsatz wählen!"); return; }
-    if (val > 9999) { alert("Maximal 9999 Sats erlaubt!"); return; } // Limit
+    if (val > 9999) { alert("Maximal 9999 Sats erlaubt!"); return; } 
     const gameConfig = generateGameData(allQuestions); 
     setGameData(gameConfig); setRole('creator'); await fetchInvoice(val); 
   };
@@ -650,125 +651,206 @@ export default function App() {
     );
   }
 
+  // --- DASHBOARD (NEU STRUKTURIERT) ---
   if (view === 'dashboard') {
-    return (
-      <Background>
-        <div className="w-full max-w-md flex flex-col h-[95vh] gap-4 overflow-hidden px-2">
-          <Card className="flex justify-between items-center py-3 border-orange-500/20">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-orange-500 to-yellow-500 flex items-center justify-center font-black text-black text-xl">{user.name.charAt(0).toUpperCase()}</div>
-              <div className="text-left"><p className="font-bold text-white text-sm uppercase">{user.name}</p><p className="text-[10px] text-orange-400 font-mono">{stats.satsWon.toLocaleString()} {txt('sats_won')}</p></div>
-            </div>
-            <div className="flex gap-2"><button onClick={() => setView('settings')} className="p-2 text-neutral-500 hover:text-white"><Settings size={18}/></button><button onClick={handleLogout} className="p-2 text-neutral-500 hover:text-white"><LogOut size={18}/></button></div>
-          </Card>
+    
+    // Prüfen auf nicht abgeholte Gewinne (Für Alarm-Anzeige)
+    const unclaimedWin = myDuels.find(d => 
+      d.status === 'finished' && 
+      !d.claimed && 
+      ( (d.creator === user.name && d.creator_score > d.challenger_score) || 
+        (d.challenger === user.name && d.challenger_score > d.creator_score) )
+    );
 
-          <Button onClick={openCreateSetup} className="py-4 text-lg animate-neon"><Plus size={24}/> {txt('dashboard_new_duel')}</Button>
+    // Filter für Badges (Zähler)
+    const publicCount = publicDuels.filter(d => d.creator !== user.name).length;
+    const challengeCount = targetedDuels.length;
 
-          <div className="flex-1 overflow-hidden flex flex-col gap-4">
+    // --- SUB-VIEW: HOME (DAS GRID) ---
+    if (dashboardView === 'home') {
+      return (
+        <Background>
+          <div className="w-full max-w-md flex flex-col h-[95vh] gap-4 px-2">
             
-            {/* 1. HERAUSFORDERUNGEN AN MICH */}
-            {targetedDuels.length > 0 && (
-              <div className="flex flex-col gap-2 flex-shrink-0 animate-in slide-in-from-right duration-500">
-                 <div className="text-[10px] font-black text-purple-400 uppercase tracking-widest px-2 animate-pulse">{txt('lobby_challenges')}</div>
-                 <div className="space-y-2 pr-1">
-                   {targetedDuels.map(d => (
-                     <div key={d.id} className="bg-purple-500/10 p-3 rounded-xl flex justify-between items-center border border-purple-500/50 shadow-[0_0_15px_rgba(168,85,247,0.2)]">
-                       <div><p className="font-bold text-white text-xs uppercase">{d.creator} ⚔️</p><p className="text-[10px] text-purple-300 font-mono">{d.amount} sats</p></div>
-                       <button onClick={() => initJoinDuel(d)} className="bg-purple-500 text-white px-4 py-2 rounded-lg text-[10px] font-black uppercase hover:scale-105 transition-transform">ACCEPT</button>
-                     </div>
-                   ))}
-                 </div>
+            {/* Header: Profil */}
+            <Card className="flex justify-between items-center py-3 border-orange-500/20 bg-black/40 backdrop-blur-md">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-orange-500 to-yellow-500 flex items-center justify-center font-black text-black text-xl">{user.name.charAt(0).toUpperCase()}</div>
+                <div className="text-left"><p className="font-bold text-white text-sm uppercase">{user.name}</p><p className="text-[10px] text-orange-400 font-mono">{stats.satsWon.toLocaleString()} {txt('sats_won')}</p></div>
               </div>
+              <div className="flex gap-2"><button onClick={() => setView('settings')} className="p-2 text-neutral-500 hover:text-white"><Settings size={18}/></button><button onClick={handleLogout} className="p-2 text-neutral-500 hover:text-white"><LogOut size={18}/></button></div>
+            </Card>
+
+            {/* ALARM: GEWINN ABHOLEN */}
+            {unclaimedWin && (
+              <button onClick={() => openPastDuel(unclaimedWin)} className="w-full bg-green-500 text-black p-4 rounded-2xl flex items-center justify-between font-black uppercase animate-bounce shadow-[0_0_20px_rgba(34,197,94,0.6)]">
+                 <div className="flex items-center gap-3"><Trophy size={24}/> <div className="text-left"><p className="text-sm leading-none">{txt('dash_unclaimed_title')}</p><p className="text-[10px] opacity-75 font-normal normal-case">{txt('dash_unclaimed_text')}</p></div></div>
+                 <div className="bg-black/20 p-2 rounded-lg"><ArrowLeft className="rotate-180" size={16}/></div>
+              </button>
             )}
 
-            {/* 2. OFFENE LOBBY (NUR PUBLIC!) */}
-            <div className="flex flex-col gap-2 flex-1 overflow-hidden">
-               <div className="text-[10px] font-black text-neutral-500 uppercase tracking-widest px-2">{txt('lobby_open')}</div>
-               <div className="overflow-y-auto space-y-2 pr-1 custom-scrollbar">
-                 {publicDuels.filter(d => d.creator !== user.name).length === 0 && <p className="text-neutral-600 text-xs italic text-center py-4">Keine offenen Duelle</p>}
-                 {publicDuels.filter(d => d.creator !== user.name).map(d => (
-                   <div key={d.id} className="bg-white/5 p-3 rounded-xl flex justify-between items-center border border-white/5">
-                     <div><p className="font-bold text-white text-xs uppercase">{d.creator}</p><p className="text-[10px] text-orange-400 font-mono">{d.amount} sats</p></div>
-                     <button onClick={() => initJoinDuel(d)} className="bg-orange-500 text-black px-4 py-2 rounded-lg text-[10px] font-black uppercase">{txt('lobby_fight')}</button>
-                   </div>
-                 ))}
-               </div>
+            {/* Aktion: Neues Duell */}
+            <Button onClick={openCreateSetup} className="py-5 text-lg animate-neon shadow-lg mb-2"><Plus size={24}/> {txt('dashboard_new_duel')}</Button>
+
+            {/* DAS GRID (4 Kacheln) */}
+            <div className="grid grid-cols-2 gap-3 flex-1 overflow-y-auto pb-4">
+              
+              {/* Kachel 1: Offene Duelle */}
+              <button onClick={() => setDashboardView('lobby')} className="bg-neutral-900/60 border border-white/5 hover:border-orange-500/50 hover:bg-neutral-800 p-4 rounded-2xl flex flex-col items-center justify-center gap-2 aspect-square transition-all group relative">
+                <Users size={32} className="text-orange-500 group-hover:scale-110 transition-transform"/>
+                <span className="text-xs font-bold text-neutral-300 uppercase tracking-widest text-center">{txt('tile_lobby')}</span>
+                {publicCount > 0 && <span className="absolute top-3 right-3 bg-orange-500 text-black text-[10px] font-black w-6 h-6 rounded-full flex items-center justify-center shadow-lg">{publicCount}</span>}
+              </button>
+
+              {/* Kachel 2: Herausforderungen */}
+              <button onClick={() => setDashboardView('challenges')} className="bg-neutral-900/60 border border-white/5 hover:border-purple-500/50 hover:bg-neutral-800 p-4 rounded-2xl flex flex-col items-center justify-center gap-2 aspect-square transition-all group relative">
+                <Swords size={32} className={`text-purple-500 group-hover:scale-110 transition-transform ${challengeCount > 0 ? 'animate-pulse' : ''}`}/>
+                <span className="text-xs font-bold text-neutral-300 uppercase tracking-widest text-center">{txt('tile_challenges')}</span>
+                {challengeCount > 0 && <span className="absolute top-3 right-3 bg-purple-500 text-white text-[10px] font-black w-6 h-6 rounded-full flex items-center justify-center shadow-lg">{challengeCount}</span>}
+              </button>
+
+              {/* Kachel 3: Bestenliste */}
+              <button onClick={() => setDashboardView('leaderboard')} className="bg-neutral-900/60 border border-white/5 hover:border-yellow-500/50 hover:bg-neutral-800 p-4 rounded-2xl flex flex-col items-center justify-center gap-2 aspect-square transition-all group">
+                <Trophy size={32} className="text-yellow-500 group-hover:scale-110 transition-transform"/>
+                <span className="text-xs font-bold text-neutral-300 uppercase tracking-widest text-center">{txt('tile_leaderboard')}</span>
+              </button>
+
+              {/* Kachel 4: Historie */}
+              <button onClick={() => setDashboardView('history')} className="bg-neutral-900/60 border border-white/5 hover:border-blue-500/50 hover:bg-neutral-800 p-4 rounded-2xl flex flex-col items-center justify-center gap-2 aspect-square transition-all group">
+                <History size={32} className="text-blue-500 group-hover:scale-110 transition-transform"/>
+                <span className="text-xs font-bold text-neutral-300 uppercase tracking-widest text-center">{txt('tile_history')}</span>
+              </button>
             </div>
 
-            {/* 3. DEINE GESCHICHTE (MIT REFUND) */}
-            <div className="flex flex-col gap-2 flex-1 overflow-hidden">
-               <div className="text-[10px] font-black text-neutral-500 uppercase tracking-widest px-2">{txt('lobby_history')}</div>
-               <div className="overflow-y-auto space-y-2 pr-1 custom-scrollbar">
-                 {myDuels.map(d => {
-                   const isMyOpenDuel = d.creator === user.name && d.status === 'open';
-                   // Check ob 3 Tage vergangen sind
-                   const created = new Date(d.created_at).getTime();
-                   const now = Date.now();
-                   const canRefund = isMyOpenDuel && (now - created > REFUND_TIMEOUT_MS);
-
-                   return (
-                     <div key={d.id} className="bg-neutral-900/50 p-3 rounded-xl border border-white/5 flex flex-col gap-2">
-                       <div className="flex justify-between items-center">
-                         <div className="text-left">
-                           <p className="text-neutral-400 font-bold uppercase text-xs">
-                             {d.target_player 
-                               ? `${txt('challenge_sent')} ${d.target_player}` 
-                               : `vs ${d.creator === user.name ? (d.challenger || "???") : d.creator}`
-                             }
-                           </p>
-                           <p className="text-[10px] font-mono text-orange-500">{d.amount} sats</p>
-                         </div>
-                         {d.status === 'finished' ? (
-                           <button onClick={() => openPastDuel(d)} className="text-orange-500 font-black uppercase text-[10px]">{d.claimed ? txt('lobby_paid') : txt('lobby_details')}</button>
-                         ) : d.status === 'refunded' ? (
-                           <span className="text-red-500 font-black text-[10px] uppercase">REFUNDED</span>
-                         ) : canRefund ? (
-                           // REFUND BUTTON
-                           <button onClick={() => handleRefund(d)} className="bg-red-500/20 text-red-500 border border-red-500/50 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase hover:bg-red-500 hover:text-white transition-all flex items-center gap-1">
-                             <RefreshCcw size={10}/> {txt('btn_refund')}
-                           </button>
-                         ) : (
-                           <span className="animate-pulse text-neutral-600 uppercase font-black text-[10px]">
-                             {d.target_player ? txt('refund_wait') : txt('lobby_wait')}
-                           </span>
-                         )}
-                       </div>
-                       {/* NOSTR SHARE BUTTON (Nur wenn offen und kein Refund möglich) */}
-                       {d.status === 'open' && d.creator === user.name && !canRefund && (
-                         <button onClick={(e) => {e.stopPropagation(); shareDuelOnNostr(d);}} className="w-full bg-purple-500/10 hover:bg-purple-600 border border-purple-500/30 hover:border-purple-500 text-purple-300 hover:text-white py-2 rounded-lg flex items-center justify-center gap-2 transition-all group">
-                           <Share2 size={14} className="group-hover:animate-pulse"/>
-                           <span className="text-[10px] font-bold uppercase tracking-widest">{txt('share_nostr')}</span>
-                         </button>
-                       )}
-                     </div>
-                   );
-                 })}
-               </div>
-            </div>
+            {/* Footer: Donate */}
+            <button onClick={openDonation} className="w-full py-2 mb-2 bg-gradient-to-r from-neutral-900 to-neutral-800 border border-white/5 rounded-xl text-neutral-500 text-[10px] font-bold uppercase tracking-widest flex items-center justify-center gap-2 hover:text-orange-500 transition-all">
+              <Heart size={12} className=""/> {txt('dashboard_donate')}
+            </button>
           </div>
-          
-          <button onClick={openDonation} className="w-full py-2 bg-gradient-to-r from-orange-900/50 to-orange-600/50 border border-orange-500/30 rounded-xl text-white text-xs font-bold uppercase tracking-widest flex items-center justify-center gap-2 hover:brightness-125 transition-all shadow-lg mt-2">
-             <Heart size={14} className="fill-orange-500 text-orange-500"/> {txt('dashboard_donate')}
-          </button>
+        </Background>
+      );
+    }
 
-          <div className="flex flex-col gap-2 bg-neutral-900/50 p-3 rounded-2xl border border-white/5 mt-2">
-            <div className="flex items-center gap-2 text-orange-500 text-[10px] font-black uppercase tracking-widest px-1"><Trophy size={14}/> {txt('leaderboard')}</div>
-            <div className="space-y-1.5 max-h-[140px] overflow-y-auto custom-scrollbar">
-              {leaderboard.map((p, i) => (
-                <div key={p.name} className="flex justify-between items-center bg-black/20 p-2 rounded-lg text-xs">
-                  <span className="text-neutral-500 font-mono w-5 text-center">{i + 1}</span>
-                  <span className="text-white font-bold uppercase flex-1 ml-2">{p.name}</span>
-                  <div className="flex items-center gap-3">
-                    <span className="text-orange-400 font-mono text-[10px]">{p.satsWon} sats</span>
-                    {p.name !== user.name && <button onClick={() => startChallenge(p.name)} className="text-orange-500 hover:text-white"><Swords size={14}/></button>}
-                  </div>
+    // --- SUB-VIEW: LOBBY (OFFENE SPIELE) ---
+    if (dashboardView === 'lobby') {
+      const list = publicDuels.filter(d => d.creator !== user.name);
+      return (
+        <Background>
+          <div className="w-full max-w-md flex flex-col h-[95vh] gap-4 px-2">
+            <div className="flex items-center gap-4 py-4"><button onClick={() => setDashboardView('home')} className="bg-white/10 p-2 rounded-xl hover:bg-white/20 transition-colors"><ArrowLeft className="text-white"/></button><h2 className="text-xl font-black text-white uppercase tracking-widest">{txt('tile_lobby')}</h2></div>
+            <div className="flex-1 overflow-y-auto space-y-2 custom-scrollbar">
+              {list.length === 0 && <div className="text-center py-20 text-neutral-600 italic">Keine offenen Duelle.<br/>Starte selbst eins!</div>}
+              {list.map(d => (
+                <div key={d.id} className="bg-white/5 p-4 rounded-2xl flex justify-between items-center border border-white/5 hover:border-orange-500/30 transition-all">
+                  <div><p className="font-bold text-white text-sm uppercase">{d.creator}</p><p className="text-xs text-orange-400 font-mono">{d.amount} sats</p></div>
+                  <button onClick={() => initJoinDuel(d)} className="bg-orange-500 text-black px-4 py-2 rounded-lg text-xs font-black uppercase hover:scale-105 transition-transform">{txt('lobby_fight')}</button>
                 </div>
               ))}
             </div>
           </div>
-        </div>
-      </Background>
-    );
+        </Background>
+      );
+    }
+
+    // --- SUB-VIEW: CHALLENGES ---
+    if (dashboardView === 'challenges') {
+      return (
+        <Background>
+          <div className="w-full max-w-md flex flex-col h-[95vh] gap-4 px-2">
+            <div className="flex items-center gap-4 py-4"><button onClick={() => setDashboardView('home')} className="bg-white/10 p-2 rounded-xl hover:bg-white/20 transition-colors"><ArrowLeft className="text-white"/></button><h2 className="text-xl font-black text-white uppercase tracking-widest text-purple-400">{txt('tile_challenges')}</h2></div>
+            <div className="flex-1 overflow-y-auto space-y-2 custom-scrollbar">
+              {targetedDuels.length === 0 && <div className="text-center py-20 text-neutral-600 italic">{txt('no_challenges')}</div>}
+              {targetedDuels.map(d => (
+                <div key={d.id} className="bg-purple-500/10 p-4 rounded-2xl flex justify-between items-center border border-purple-500/50 shadow-[0_0_15px_rgba(168,85,247,0.2)]">
+                  <div><p className="font-bold text-white text-sm uppercase">{d.creator} ⚔️</p><p className="text-xs text-purple-300 font-mono">{d.amount} sats</p></div>
+                  <button onClick={() => initJoinDuel(d)} className="bg-purple-500 text-white px-4 py-2 rounded-lg text-xs font-black uppercase hover:scale-105 transition-transform">ACCEPT</button>
+                </div>
+              ))}
+            </div>
+          </div>
+        </Background>
+      );
+    }
+
+    // --- SUB-VIEW: LEADERBOARD ---
+    if (dashboardView === 'leaderboard') {
+      return (
+        <Background>
+          <div className="w-full max-w-md flex flex-col h-[95vh] gap-4 px-2">
+            <div className="flex items-center gap-4 py-4"><button onClick={() => setDashboardView('home')} className="bg-white/10 p-2 rounded-xl hover:bg-white/20 transition-colors"><ArrowLeft className="text-white"/></button><h2 className="text-xl font-black text-white uppercase tracking-widest text-yellow-500">{txt('tile_leaderboard')}</h2></div>
+            <div className="flex-1 overflow-y-auto space-y-2 custom-scrollbar">
+              {leaderboard.map((p, i) => (
+                <div key={p.name} className="flex justify-between items-center bg-black/40 p-3 rounded-xl border border-white/5">
+                  <div className="flex items-center gap-3">
+                    <span className={`font-mono font-bold w-6 text-center ${i===0?'text-yellow-500 text-lg':i===1?'text-gray-400':i===2?'text-orange-700':'text-neutral-600'}`}>{i + 1}</span>
+                    <div className="flex flex-col"><span className="text-white font-bold uppercase text-sm">{p.name}</span><span className="text-orange-400 font-mono text-[10px]">{p.satsWon} sats</span></div>
+                  </div>
+                  {p.name !== user.name && <button onClick={() => startChallenge(p.name)} className="text-neutral-500 hover:text-white p-2 rounded-full hover:bg-white/10 transition-all"><Swords size={18}/></button>}
+                </div>
+              ))}
+            </div>
+          </div>
+        </Background>
+      );
+    }
+
+    // --- SUB-VIEW: HISTORY ---
+    if (dashboardView === 'history') {
+      return (
+        <Background>
+          <div className="w-full max-w-md flex flex-col h-[95vh] gap-4 px-2">
+            <div className="flex items-center gap-4 py-4"><button onClick={() => setDashboardView('home')} className="bg-white/10 p-2 rounded-xl hover:bg-white/20 transition-colors"><ArrowLeft className="text-white"/></button><h2 className="text-xl font-black text-white uppercase tracking-widest text-blue-400">{txt('tile_history')}</h2></div>
+            <div className="flex-1 overflow-y-auto space-y-2 custom-scrollbar">
+              {myDuels.map(d => {
+                const isMyOpenDuel = d.creator === user.name && d.status === 'open';
+                const created = new Date(d.created_at).getTime();
+                const now = Date.now();
+                const canRefund = isMyOpenDuel && (now - created > REFUND_TIMEOUT_MS);
+                
+                return (
+                  <div key={d.id} className="bg-neutral-900/50 p-4 rounded-xl border border-white/5 flex flex-col gap-2">
+                    <div className="flex justify-between items-center">
+                      <div className="text-left">
+                        <p className="text-neutral-400 font-bold uppercase text-xs">
+                          {d.target_player ? `${txt('challenge_sent')} ${d.target_player}` : `vs ${d.creator === user.name ? (d.challenger || "???") : d.creator}`}
+                        </p>
+                        <p className="text-[10px] font-mono text-orange-500">{d.amount} sats</p>
+                      </div>
+                      {d.status === 'finished' ? (
+                        <button onClick={() => openPastDuel(d)} className="text-orange-500 font-black uppercase text-[10px] bg-orange-500/10 px-3 py-1 rounded hover:bg-orange-500/20">{d.claimed ? txt('lobby_paid') : txt('lobby_details')}</button>
+                      ) : d.status === 'refunded' ? (
+                        <span className="text-red-500 font-black text-[10px] uppercase border border-red-500/50 px-2 py-1 rounded">REFUNDED</span>
+                      ) : canRefund ? (
+                        <button onClick={() => handleRefund(d)} className="bg-red-500/20 text-red-500 border border-red-500/50 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase hover:bg-red-500 hover:text-white transition-all flex items-center gap-1"><RefreshCcw size={10}/> {txt('btn_refund')}</button>
+                      ) : (
+                        <span className="animate-pulse text-neutral-600 uppercase font-black text-[10px]">{d.target_player ? txt('refund_wait') : txt('lobby_wait')}</span>
+                      )}
+                    </div>
+                    {d.status === 'open' && d.creator === user.name && !canRefund && (
+                       <button onClick={(e) => {e.stopPropagation(); shareDuelOnNostr(d);}} className="w-full mt-2 bg-blue-500/10 hover:bg-blue-600 border border-blue-500/30 hover:border-blue-500 text-blue-300 hover:text-white py-2 rounded-lg flex items-center justify-center gap-2 transition-all group"><Share2 size={14} className="group-hover:animate-pulse"/><span className="text-[10px] font-bold uppercase tracking-widest">{txt('share_nostr')}</span></button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </Background>
+      );
+    }
+  }
+
+  // --- PRE_GAME VIEW ---
+  if (view === 'pre_game') {
+     if (!checkingPayment) { confetti({ particleCount: 150, spread: 100, origin: { y: 0.6 } }); }
+     return (
+       <Background>
+          <div className="w-full max-w-sm flex flex-col gap-6 animate-float text-center px-4 items-center justify-center min-h-[60vh]">
+             <div className="relative"><div className="absolute inset-0 bg-green-500 blur-[50px] opacity-40 rounded-full animate-pulse"></div><CheckCircle size={100} className="text-green-500 relative animate-bounce" /></div>
+             <div className="space-y-2"><h2 className="text-3xl font-black text-white uppercase drop-shadow-lg">{txt('pre_game_title')}</h2><p className="text-neutral-400 text-sm font-bold uppercase tracking-widest">{txt('pre_game_text')}</p></div>
+             <Button variant="primary" onClick={startGame} className="animate-neon mt-8"><Rocket size={20} className="mr-2" />{txt('btn_ready')}</Button>
+          </div>
+       </Background>
+     );
   }
 
   if (view === 'create_setup') {
@@ -779,12 +861,8 @@ export default function App() {
             {challengePlayer ? `${txt('setup_target')} ${challengePlayer.toUpperCase()}` : txt('setup_title')}
           </h2>
           <p className="text-neutral-400 text-xs font-bold uppercase tracking-widest mb-2">{txt('setup_wager_label')}</p>
-          
-          {/* MAX WERT: 9999 */}
           <input type="number" max="9999" value={wager} onChange={(e) => setWager(e.target.value)} placeholder="0" className="text-6xl font-black text-orange-500 font-mono text-center bg-transparent w-full outline-none mb-10 placeholder:text-neutral-800"/>
-          
           <p className="text-[10px] text-neutral-500 mb-8 italic">{txt('setup_refund_info')}</p>
-
           <div className="grid grid-cols-4 gap-2 mb-8">{[100, 500, 1000, 2100].map(amt => (<button key={amt} onClick={() => setWager(amt)} className={`py-2 rounded-lg text-xs font-bold border ${Number(wager) === amt ? 'bg-orange-500 text-black border-orange-500' : 'bg-neutral-800 text-neutral-400 border-white/5'}`}>{amt}</button>))}</div>
           <div className="grid gap-3"><Button variant="primary" onClick={submitCreateDuel}>{txt('btn_start')}</Button><button onClick={() => setView('dashboard')} className="text-xs text-neutral-600 uppercase font-bold mt-2">{txt('btn_cancel')}</button></div>
         </Card>
@@ -798,22 +876,11 @@ export default function App() {
         <div className="w-full max-w-sm text-center">
           <h2 className="text-2xl font-black text-white mb-8 uppercase">{txt('pay_title')}</h2>
           <div className="bg-white p-4 rounded-3xl mx-auto mb-8 flex justify-center shadow-2xl">{invoice.req && <QRCodeCanvas value={`lightning:${invoice.req.toUpperCase()}`} size={220} includeMargin={true}/>}</div>
-          
-          {/* KOPIER BUTTON FÜR INVOICE */}
           <div className="my-4 flex justify-center">
-             <button 
-               onClick={() => {
-                 navigator.clipboard.writeText(invoice.req);
-                 setInvoiceCopied(true);
-                 setTimeout(() => setInvoiceCopied(false), 2000);
-               }}
-               className="flex items-center gap-2 bg-neutral-800 hover:bg-neutral-700 text-neutral-400 hover:text-white px-4 py-2 rounded-full text-xs font-bold transition-all border border-white/5"
-             >
-               {invoiceCopied ? <Check size={14} className="text-green-500"/> : <Copy size={14}/>}
-               {txt('btn_copy_invoice')}
+             <button onClick={() => { navigator.clipboard.writeText(invoice.req); setInvoiceCopied(true); setTimeout(() => setInvoiceCopied(false), 2000); }} className="flex items-center gap-2 bg-neutral-800 hover:bg-neutral-700 text-neutral-400 hover:text-white px-4 py-2 rounded-full text-xs font-bold transition-all border border-white/5">
+               {invoiceCopied ? <Check size={14} className="text-green-500"/> : <Copy size={14}/>} {txt('btn_copy_invoice')}
              </button>
           </div>
-
           <div className="grid gap-3"><Button variant="primary" onClick={handleManualCheck}>{txt('btn_check')}</Button><Button variant="secondary" onClick={() => window.location.href = `lightning:${invoice.req}`}>{txt('btn_wallet')}</Button><button onClick={() => setView('dashboard')} className="text-xs text-neutral-500 mt-4 font-bold uppercase">{txt('btn_cancel')}</button></div>
         </div>
       </Background>
