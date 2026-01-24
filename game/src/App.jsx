@@ -33,13 +33,8 @@ import {
   Users,
   AlertCircle,
   Bell,
-  BellOff,
   Shield,
-  Eye,
-  Search,      // NEU
-  Filter,      // NEU
-  TrendingUp,  // NEU
-  Activity     // NEU
+  Search // Nur noch die Icons, die wir wirklich nutzen!
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { QRCodeCanvas } from 'qrcode.react';
@@ -99,8 +94,8 @@ export default function App() {
   
   // Admin Data & Search
   const [adminDuels, setAdminDuels] = useState([]);
-  const [adminSearch, setAdminSearch] = useState(''); // NEU
-  const [adminFilter, setAdminFilter] = useState('all'); // NEU 'all', 'open', 'finished'
+  const [adminSearch, setAdminSearch] = useState(''); 
+  const [adminFilter, setAdminFilter] = useState('all'); 
   
   // Nostr
   const [nostrSetupPubkey, setNostrSetupPubkey] = useState(null);
