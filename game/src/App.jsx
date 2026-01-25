@@ -413,10 +413,16 @@ export default function App() {
   };
 
   // --- SHARE FUNCTION (INTERNATIONALIZED) ---
-  const shareDuel = async (duel) => {
-    const shareUrl = `${window.location.origin}/?join=${duel.id}`;
+const shareDuel = async (duel) => {
+    // Check: Sind wir lokal? Wenn ja, nimm localhost. Wenn nein, nimm die Haupt-Domain.
+    const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    // WICHTIG: Hier sicherstellen, dass die Domain korrekt ist (ohne Slash am Ende)
+    const MAIN_DOMAIN = "https://satoshiduell.vercel.app"; 
+    const baseUrl = isLocal ? window.location.origin : MAIN_DOMAIN;
     
-    // Holt Text aus translations.js und ersetzt Platzhalter
+    const shareUrl = `${baseUrl}/?join=${duel.id}`;
+    
+    // Der Text enthält jetzt bereits die URL an der richtigen Stelle
     const shareText = txt('share_content')
       .replace('{amount}', duel.amount)
       .replace('{url}', shareUrl);
@@ -426,13 +432,17 @@ export default function App() {
         await navigator.share({
           title: 'SatoshiDuell',
           text: shareText,
-          url: shareUrl,
+          // url: shareUrl,  <-- DIESE ZEILE HABEN WIR GELÖSCHT!
+          // Wir übergeben die URL nicht mehr separat, da sie schon im Text steht.
         });
       } catch (err) {
+        // Falls der User abbricht oder Share fehlschlägt -> Clipboard
         navigator.clipboard.writeText(shareText);
-        alert(txt('share_success')); 
+        // Optional: Alert entfernen, wenn es nervt, oder lassen
+        // alert(txt('share_success')); 
       }
     } else {
+      // Desktop Fallback
       navigator.clipboard.writeText(shareText);
       alert(txt('share_success')); 
     }
