@@ -1,40 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { 
-  Zap, 
-  Trophy, 
-  Clock, 
-  User, 
-  Plus, 
-  Swords, 
-  RefreshCw, 
-  Copy, 
-  Check, 
-  ExternalLink, 
-  AlertTriangle, 
-  Loader2, 
-  LogOut, 
-  Fingerprint, 
-  Flame, 
-  History, 
-  Coins, 
-  Lock, 
-  Medal, 
-  Share2, 
-  Globe, 
-  Settings, 
-  Save, 
-  Heart,
-  Github,
-  CheckCircle,
-  RefreshCcw,
-  Rocket,
-  ArrowLeft,
-  Users,
-  AlertCircle,
-  Bell,
-  Shield,
-  Search 
+  Zap, Trophy, Clock, User, Plus, Swords, RefreshCw, Copy, Check, 
+  ExternalLink, AlertTriangle, Loader2, LogOut, Fingerprint, Flame, 
+  History, Coins, Lock, Medal, Share2, Globe, Settings, Save, Heart, 
+  Github, CheckCircle, RefreshCcw, Rocket, ArrowLeft, Users, AlertCircle, 
+  Bell, Shield, Search, Link as LinkIcon
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { QRCodeCanvas } from 'qrcode.react';
@@ -168,9 +139,18 @@ export default function App() {
     });
   };
 
-  // --- INITIALISIERUNG ---
+  // --- INITIALISIERUNG & DEEP LINK ---
 
   useEffect(() => {
+    // 1. Check URL for Deep Link (?join=123)
+    const params = new URLSearchParams(window.location.search);
+    const joinId = params.get('join');
+    if (joinId) {
+      localStorage.setItem('pending_join_id', joinId);
+      // URL bereinigen, damit der Parameter nicht stört
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+
     const fetchQuestions = async () => {
       try {
         const res = await fetch('/api/questions');
@@ -200,7 +180,9 @@ export default function App() {
       setLang(savedLang);
       if (storedUser) {
         setUser(JSON.parse(storedUser));
-        setView('dashboard');
+        // WICHTIG: Hier noch kein setView('dashboard'), das machen wir erst
+        // nachdem wir geprüft haben, ob ein Join ansteht.
+        checkPendingJoinAfterAuth(JSON.parse(storedUser));
       } else {
         setView('login');
         if (savedPin) setLoginPin(savedPin);
@@ -209,6 +191,39 @@ export default function App() {
       setView('language_select');
     }
   }, [isDataLoaded]);
+
+  // Funktion zum Prüfen und Ausführen des Joins
+  const checkPendingJoinAfterAuth = async (currentUser) => {
+    const pendingId = localStorage.getItem('pending_join_id');
+    
+    if (pendingId) {
+      // Wir haben einen offenen Join!
+      try {
+        const { data: duel, error } = await supabase
+          .from('duels')
+          .select('*')
+          .eq('id', pendingId)
+          .single();
+
+        if (duel && duel.status === 'open' && duel.creator !== currentUser.name) {
+          // Spiel gefunden und gültig -> Join starten
+          localStorage.removeItem('pending_join_id'); // Löschen damit es nicht ewig looped
+          initJoinDuel(duel);
+          return; // Stop here, initJoinDuel setzt den View
+        } else if (duel && duel.creator === currentUser.name) {
+           // Eigene Spiele können wir nicht selbst joinen, aber wir zeigen sie an
+           localStorage.removeItem('pending_join_id');
+           alert("Du kannst deinem eigenen Spiel nicht beitreten.");
+        }
+      } catch (e) {
+        console.error("Deep Link Error", e);
+      }
+      localStorage.removeItem('pending_join_id'); // Aufräumen bei Fehler
+    }
+    
+    // Wenn kein Join oder Fehler -> Dashboard
+    setView('dashboard');
+  };
 
   useEffect(() => {
     if (view === 'dashboard' && user) {
@@ -286,7 +301,14 @@ export default function App() {
   
   const acceptDisclaimer = () => {
     localStorage.setItem('satoshi_lang', lang);
-    if (localStorage.getItem('satoshi_user')) { setView('dashboard'); } else { setView('login'); }
+    if (localStorage.getItem('satoshi_user')) { 
+        // Falls User schon im Storage war, auch hier Check
+        const u = JSON.parse(localStorage.getItem('satoshi_user'));
+        setUser(u);
+        checkPendingJoinAfterAuth(u);
+    } else { 
+        setView('login'); 
+    }
   };
 
   const handleSmartLogin = async (e) => {
@@ -330,7 +352,9 @@ export default function App() {
     setUser(userObj); 
     localStorage.setItem('satoshi_user', JSON.stringify(userObj)); 
     localStorage.setItem('saved_pin', loginPin); 
-    setView('dashboard');
+    
+    // HIER DIE MAGIC: Prüfen auf Deep Link
+    checkPendingJoinAfterAuth(userObj);
   };
 
   const handleExtensionLogin = async () => {
@@ -388,15 +412,29 @@ export default function App() {
     }
   };
 
-  const shareDuelOnNostr = async (duel) => {
-    let shareString = txt('nostr_share_text');
-    shareString = shareString.replace('{amount}', duel.amount).replace('{score}', duel.creator_score);
-    try {
-      await navigator.clipboard.writeText(shareString);
-      alert(txt('nostr_copied')); 
-    } catch (e) {
-      console.error(e);
-      alert("Fehler beim Kopieren.");
+  // --- SHARE FUNCTION (INTERNATIONALIZED) ---
+  const shareDuel = async (duel) => {
+    const shareUrl = `${window.location.origin}/?join=${duel.id}`;
+    
+    // Holt Text aus translations.js und ersetzt Platzhalter
+    const shareText = txt('share_content')
+      .replace('{amount}', duel.amount)
+      .replace('{url}', shareUrl);
+    
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: 'SatoshiDuell',
+          text: shareText,
+          url: shareUrl,
+        });
+      } catch (err) {
+        navigator.clipboard.writeText(shareText);
+        alert(txt('share_success')); 
+      }
+    } else {
+      navigator.clipboard.writeText(shareText);
+      alert(txt('share_success')); 
     }
   };
 
@@ -629,7 +667,7 @@ export default function App() {
         const res = await fetch('/api/claim', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ duelId: activeDuel.id })
+            body: JSON.stringify({ amount: activeDuel.amount, duelId: activeDuel.id })
         });
         const data = await res.json();
         
@@ -922,8 +960,9 @@ export default function App() {
                         <span className="animate-pulse text-neutral-600 uppercase font-black text-[10px]">{d.target_player ? txt('refund_wait') : txt('lobby_wait')}</span>
                       )}
                     </div>
+                    {/* HIER IST DER NEUE SHARE BUTTON */}
                     {d.status === 'open' && d.creator === user.name && !canRefund && (
-                       <button onClick={(e) => {e.stopPropagation(); shareDuelOnNostr(d);}} className="w-full mt-2 bg-blue-500/10 hover:bg-blue-600 border border-blue-500/30 hover:border-blue-500 text-blue-300 hover:text-white py-2 rounded-lg flex items-center justify-center gap-2 transition-all group"><Share2 size={14} className="group-hover:animate-pulse"/><span className="text-[10px] font-bold uppercase tracking-widest">{txt('share_nostr')}</span></button>
+                       <button onClick={(e) => {e.stopPropagation(); shareDuel(d);}} className="w-full mt-2 bg-blue-500/10 hover:bg-blue-600 border border-blue-500/30 hover:border-blue-500 text-blue-300 hover:text-white py-2 rounded-lg flex items-center justify-center gap-2 transition-all group"><LinkIcon size={14} className="group-hover:animate-pulse"/><span className="text-[10px] font-bold uppercase tracking-widest">{txt('btn_share')}</span></button>
                     )}
                   </div>
                 );
