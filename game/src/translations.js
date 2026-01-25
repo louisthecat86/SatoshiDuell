@@ -13,6 +13,11 @@ export const TRANSLATIONS = {
     btn_start: "Invoice erzeugen",
     btn_ready: "Bereit!",
     btn_share: "Herausfordern!", 
+    tile_lobby: "Lobby",
+    tile_challenges: "Challenges",
+    tile_active_games: "Laufende", // NEU
+    active_games_title: "Deine offenen Spiele", // NEU
+    tile_leaderboard: "Bestenliste",
 
     // Login
     welcome_disclaimer: "Wichtiger Hinweis",
@@ -110,6 +115,11 @@ export const TRANSLATIONS = {
     btn_start: "Create Invoice",
     btn_ready: "Ready!",
     btn_share: "Challenge!",
+    tile_lobby: "Lobby",
+    tile_challenges: "Challenges",
+    tile_active_games: "Active", // NEW
+    active_games_title: "Your Open Games", // NEW
+    tile_leaderboard: "Leaderboard",
 
     welcome_disclaimer: "Important Notice",
     welcome_text: "SatoshiDuell is an alpha-stage custodial Lightning service. We accept no liability for software errors, server outages, or lost sats. Please only deposit amounts you are willing to lose. Have fun & don't be reckless!",
@@ -200,6 +210,11 @@ export const TRANSLATIONS = {
     btn_start: "Crear Factura",
     btn_ready: "Listo!",
     btn_share: "¡Desafiar!",
+    tile_lobby: "Lobby",
+    tile_challenges: "Desafíos",
+    tile_active_games: "Activos", // NEW
+    active_games_title: "Tus Juegos Abiertos", // NEW
+    tile_leaderboard: "Ranking",
 
     welcome_disclaimer: "Aviso Importante",
     welcome_text: "SatoshiDuell es un servicio Lightning de custodia en fase alfa. No asumimos responsabilidad por errores de software, cortes del servidor o sats perdidos. Por favor, deposita solo lo que estés dispuesto a perder. ¡Diviértete!",

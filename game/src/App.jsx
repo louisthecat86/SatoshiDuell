@@ -5,7 +5,7 @@ import {
   ExternalLink, AlertTriangle, Loader2, LogOut, Fingerprint, Flame, 
   History, Coins, Lock, Medal, Share2, Globe, Settings, Save, Heart, 
   Github, CheckCircle, RefreshCcw, Rocket, ArrowLeft, Users, AlertCircle, 
-  Bell, Shield, Search, Link as LinkIcon
+  Bell, Shield, Search, Link as LinkIcon, PlayCircle
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { QRCodeCanvas } from 'qrcode.react';
@@ -23,7 +23,7 @@ const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_KEY;
 const LNBITS_URL = import.meta.env.VITE_LNBITS_URL;
 const INVOICE_KEY = import.meta.env.VITE_INVOICE_KEY; 
 
-// 🔥 DEINE DOMAIN (Anpassen!)
+// 🔥 DEINE DOMAIN
 const MAIN_DOMAIN = "https://satoshiduell.vercel.app"; 
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -577,8 +577,10 @@ export default function App() {
     setSelectedAnswer(displayIndex);
     setTotalTime(prev => prev + (15.0 - timeLeft)); 
     
+    // SAFE GUARD: Existiert die Frage überhaupt?
     const roundConfig = gameData[currentQ];
     if (!allQuestions[roundConfig.id]) {
+       // Wenn Frage fehlt: Nicht crashen, sondern als "falsch" werten und weitermachen
        setTimeout(() => {
          if (currentQ < 4) { setCurrentQ(p => p + 1); setTimeLeft(15.0); setSelectedAnswer(null); } 
          else { finishGameLogic(score); }
@@ -599,6 +601,8 @@ export default function App() {
   const finishGameLogic = async (finalScore = score) => {
     if (isProcessingGame) return; 
     setIsProcessingGame(true);
+
+    // FIX: Runden auf 1 Nachkommastelle, damit DB nicht meckert (Integer Error)
     const cleanTime = parseFloat((totalTime || 0).toFixed(1));
 
     try {
@@ -645,6 +649,7 @@ export default function App() {
     setView('result_final'); 
   };
   
+  // WICHTIG: Hier fangen wir den Fehler von api/claim.js ab und zeigen ihn an!
   const handleClaimReward = async () => {
     if (isClaiming) return;
     setIsClaiming(true);
@@ -781,7 +786,7 @@ export default function App() {
     const publicCount = publicDuels.filter(d => d.creator !== user.name).length;
     const challengeCount = targetedDuels.length;
     
-    // NEU: Eigene offene Spiele
+    // Eigene offene Spiele
     const myOpenDuels = myDuels.filter(d => d.creator === user.name && d.status === 'open');
 
     // --- SUB-VIEW: HOME ---
@@ -807,25 +812,7 @@ export default function App() {
 
             <Button onClick={openCreateSetup} className="py-5 text-lg animate-neon shadow-lg mb-2"><Plus size={24}/> {txt('dashboard_new_duel')}</Button>
 
-            {/* NEU: EIGENE OFFENE DUELLE ANZEIGEN */}
-            {myOpenDuels.length > 0 && (
-               <div className="flex flex-col gap-2 mb-2 animate-in fade-in slide-in-from-top-4">
-                 <h3 className="text-neutral-500 text-[10px] font-bold uppercase tracking-widest pl-1">Deine offenen Spiele</h3>
-                 {myOpenDuels.map(d => (
-                    <div key={d.id} className="bg-neutral-800/80 border border-orange-500/30 p-3 rounded-xl flex items-center justify-between shadow-lg">
-                       <div className="flex flex-col">
-                          <span className="text-orange-500 font-black font-mono text-sm">{d.amount} Sats</span>
-                          <span className="text-neutral-500 text-[10px] uppercase font-bold tracking-wider">{txt('lobby_wait')}</span>
-                       </div>
-                       <button onClick={(e) => {e.stopPropagation(); shareDuel(d);}} className="bg-orange-500/10 hover:bg-orange-500/20 border border-orange-500/50 text-orange-500 px-4 py-2 rounded-lg transition-all flex items-center gap-2">
-                          <Share2 size={16} /> <span className="text-xs font-bold uppercase">{txt('btn_share')}</span>
-                       </button>
-                    </div>
-                 ))}
-               </div>
-            )}
-
-            {/* DAS GRID (5 Kacheln) - gap-1 */}
+            {/* DAS NEUE GRID (6 Kacheln) */}
             <div className="grid grid-cols-2 gap-1 flex-1 overflow-y-auto pb-4">
               
               <button onClick={() => setDashboardView('lobby')} className="bg-neutral-900/60 border border-white/5 hover:border-orange-500/50 hover:bg-neutral-800 p-4 rounded-2xl flex flex-col items-center justify-center gap-2 aspect-[4/3] transition-all group relative">
@@ -838,6 +825,18 @@ export default function App() {
                 <Swords size={28} className={`text-purple-500 group-hover:scale-110 transition-transform ${challengeCount > 0 ? 'animate-pulse' : ''}`}/>
                 <span className="text-[10px] font-bold text-neutral-300 uppercase tracking-widest text-center">{txt('tile_challenges')}</span>
                 {challengeCount > 0 && <span className="absolute top-2 right-2 bg-purple-500 text-white text-[10px] font-black w-5 h-5 rounded-full flex items-center justify-center shadow-lg">{challengeCount}</span>}
+              </button>
+
+              {/* NEUE KACHEL: LAUFENDE SPIELE */}
+              <button onClick={() => setDashboardView('active_games')} className="bg-neutral-900/60 border border-white/5 hover:border-green-500/50 hover:bg-neutral-800 p-4 rounded-2xl flex flex-col items-center justify-center gap-2 aspect-[4/3] transition-all group relative">
+                <PlayCircle size={28} className={`text-green-500 group-hover:scale-110 transition-transform ${myOpenDuels.length > 0 ? 'animate-pulse' : ''}`}/>
+                <span className="text-[10px] font-bold text-neutral-300 uppercase tracking-widest text-center">{txt('tile_active_games')}</span>
+                {myOpenDuels.length > 0 && <span className="absolute top-2 right-2 bg-green-500 text-black text-[10px] font-black w-5 h-5 rounded-full flex items-center justify-center shadow-lg">{myOpenDuels.length}</span>}
+              </button>
+
+              <button onClick={() => setDashboardView('history')} className="bg-neutral-900/60 border border-white/5 hover:border-blue-500/50 hover:bg-neutral-800 p-4 rounded-2xl flex flex-col items-center justify-center gap-2 aspect-[4/3] transition-all group">
+                <History size={28} className="text-blue-500 group-hover:scale-110 transition-transform"/>
+                <span className="text-[10px] font-bold text-neutral-300 uppercase tracking-widest text-center">{txt('tile_history')}</span>
               </button>
 
               <button onClick={() => setDashboardView('leaderboard')} className="bg-neutral-900/60 border border-white/5 hover:border-yellow-500/50 hover:bg-neutral-800 p-2 rounded-2xl flex flex-col items-center justify-center gap-1 aspect-[4/3] transition-all group overflow-hidden">
@@ -856,20 +855,56 @@ export default function App() {
                 <span className="text-[10px] font-bold text-neutral-300 uppercase tracking-widest text-center">{txt('tile_leaderboard')}</span>
               </button>
 
-              <button onClick={() => setDashboardView('history')} className="bg-neutral-900/60 border border-white/5 hover:border-blue-500/50 hover:bg-neutral-800 p-4 rounded-2xl flex flex-col items-center justify-center gap-2 aspect-[4/3] transition-all group">
-                <History size={28} className="text-blue-500 group-hover:scale-110 transition-transform"/>
-                <span className="text-[10px] font-bold text-neutral-300 uppercase tracking-widest text-center">{txt('tile_history')}</span>
-              </button>
-
-              <button onClick={() => setDashboardView('settings')} className="col-span-2 bg-neutral-900/60 border border-white/5 hover:border-neutral-500 hover:bg-neutral-800 p-4 rounded-2xl flex flex-row items-center justify-center gap-3 aspect-[4/1] transition-all group">
-                <Settings size={20} className="text-neutral-400 group-hover:rotate-45 transition-transform"/>
-                <span className="text-xs font-bold text-neutral-300 uppercase tracking-widest text-center">{txt('tile_settings')}</span>
+              <button onClick={() => setDashboardView('settings')} className="bg-neutral-900/60 border border-white/5 hover:border-neutral-500 hover:bg-neutral-800 p-4 rounded-2xl flex flex-col items-center justify-center gap-2 aspect-[4/3] transition-all group">
+                <Settings size={28} className="text-neutral-400 group-hover:rotate-45 transition-transform"/>
+                <span className="text-[10px] font-bold text-neutral-300 uppercase tracking-widest text-center">{txt('tile_settings')}</span>
               </button>
             </div>
 
             <button onClick={openDonation} className="w-full py-2 mb-2 bg-gradient-to-r from-neutral-900 to-neutral-800 border border-white/5 rounded-xl text-neutral-500 text-[10px] font-bold uppercase tracking-widest flex items-center justify-center gap-2 hover:text-orange-500 transition-all">
               <Heart size={12} className=""/> {txt('dashboard_donate')}
             </button>
+          </div>
+        </Background>
+      );
+    }
+
+    // --- NEUE VIEW: ACTIVE GAMES LIST ---
+    if (dashboardView === 'active_games') {
+      return (
+        <Background>
+          <div className="w-full max-w-md flex flex-col h-[95vh] gap-4 px-2">
+            <div className="flex items-center gap-4 py-4"><button onClick={() => setDashboardView('home')} className="bg-white/10 p-2 rounded-xl hover:bg-white/20 transition-colors"><ArrowLeft className="text-white"/></button><h2 className="text-xl font-black text-green-500 uppercase tracking-widest">{txt('active_games_title')}</h2></div>
+            
+            <div className="flex-1 overflow-y-auto space-y-2 custom-scrollbar">
+              {myOpenDuels.length === 0 && <div className="text-center py-20 text-neutral-600 italic">Keine offenen Spiele.</div>}
+              {myOpenDuels.map(d => {
+                 const created = new Date(d.created_at).getTime();
+                 const canRefund = (Date.now() - created > REFUND_TIMEOUT_MS);
+                 return (
+                    <div key={d.id} className="bg-neutral-900/80 border border-green-500/30 p-4 rounded-xl flex flex-col gap-3 shadow-lg">
+                       <div className="flex justify-between items-center">
+                          <div className="flex flex-col">
+                             <span className="text-green-500 font-black font-mono text-lg">{d.amount} Sats</span>
+                             <span className="text-neutral-500 text-[10px] uppercase font-bold tracking-wider">{d.target_player ? `${txt('challenge_sent')} ${d.target_player}` : txt('lobby_wait')}</span>
+                          </div>
+                          {canRefund ? (
+                             <button onClick={() => handleRefund(d)} className="bg-red-500/20 text-red-500 border border-red-500/50 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase hover:bg-red-500 hover:text-white transition-all flex items-center gap-1"><RefreshCcw size={10}/> {txt('btn_refund')}</button>
+                          ) : (
+                             <span className="animate-pulse text-green-500/50 uppercase font-black text-[10px]">AKTIV</span>
+                          )}
+                       </div>
+                       
+                       {/* SHARE BUTTON */}
+                       {!canRefund && (
+                          <button onClick={(e) => {e.stopPropagation(); shareDuel(d);}} className="w-full bg-green-500/10 hover:bg-green-500/20 border border-green-500/50 text-green-500 py-3 rounded-lg transition-all flex items-center justify-center gap-2 group">
+                             <LinkIcon size={16} className="group-hover:animate-pulse"/> <span className="text-xs font-black uppercase tracking-widest">{txt('btn_share')}</span>
+                          </button>
+                       )}
+                    </div>
+                 );
+              })}
+            </div>
           </div>
         </Background>
       );
