@@ -12,11 +12,11 @@ export const TRANSLATIONS = {
     btn_refund: "Rückzahlen",
     btn_start: "Invoice erzeugen",
     btn_ready: "Bereit!",
-    btn_share: "Teilen & Kopieren", // NEU
+    btn_share: "Herausfordern!", 
 
     // Login
-    welcome_disclaimer: "Disclaimer",
-    welcome_text: "SatoshiDuell ist ein Proof-of-Concept. Nutzung auf eigene Gefahr. Keine Haftung für verlorene Sats.",
+    welcome_disclaimer: "Wichtiger Hinweis",
+    welcome_text: "SatoshiDuell ist ein Custodial-Lightning-Service im Alpha-Stadium. Wir übernehmen keine Haftung für Softwarefehler, Serverausfälle oder verlorene Sats. Bitte zahle nur Beträge ein, deren Verlust du verschmerzen kannst. Have fun & don't be reckless!",
     login_placeholder: "Nutzername / NPUB",
     pin_placeholder: "4-stellige PIN",
     login_btn: "Login / Registrieren",
@@ -51,8 +51,8 @@ export const TRANSLATIONS = {
     refund_wait: "Wartezeit läuft...",
     share_nostr: "Auf Nostr teilen",
     
-    // NEU: Share Text
-    share_content: "SatoshiDuell Challenge! ⚡️\nEinsatz: {amount} Sats\nKlick hier um gegen mich anzutreten:\n{url}",
+    // Share Text
+    share_content: "⚔️ SATOSHI DUELL ⚔️\n\nIch habe {amount} Sats auf mein Wissen gesetzt!\nNimmst du die Wette an?\n\nKlick den Link um zu kämpfen:\n{url}",
     share_success: "Link kopiert! Schicke ihn an deinen Gegner.",
 
     // Game Setup
@@ -109,10 +109,10 @@ export const TRANSLATIONS = {
     btn_refund: "Refund",
     btn_start: "Create Invoice",
     btn_ready: "Ready!",
-    btn_share: "Share & Copy", // NEW
+    btn_share: "Challenge!",
 
-    welcome_disclaimer: "Disclaimer",
-    welcome_text: "SatoshiDuell is a Proof-of-Concept. Use at your own risk. No liability for lost sats.",
+    welcome_disclaimer: "Important Notice",
+    welcome_text: "SatoshiDuell is an alpha-stage custodial Lightning service. We accept no liability for software errors, server outages, or lost sats. Please only deposit amounts you are willing to lose. Have fun & don't be reckless!",
     login_placeholder: "Username / NPUB",
     pin_placeholder: "4-digit PIN",
     login_btn: "Login / Register",
@@ -145,8 +145,8 @@ export const TRANSLATIONS = {
     refund_wait: "Wait period...",
     share_nostr: "Share on Nostr",
 
-    // NEW: Share Text
-    share_content: "SatoshiDuell Challenge! ⚡️\nWager: {amount} Sats\nClick here to fight me:\n{url}",
+    // Share Text
+    share_content: "⚔️ SATOSHI DUELL ⚔️\n\nI bet {amount} Sats on my knowledge!\nDo you accept the bet?\n\nClick link to fight:\n{url}",
     share_success: "Link copied! Send it to your opponent.",
 
     setup_title: "Create Duel",
@@ -199,10 +199,10 @@ export const TRANSLATIONS = {
     btn_refund: "Reembolso",
     btn_start: "Crear Factura",
     btn_ready: "Listo!",
-    btn_share: "Compartir y Copiar", // NEW
+    btn_share: "¡Desafiar!",
 
-    welcome_disclaimer: "Aviso Legal",
-    welcome_text: "SatoshiDuell es una prueba de concepto. Úselo bajo su propio riesgo. Sin responsabilidad por sats perdidos.",
+    welcome_disclaimer: "Aviso Importante",
+    welcome_text: "SatoshiDuell es un servicio Lightning de custodia en fase alfa. No asumimos responsabilidad por errores de software, cortes del servidor o sats perdidos. Por favor, deposita solo lo que estés dispuesto a perder. ¡Diviértete!",
     login_placeholder: "Usuario / NPUB",
     pin_placeholder: "PIN de 4 dígitos",
     login_btn: "Entrar / Registro",
@@ -235,8 +235,8 @@ export const TRANSLATIONS = {
     refund_wait: "Espera...",
     share_nostr: "Compartir en Nostr",
 
-    // NEW: Share Text
-    share_content: "¡Desafío SatoshiDuell! ⚡️\nApuesta: {amount} Sats\nHaz clic aquí para luchar:\n{url}",
+    // Share Text
+    share_content: "⚔️ SATOSHI DUELL ⚔️\n\n¡Aposto {amount} Sats en mi conocimiento!\n¿Aceptas la apuesta?\n\nClic aquí para luchar:\n{url}",
     share_success: "¡Enlace copiado! Envíalo a tu oponente.",
 
     setup_title: "Crear Duelo",
