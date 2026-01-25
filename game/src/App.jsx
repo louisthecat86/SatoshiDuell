@@ -23,6 +23,9 @@ const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_KEY;
 const LNBITS_URL = import.meta.env.VITE_LNBITS_URL;
 const INVOICE_KEY = import.meta.env.VITE_INVOICE_KEY; 
 
+// 🔥 DEINE DOMAIN (Anpassen!)
+const MAIN_DOMAIN = "https://satoshiduell.vercel.app"; 
+
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 // --- KONSTANTEN ---
@@ -142,12 +145,10 @@ export default function App() {
   // --- INITIALISIERUNG & DEEP LINK ---
 
   useEffect(() => {
-    // 1. Check URL for Deep Link (?join=123)
     const params = new URLSearchParams(window.location.search);
     const joinId = params.get('join');
     if (joinId) {
       localStorage.setItem('pending_join_id', joinId);
-      // URL bereinigen, damit der Parameter nicht stört
       window.history.replaceState({}, document.title, window.location.pathname);
     }
 
@@ -180,8 +181,6 @@ export default function App() {
       setLang(savedLang);
       if (storedUser) {
         setUser(JSON.parse(storedUser));
-        // WICHTIG: Hier noch kein setView('dashboard'), das machen wir erst
-        // nachdem wir geprüft haben, ob ein Join ansteht.
         checkPendingJoinAfterAuth(JSON.parse(storedUser));
       } else {
         setView('login');
@@ -192,12 +191,10 @@ export default function App() {
     }
   }, [isDataLoaded]);
 
-  // Funktion zum Prüfen und Ausführen des Joins
   const checkPendingJoinAfterAuth = async (currentUser) => {
     const pendingId = localStorage.getItem('pending_join_id');
     
     if (pendingId) {
-      // Wir haben einen offenen Join!
       try {
         const { data: duel, error } = await supabase
           .from('duels')
@@ -206,22 +203,19 @@ export default function App() {
           .single();
 
         if (duel && duel.status === 'open' && duel.creator !== currentUser.name) {
-          // Spiel gefunden und gültig -> Join starten
-          localStorage.removeItem('pending_join_id'); // Löschen damit es nicht ewig looped
+          localStorage.removeItem('pending_join_id');
           initJoinDuel(duel);
-          return; // Stop here, initJoinDuel setzt den View
+          return; 
         } else if (duel && duel.creator === currentUser.name) {
-           // Eigene Spiele können wir nicht selbst joinen, aber wir zeigen sie an
            localStorage.removeItem('pending_join_id');
            alert("Du kannst deinem eigenen Spiel nicht beitreten.");
         }
       } catch (e) {
         console.error("Deep Link Error", e);
       }
-      localStorage.removeItem('pending_join_id'); // Aufräumen bei Fehler
+      localStorage.removeItem('pending_join_id'); 
     }
     
-    // Wenn kein Join oder Fehler -> Dashboard
     setView('dashboard');
   };
 
@@ -302,7 +296,6 @@ export default function App() {
   const acceptDisclaimer = () => {
     localStorage.setItem('satoshi_lang', lang);
     if (localStorage.getItem('satoshi_user')) { 
-        // Falls User schon im Storage war, auch hier Check
         const u = JSON.parse(localStorage.getItem('satoshi_user'));
         setUser(u);
         checkPendingJoinAfterAuth(u);
@@ -352,8 +345,6 @@ export default function App() {
     setUser(userObj); 
     localStorage.setItem('satoshi_user', JSON.stringify(userObj)); 
     localStorage.setItem('saved_pin', loginPin); 
-    
-    // HIER DIE MAGIC: Prüfen auf Deep Link
     checkPendingJoinAfterAuth(userObj);
   };
 
@@ -412,17 +403,11 @@ export default function App() {
     }
   };
 
-  // --- SHARE FUNCTION (INTERNATIONALIZED) ---
-const shareDuel = async (duel) => {
-    // Check: Sind wir lokal? Wenn ja, nimm localhost. Wenn nein, nimm die Haupt-Domain.
+  const shareDuel = async (duel) => {
     const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-    // WICHTIG: Hier sicherstellen, dass die Domain korrekt ist (ohne Slash am Ende)
-    const MAIN_DOMAIN = "https://satoshiduell.vercel.app"; 
     const baseUrl = isLocal ? window.location.origin : MAIN_DOMAIN;
-    
     const shareUrl = `${baseUrl}/?join=${duel.id}`;
     
-    // Der Text enthält jetzt bereits die URL an der richtigen Stelle
     const shareText = txt('share_content')
       .replace('{amount}', duel.amount)
       .replace('{url}', shareUrl);
@@ -431,18 +416,13 @@ const shareDuel = async (duel) => {
       try {
         await navigator.share({
           title: 'SatoshiDuell',
-          text: shareText,
-          // url: shareUrl,  <-- DIESE ZEILE HABEN WIR GELÖSCHT!
-          // Wir übergeben die URL nicht mehr separat, da sie schon im Text steht.
+          text: shareText
         });
       } catch (err) {
-        // Falls der User abbricht oder Share fehlschlägt -> Clipboard
         navigator.clipboard.writeText(shareText);
-        // Optional: Alert entfernen, wenn es nervt, oder lassen
-        // alert(txt('share_success')); 
+        alert(txt('share_success')); 
       }
     } else {
-      // Desktop Fallback
       navigator.clipboard.writeText(shareText);
       alert(txt('share_success')); 
     }
@@ -597,10 +577,8 @@ const shareDuel = async (duel) => {
     setSelectedAnswer(displayIndex);
     setTotalTime(prev => prev + (15.0 - timeLeft)); 
     
-    // SAFE GUARD: Existiert die Frage überhaupt?
     const roundConfig = gameData[currentQ];
     if (!allQuestions[roundConfig.id]) {
-       // Wenn Frage fehlt: Nicht crashen, sondern als "falsch" werten und weitermachen
        setTimeout(() => {
          if (currentQ < 4) { setCurrentQ(p => p + 1); setTimeLeft(15.0); setSelectedAnswer(null); } 
          else { finishGameLogic(score); }
@@ -621,8 +599,6 @@ const shareDuel = async (duel) => {
   const finishGameLogic = async (finalScore = score) => {
     if (isProcessingGame) return; 
     setIsProcessingGame(true);
-
-    // FIX: Runden auf 1 Nachkommastelle, damit DB nicht meckert (Integer Error)
     const cleanTime = parseFloat((totalTime || 0).toFixed(1));
 
     try {
@@ -669,7 +645,6 @@ const shareDuel = async (duel) => {
     setView('result_final'); 
   };
   
-  // WICHTIG: Hier fangen wir den Fehler von api/claim.js ab und zeigen ihn an!
   const handleClaimReward = async () => {
     if (isClaiming) return;
     setIsClaiming(true);
@@ -805,6 +780,9 @@ const shareDuel = async (duel) => {
 
     const publicCount = publicDuels.filter(d => d.creator !== user.name).length;
     const challengeCount = targetedDuels.length;
+    
+    // NEU: Eigene offene Spiele
+    const myOpenDuels = myDuels.filter(d => d.creator === user.name && d.status === 'open');
 
     // --- SUB-VIEW: HOME ---
     if (dashboardView === 'home') {
@@ -828,6 +806,24 @@ const shareDuel = async (duel) => {
             )}
 
             <Button onClick={openCreateSetup} className="py-5 text-lg animate-neon shadow-lg mb-2"><Plus size={24}/> {txt('dashboard_new_duel')}</Button>
+
+            {/* NEU: EIGENE OFFENE DUELLE ANZEIGEN */}
+            {myOpenDuels.length > 0 && (
+               <div className="flex flex-col gap-2 mb-2 animate-in fade-in slide-in-from-top-4">
+                 <h3 className="text-neutral-500 text-[10px] font-bold uppercase tracking-widest pl-1">Deine offenen Spiele</h3>
+                 {myOpenDuels.map(d => (
+                    <div key={d.id} className="bg-neutral-800/80 border border-orange-500/30 p-3 rounded-xl flex items-center justify-between shadow-lg">
+                       <div className="flex flex-col">
+                          <span className="text-orange-500 font-black font-mono text-sm">{d.amount} Sats</span>
+                          <span className="text-neutral-500 text-[10px] uppercase font-bold tracking-wider">{txt('lobby_wait')}</span>
+                       </div>
+                       <button onClick={(e) => {e.stopPropagation(); shareDuel(d);}} className="bg-orange-500/10 hover:bg-orange-500/20 border border-orange-500/50 text-orange-500 px-4 py-2 rounded-lg transition-all flex items-center gap-2">
+                          <Share2 size={16} /> <span className="text-xs font-bold uppercase">{txt('btn_share')}</span>
+                       </button>
+                    </div>
+                 ))}
+               </div>
+            )}
 
             {/* DAS GRID (5 Kacheln) - gap-1 */}
             <div className="grid grid-cols-2 gap-1 flex-1 overflow-y-auto pb-4">
