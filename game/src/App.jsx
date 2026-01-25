@@ -41,6 +41,15 @@ async function hashPin(pin) {
   return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
+// NEU: Formatiert Namen, damit sie das Layout nicht sprengen
+const formatName = (name) => {
+  if (!name) return '';
+  // Wenn kürzer als 14 Zeichen, ganz anzeigen
+  if (name.length <= 14) return name.toUpperCase();
+  // Wenn länger (z.B. npub), dann abkürzen: npub1...4x9
+  return (name.substring(0, 6) + '...' + name.substring(name.length - 4)).toUpperCase();
+};
+
 // --- HAUPT APP ---
 
 export default function App() {
@@ -798,7 +807,7 @@ export default function App() {
             <Card className="flex justify-between items-center py-3 border-orange-500/20 bg-black/40 backdrop-blur-md">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-orange-500 to-yellow-500 flex items-center justify-center font-black text-black text-xl">{user.name.charAt(0).toUpperCase()}</div>
-                <div className="text-left"><p className="font-bold text-white text-sm uppercase">{user.name}</p><p className="text-[10px] text-orange-400 font-mono">{stats.satsWon.toLocaleString()} {txt('sats_won')}</p></div>
+                <div className="text-left"><p className="font-bold text-white text-sm uppercase">{formatName(user.name)}</p><p className="text-[10px] text-orange-400 font-mono">{stats.satsWon.toLocaleString()} {txt('sats_won')}</p></div>
               </div>
               <div className="flex gap-2"><button onClick={() => setDashboardView('settings')} className="p-2 text-neutral-500 hover:text-white"><Settings size={18}/></button><button onClick={handleLogout} className="p-2 text-neutral-500 hover:text-white"><LogOut size={18}/></button></div>
             </Card>
@@ -844,7 +853,7 @@ export default function App() {
                    <div className="w-full px-1 flex flex-col gap-0.5">
                       {leaderboard.slice(0,3).map((p, i) => (
                         <div key={i} className={`flex justify-between items-center text-[10px] font-black border-b border-white/5 pb-0.5 ${i===0?'text-yellow-400':i===1?'text-neutral-400':i===2?'text-orange-700':'text-neutral-600'}`}>
-                           <span>{i+1}. {p.name.slice(0,8).toUpperCase()}</span>
+                           <span>{i+1}. {formatName(p.name)}</span>
                            <span className="font-mono">{p.satsWon}</span>
                         </div>
                       ))}
@@ -886,7 +895,7 @@ export default function App() {
                        <div className="flex justify-between items-center">
                           <div className="flex flex-col">
                              <span className="text-green-500 font-black font-mono text-lg">{d.amount} Sats</span>
-                             <span className="text-neutral-500 text-[10px] uppercase font-bold tracking-wider">{d.target_player ? `${txt('challenge_sent')} ${d.target_player}` : txt('lobby_wait')}</span>
+                             <span className="text-neutral-500 text-[10px] uppercase font-bold tracking-wider">{d.target_player ? `${txt('challenge_sent')} ${formatName(d.target_player)}` : txt('lobby_wait')}</span>
                           </div>
                           {canRefund ? (
                              <button onClick={() => handleRefund(d)} className="bg-red-500/20 text-red-500 border border-red-500/50 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase hover:bg-red-500 hover:text-white transition-all flex items-center gap-1"><RefreshCcw size={10}/> {txt('btn_refund')}</button>
@@ -920,7 +929,7 @@ export default function App() {
               {list.length === 0 && <div className="text-center py-20 text-neutral-600 italic">Keine offenen Duelle.<br/>Starte selbst eins!</div>}
               {list.map(d => (
                 <div key={d.id} className="bg-white/5 p-4 rounded-2xl flex justify-between items-center border border-white/5 hover:border-orange-500/30 transition-all">
-                  <div><p className="font-bold text-white text-sm uppercase">{d.creator}</p><p className="text-xs text-orange-400 font-mono">{d.amount} sats</p></div>
+                  <div><p className="font-bold text-white text-sm uppercase">{formatName(d.creator)}</p><p className="text-xs text-orange-400 font-mono">{d.amount} sats</p></div>
                   <button onClick={() => initJoinDuel(d)} className="bg-orange-500 text-black px-4 py-2 rounded-lg text-xs font-black uppercase hover:scale-105 transition-transform">{txt('lobby_fight')}</button>
                 </div>
               ))}
@@ -939,7 +948,7 @@ export default function App() {
               {targetedDuels.length === 0 && <div className="text-center py-20 text-neutral-600 italic">{txt('no_challenges')}</div>}
               {targetedDuels.map(d => (
                 <div key={d.id} className="bg-purple-500/10 p-4 rounded-2xl flex justify-between items-center border border-purple-500/50 shadow-[0_0_15px_rgba(168,85,247,0.2)]">
-                  <div><p className="font-bold text-white text-sm uppercase">{d.creator} ⚔️</p><p className="text-xs text-purple-300 font-mono">{d.amount} sats</p></div>
+                  <div><p className="font-bold text-white text-sm uppercase">{formatName(d.creator)} ⚔️</p><p className="text-xs text-purple-300 font-mono">{d.amount} sats</p></div>
                   <button onClick={() => initJoinDuel(d)} className="bg-purple-500 text-white px-4 py-2 rounded-lg text-xs font-black uppercase hover:scale-105 transition-transform">ACCEPT</button>
                 </div>
               ))}
@@ -959,7 +968,7 @@ export default function App() {
                 <div key={p.name} className="flex justify-between items-center bg-black/40 p-3 rounded-xl border border-white/5">
                   <div className="flex items-center gap-3">
                     <span className={`font-mono font-bold w-6 text-center ${i===0?'text-yellow-500 text-lg':i===1?'text-gray-400':i===2?'text-orange-700':'text-neutral-600'}`}>{i + 1}</span>
-                    <div className="flex flex-col"><span className="text-white font-bold uppercase text-sm">{p.name}</span><span className="text-orange-400 font-mono text-[10px]">{p.satsWon} sats</span></div>
+                    <div className="flex flex-col"><span className="text-white font-bold uppercase text-sm">{formatName(p.name)}</span><span className="text-orange-400 font-mono text-[10px]">{p.satsWon} sats</span></div>
                   </div>
                   {p.name !== user.name && <button onClick={() => startChallenge(p.name)} className="text-neutral-500 hover:text-white p-2 rounded-full hover:bg-white/10 transition-all"><Swords size={18}/></button>}
                 </div>
@@ -987,7 +996,7 @@ export default function App() {
                     <div className="flex justify-between items-center">
                       <div className="text-left">
                         <p className="text-neutral-400 font-bold uppercase text-xs">
-                          {d.target_player ? `${txt('challenge_sent')} ${d.target_player}` : `vs ${d.creator === user.name ? (d.challenger || "???") : d.creator}`}
+                          {d.target_player ? `${txt('challenge_sent')} ${formatName(d.target_player)}` : `vs ${d.creator === user.name ? formatName(d.challenger || "???") : formatName(d.creator)}`}
                         </p>
                         <p className="text-[10px] font-mono text-orange-500">{d.amount} sats</p>
                       </div>
