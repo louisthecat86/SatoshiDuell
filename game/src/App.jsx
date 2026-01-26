@@ -842,7 +842,7 @@ if (dashboardView === 'home') {
             
             {/* 1. WASSERZEICHEN */}
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-0">
-               <img src="/logo.png" className="w-64 opacity-10 grayscale" alt="Background" />
+            <img src="/logo.png" className="w-[90%] opacity-15" alt="Background" />
             </div>
 
             {/* Inhalt muss jetzt z-10 haben damit er über dem Logo liegt */}
