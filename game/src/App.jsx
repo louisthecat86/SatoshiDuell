@@ -900,22 +900,38 @@ if (dashboardView === 'home') {
                 <span className="text-sm font-black text-blue-500 uppercase tracking-widest shadow-black drop-shadow-md">{txt('tile_history')}</span>
               </button>
               
-              {/* LEADERBOARD (Yellow - King of the Hill) */}
-              <button onClick={() => setDashboardView('leaderboard')} className="bg-neutral-900/60 border border-white/5 hover:border-yellow-500/50 hover:bg-neutral-800 p-2 rounded-2xl flex flex-col items-center justify-center gap-1 aspect-[4/3] relative overflow-hidden group">
-                <div className="flex flex-col items-center z-10">
-                   <Trophy size={28} className="text-yellow-400 mb-1 group-hover:scale-110 transition-transform drop-shadow-[0_0_10px_rgba(234,179,8,0.5)]"/>
+              {/* LEADERBOARD (Top 3 Liste) */}
+              <button onClick={() => setDashboardView('leaderboard')} className="bg-neutral-900/60 border border-white/5 hover:border-yellow-500/50 hover:bg-neutral-800 p-3 rounded-2xl flex flex-col items-center justify-start gap-1 aspect-[4/3] relative overflow-hidden group">
+                
+                {/* HEADER: Titel Oben */}
+                <div className="flex items-center gap-2 mb-1 z-10">
+                  <Trophy size={14} className="text-yellow-500" />
+                  <span className="text-xs font-black text-yellow-500 uppercase tracking-widest shadow-black drop-shadow-md">{txt('tile_leaderboard')}</span>
+                </div>
+
+                {/* BODY: Top 3 Liste */}
+                <div className="w-full flex flex-col gap-1 z-10">
                    {leaderboard.length > 0 ? (
-                      <>
-                        <span className="text-[9px] text-yellow-500 font-bold uppercase tracking-wider mb-0.5 opacity-80">#1 LEADER</span>
-                        <span className="text-sm font-black text-white truncate max-w-[110px] shadow-black drop-shadow-md">{formatName(leaderboard[0].name)}</span>
-                      </>
+                      leaderboard.slice(0, 3).map((p, i) => {
+                         const rankColor = i === 0 ? "text-yellow-400" : i === 1 ? "text-gray-300" : "text-orange-600";
+                         const rowBg = i === 0 ? "bg-yellow-500/10 border border-yellow-500/20" : "bg-black/20";
+                         
+                         return (
+                           <div key={i} className={`flex justify-between items-center w-full px-2 py-1 rounded ${rowBg}`}>
+                              <div className="flex items-center gap-1.5 overflow-hidden">
+                                 <span className={`text-[10px] font-black ${rankColor}`}>{i+1}.</span>
+                                 <span className="text-[10px] font-bold text-white truncate max-w-[65px]">{formatName(p.name)}</span>
+                              </div>
+                              <span className={`text-[9px] font-mono ${rankColor}`}>{p.satsWon}</span>
+                           </div>
+                         )
+                      })
                    ) : (
-                      <span className="text-xs font-bold text-neutral-500 mt-2">Lade...</span>
+                      <span className="text-[10px] text-neutral-500 text-center mt-4">Lade...</span>
                    )}
                 </div>
-                <div className="absolute bottom-2 text-[10px] font-black text-yellow-500 uppercase tracking-widest group-hover:text-white transition-colors">{txt('tile_leaderboard')}</div>
               </button>
-
+              
               {/* SETTINGS (Neutral) */}
               <button onClick={() => setDashboardView('settings')} className="bg-neutral-900/60 border border-white/5 hover:border-neutral-500 hover:bg-neutral-800 p-4 rounded-2xl flex flex-col items-center justify-center gap-3 aspect-[4/3] transition-all group">
                 <Settings size={32} className="text-neutral-400 group-hover:rotate-45 transition-transform"/>
