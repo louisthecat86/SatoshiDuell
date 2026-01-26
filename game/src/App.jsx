@@ -837,77 +837,106 @@ export default function App() {
 if (dashboardView === 'home') {
       return (
         <Background>
-          {/* --- ÄNDERUNG START: Container mit relative --- */}
           <div className="w-full max-w-md flex flex-col h-[95vh] gap-4 px-2 relative">
             
-            {/* 1. WASSERZEICHEN */}
+            {/* 1. WASSERZEICHEN (Hintergrund) */}
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-0">
-            <img src="/logo.png" className="w-[95%] opacity-15" alt="Background" />
+               <img src="/logo.png" className="w-[90%] opacity-15" alt="Background" />
             </div>
 
-            {/* Inhalt muss jetzt z-10 haben damit er über dem Logo liegt */}
+            {/* 2. USER CARD (Ohne Zahnrad, liegt über dem Wasserzeichen z-10) */}
             <Card className="flex justify-between items-center py-3 border-orange-500/20 bg-black/40 backdrop-blur-md relative z-10">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-orange-500 to-yellow-500 flex items-center justify-center font-black text-black text-xl">{user.name.charAt(0).toUpperCase()}</div>
-                <div className="text-left"><p className="font-bold text-white text-sm uppercase">{formatName(user.name)}</p><p className="text-[10px] text-orange-400 font-mono">{stats.satsWon.toLocaleString()} {txt('sats_won')}</p></div>
+                <div className="text-left">
+                  <p className="font-bold text-white text-sm uppercase">{formatName(user.name)}</p>
+                  <p className="text-[10px] text-orange-400 font-mono">{stats.satsWon.toLocaleString()} {txt('sats_won')}</p>
+                </div>
               </div>
-              <div className="flex gap-2"><button onClick={handleLogout} className="p-2 text-neutral-500 hover:text-white"><LogOut size={18}/></button></div>
+              <div className="flex gap-2">
+                {/* Zahnrad entfernt, nur noch Logout */}
+                <button onClick={handleLogout} className="p-2 text-neutral-500 hover:text-white"><LogOut size={18}/></button>
+              </div>
             </Card>
 
-            {/* Button und Grid auch z-10 */}
+            {/* Unclaimed Win Button (Falls vorhanden) */}
+            {unclaimedWin && (
+              <button onClick={() => openPastDuel(unclaimedWin)} className="w-full bg-green-500 text-black p-4 rounded-2xl flex items-center justify-between font-black uppercase animate-bounce shadow-[0_0_20px_rgba(34,197,94,0.6)] relative z-10">
+                 <div className="flex items-center gap-3"><Trophy size={24}/> <div className="text-left"><p className="text-sm leading-none">{txt('dash_unclaimed_title')}</p><p className="text-[10px] opacity-75 font-normal normal-case">{txt('dash_unclaimed_text')}</p></div></div>
+                 <div className="bg-black/20 p-2 rounded-lg"><ArrowLeft className="rotate-180" size={16}/></div>
+              </button>
+            )}
+
+            {/* NEW DUEL BUTTON */}
             <Button onClick={openCreateSetup} className="py-5 text-lg animate-neon shadow-lg mb-2 relative z-10"><Plus size={24}/> {txt('dashboard_new_duel')}</Button>
             
-            <div className="grid grid-cols-2 gap-1 flex-1 overflow-y-auto pb-4 relative z-10">
-              {/* --- ÄNDERUNG ENDE (Der Rest der Buttons kommt gleich in Schritt 2) --- */}
+            {/* 3. DAS GRID MIT DEN NEUEN KACHELN (Farbiger Text, Große Schrift) */}
+            <div className="grid grid-cols-2 gap-2 flex-1 overflow-y-auto pb-4 relative z-10 custom-scrollbar">
               
-              <button onClick={() => setDashboardView('lobby')} className="bg-neutral-900/60 border border-white/5 hover:border-orange-500/50 hover:bg-neutral-800 p-4 rounded-2xl flex flex-col items-center justify-center gap-2 aspect-[4/3] transition-all group relative">
-                <Users size={28} className="text-orange-500 group-hover:scale-110 transition-transform"/>
-                <span className="text-[10px] font-bold text-neutral-300 uppercase tracking-widest text-center">{txt('tile_lobby')}</span>
-                {publicCount > 0 && <span className="absolute top-2 right-2 bg-orange-500 text-black text-[10px] font-black w-5 h-5 rounded-full flex items-center justify-center shadow-lg">{publicCount}</span>}
+              {/* LOBBY (Orange) */}
+              <button onClick={() => setDashboardView('lobby')} className="bg-neutral-900/60 border border-white/5 hover:border-orange-500/50 hover:bg-neutral-800 p-4 rounded-2xl flex flex-col items-center justify-center gap-3 aspect-[4/3] relative group">
+                <Users size={32} className="text-orange-500 group-hover:scale-110 transition-transform"/>
+                <span className="text-sm font-black text-orange-500 uppercase tracking-widest shadow-black drop-shadow-md">{txt('tile_lobby')}</span>
+                {publicCount > 0 && <span className="absolute top-2 right-2 bg-orange-500 text-black text-[10px] font-black w-6 h-6 rounded-full flex items-center justify-center shadow-lg border border-white/20">{publicCount}</span>}
               </button>
 
-              <button onClick={() => setDashboardView('challenges')} className="bg-neutral-900/60 border border-white/5 hover:border-purple-500/50 hover:bg-neutral-800 p-4 rounded-2xl flex flex-col items-center justify-center gap-2 aspect-[4/3] transition-all group relative">
-                <Swords size={28} className={`text-purple-500 group-hover:scale-110 transition-transform ${challengeCount > 0 ? 'animate-pulse' : ''}`}/>
-                <span className="text-[10px] font-bold text-neutral-300 uppercase tracking-widest text-center">{txt('tile_challenges')}</span>
-                {challengeCount > 0 && <span className="absolute top-2 right-2 bg-purple-500 text-white text-[10px] font-black w-5 h-5 rounded-full flex items-center justify-center shadow-lg">{challengeCount}</span>}
+              {/* CHALLENGES (Purple) */}
+              <button onClick={() => setDashboardView('challenges')} className="bg-neutral-900/60 border border-white/5 hover:border-purple-500/50 hover:bg-neutral-800 p-4 rounded-2xl flex flex-col items-center justify-center gap-3 aspect-[4/3] relative group">
+                <Swords size={32} className="text-purple-500 group-hover:scale-110 transition-transform"/>
+                <span className="text-sm font-black text-purple-500 uppercase tracking-widest shadow-black drop-shadow-md">{txt('tile_challenges')}</span>
+                {challengeCount > 0 && <span className="absolute top-2 right-2 bg-purple-500 text-white text-[10px] font-black w-6 h-6 rounded-full flex items-center justify-center shadow-lg border border-white/20">{challengeCount}</span>}
               </button>
 
-              {/* NEUE KACHEL: LAUFENDE SPIELE */}
-              <button onClick={() => setDashboardView('active_games')} className="bg-neutral-900/60 border border-white/5 hover:border-green-500/50 hover:bg-neutral-800 p-4 rounded-2xl flex flex-col items-center justify-center gap-2 aspect-[4/3] transition-all group relative">
-                <PlayCircle size={28} className={`text-green-500 group-hover:scale-110 transition-transform ${myOpenDuels.length > 0 ? 'animate-pulse' : ''}`}/>
-                <span className="text-[10px] font-bold text-neutral-300 uppercase tracking-widest text-center">{txt('tile_active_games')}</span>
-                {myOpenDuels.length > 0 && <span className="absolute top-2 right-2 bg-green-500 text-black text-[10px] font-black w-5 h-5 rounded-full flex items-center justify-center shadow-lg">{myOpenDuels.length}</span>}
+              {/* TURNIERE (Purple Variante) */}
+              <button onClick={() => setDashboardView('tournaments')} className="bg-neutral-900/60 border border-purple-500/30 hover:border-purple-500 hover:bg-purple-900/20 p-4 rounded-2xl flex flex-col items-center justify-center gap-3 aspect-[4/3] relative transition-all group">
+                <Trophy size={32} className="text-purple-500 group-hover:scale-110 transition-transform"/>
+                <span className="text-sm font-black text-purple-500 uppercase tracking-widest shadow-black drop-shadow-md">{txt('tile_tournaments') || 'TURNIERE'}</span>
+                <span className="absolute top-2 right-2 bg-purple-600 text-white text-[9px] font-black px-2 py-0.5 rounded-md uppercase border border-white/10">NEW</span>
               </button>
 
-              <button onClick={() => setDashboardView('history')} className="bg-neutral-900/60 border border-white/5 hover:border-blue-500/50 hover:bg-neutral-800 p-4 rounded-2xl flex flex-col items-center justify-center gap-2 aspect-[4/3] transition-all group">
-                <History size={28} className="text-blue-500 group-hover:scale-110 transition-transform"/>
-                <span className="text-[10px] font-bold text-neutral-300 uppercase tracking-widest text-center">{txt('tile_history')}</span>
+              {/* ACTIVE GAMES (Green) */}
+              <button onClick={() => setDashboardView('active_games')} className="bg-neutral-900/60 border border-white/5 hover:border-green-500/50 hover:bg-neutral-800 p-4 rounded-2xl flex flex-col items-center justify-center gap-3 aspect-[4/3] relative group">
+                <PlayCircle size={32} className="text-green-500 group-hover:scale-110 transition-transform"/>
+                <span className="text-sm font-black text-green-500 uppercase tracking-widest shadow-black drop-shadow-md">{txt('tile_active_games')}</span>
+                {myOpenDuels.length > 0 && <span className="absolute top-2 right-2 bg-green-500 text-black text-[10px] font-black w-6 h-6 rounded-full flex items-center justify-center shadow-lg border border-white/20">{myOpenDuels.length}</span>}
               </button>
 
-              <button onClick={() => setDashboardView('leaderboard')} className="bg-neutral-900/60 border border-white/5 hover:border-yellow-500/50 hover:bg-neutral-800 p-2 rounded-2xl flex flex-col items-center justify-center gap-1 aspect-[4/3] transition-all group overflow-hidden">
-                {leaderboard.length > 0 ? (
-                   <div className="w-full px-1 flex flex-col gap-0.5">
-                      {leaderboard.slice(0,3).map((p, i) => (
-                        <div key={i} className={`flex justify-between items-center text-[10px] font-black border-b border-white/5 pb-0.5 ${i===0?'text-yellow-400':i===1?'text-neutral-400':i===2?'text-orange-700':'text-neutral-600'}`}>
-                           <span>{i+1}. {formatName(p.name)}</span>
-                           <span className="font-mono">{p.satsWon}</span>
-                        </div>
-                      ))}
-                   </div>
-                ) : (
-                   <Trophy size={28} className="text-yellow-500 group-hover:scale-110 transition-transform"/>
-                )}
-                <span className="text-[10px] font-bold text-neutral-300 uppercase tracking-widest text-center">{txt('tile_leaderboard')}</span>
+              {/* HISTORY (Blue) */}
+              <button onClick={() => setDashboardView('history')} className="bg-neutral-900/60 border border-white/5 hover:border-blue-500/50 hover:bg-neutral-800 p-4 rounded-2xl flex flex-col items-center justify-center gap-3 aspect-[4/3] transition-all group">
+                <History size={32} className="text-blue-500 group-hover:scale-110 transition-transform"/>
+                <span className="text-sm font-black text-blue-500 uppercase tracking-widest shadow-black drop-shadow-md">{txt('tile_history')}</span>
+              </button>
+              
+              {/* LEADERBOARD (Yellow - King of the Hill) */}
+              <button onClick={() => setDashboardView('leaderboard')} className="bg-neutral-900/60 border border-white/5 hover:border-yellow-500/50 hover:bg-neutral-800 p-2 rounded-2xl flex flex-col items-center justify-center gap-1 aspect-[4/3] relative overflow-hidden group">
+                <div className="flex flex-col items-center z-10">
+                   <Trophy size={28} className="text-yellow-400 mb-1 group-hover:scale-110 transition-transform drop-shadow-[0_0_10px_rgba(234,179,8,0.5)]"/>
+                   {leaderboard.length > 0 ? (
+                      <>
+                        <span className="text-[9px] text-yellow-500 font-bold uppercase tracking-wider mb-0.5 opacity-80">#1 LEADER</span>
+                        <span className="text-sm font-black text-white truncate max-w-[110px] shadow-black drop-shadow-md">{formatName(leaderboard[0].name)}</span>
+                      </>
+                   ) : (
+                      <span className="text-xs font-bold text-neutral-500 mt-2">Lade...</span>
+                   )}
+                </div>
+                <div className="absolute bottom-2 text-[10px] font-black text-yellow-500 uppercase tracking-widest group-hover:text-white transition-colors">{txt('tile_leaderboard')}</div>
               </button>
 
-              <button onClick={() => setDashboardView('settings')} className="bg-neutral-900/60 border border-white/5 hover:border-neutral-500 hover:bg-neutral-800 p-4 rounded-2xl flex flex-col items-center justify-center gap-2 aspect-[4/3] transition-all group">
-                <Settings size={28} className="text-neutral-400 group-hover:rotate-45 transition-transform"/>
-                <span className="text-[10px] font-bold text-neutral-300 uppercase tracking-widest text-center">{txt('tile_settings')}</span>
+              {/* SETTINGS (Neutral) */}
+              <button onClick={() => setDashboardView('settings')} className="bg-neutral-900/60 border border-white/5 hover:border-neutral-500 hover:bg-neutral-800 p-4 rounded-2xl flex flex-col items-center justify-center gap-3 aspect-[4/3] transition-all group">
+                <Settings size={32} className="text-neutral-400 group-hover:rotate-45 transition-transform"/>
+                <span className="text-sm font-black text-neutral-400 uppercase tracking-widest shadow-black drop-shadow-md">{txt('tile_settings')}</span>
               </button>
             </div>
 
-            <button onClick={openDonation} className="w-full py-2 mb-2 bg-gradient-to-r from-neutral-900 to-neutral-800 border border-white/5 rounded-xl text-neutral-500 text-[10px] font-bold uppercase tracking-widest flex items-center justify-center gap-2 hover:text-orange-500 transition-all">
-              <Heart size={12} className=""/> {txt('dashboard_donate')}
+            {/* 4. SPENDEN BUTTON (Neu, Orange Herzen, größer) */}
+            <button 
+              onClick={openDonation} 
+              className="w-full py-3 mt-2 mb-2 bg-neutral-900 border border-white/10 hover:border-orange-500/50 rounded-xl text-white text-xs font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all group shadow-lg relative z-10"
+            >
+              <Heart size={16} className="text-orange-500 fill-orange-500 group-hover:scale-110 transition-transform"/> 
+              {txt('dashboard_donate')}
             </button>
           </div>
         </Background>
