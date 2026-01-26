@@ -5,7 +5,7 @@ import {
   ExternalLink, AlertTriangle, Loader2, LogOut, Fingerprint, Flame, 
   History, Coins, Lock, Medal, Share2, Globe, Settings, Save, Heart, 
   Github, CheckCircle, RefreshCcw, Rocket, ArrowLeft, Users, AlertCircle, 
-  Bell, Shield, Search, Link as LinkIcon, PlayCircle
+  Bell, Shield, Search, Link as LinkIcon, PlayCircle, Edit2 
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { QRCodeCanvas } from 'qrcode.react';
@@ -16,6 +16,7 @@ import { TRANSLATIONS } from './translations';
 import Button from './components/Button';
 import Card from './components/Card';
 import Background from './components/Background';
+import AdminQuestionManager from './components/AdminQuestionManager';
 
 // --- KONFIGURATION ---
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
@@ -88,9 +89,9 @@ export default function App() {
   const [leaderboard, setLeaderboard] = useState([]);
   const [challengePlayer, setChallengePlayer] = useState(null);
   
-  const [publicDuels, setPublicDuels] = useState([]);     
+  const [publicDuels, setPublicDuels] = useState([]);      
   const [targetedDuels, setTargetedDuels] = useState([]); 
-  const [myDuels, setMyDuels] = useState([]);             
+  const [myDuels, setMyDuels] = useState([]);              
   
   const [activeDuel, setActiveDuel] = useState(null);
   const [role, setRole] = useState(null); 
@@ -163,13 +164,34 @@ export default function App() {
 
     const fetchQuestions = async () => {
       try {
-        const res = await fetch('/api/questions');
-        if (!res.ok) throw new Error("Server Error");
-        const data = await res.json();
-        setAllQuestions(data);
+        // NEU: Direkt aus der neuen Tabelle 'questions' laden
+        // Das funktioniert lokal UND live, da wir RLS "public read" aktiviert haben.
+        const { data, error } = await supabase
+          .from('questions')
+          .select('*')
+          .eq('is_active', true);
+
+        if (error) throw error;
+
+        // ADAPTER: Die neuen Datenbank-Spalten in das Format deines Spiels umwandeln
+        const formattedQuestions = data.map((row) => ({
+          de: { q: row.question_de, options: row.options_de },
+          en: { q: row.question_en, options: row.options_en },
+          es: { q: row.question_es, options: row.options_es },
+          correct: row.correct_index,
+          // Wir speichern die echte ID für später, nutzen im Spiel aber weiter den Array-Index
+          db_id: row.id 
+        }));
+
+        // Optional: Fragen mischen, damit sie nicht immer in der gleichen Reihenfolge kommen
+        // formattedQuestions.sort(() => Math.random() - 0.5);
+
+        setAllQuestions(formattedQuestions);
         setIsDataLoaded(true);
+
       } catch (e) {
         console.error("Failed to load questions", e);
+        // Fallback: Zeige Fehler nur, wenn es wirklich gar nicht geht
         alert("Fehler: Konnte Fragen nicht laden. Bitte Seite neu laden.");
       }
     };
@@ -1065,7 +1087,7 @@ export default function App() {
       );
     }
 
-    // --- NEU: ADMIN VIEW MIT FILTER & SUCHE ---
+    // --- ADMIN VIEW MIT FILTER & SUCHE ---
     if (dashboardView === 'admin') {
       const totalGames = adminDuels.length;
       const openGames = adminDuels.filter(d => d.status === 'open').length;
@@ -1095,6 +1117,16 @@ export default function App() {
                <div className="bg-white/5 p-2 rounded-xl text-center border border-white/5"><div className="text-neutral-500 text-[8px] uppercase font-bold mb-1">{txt('admin_stats_total')}</div><div className="text-white font-mono font-bold text-lg">{totalGames}</div></div>
                <div className="bg-white/5 p-2 rounded-xl text-center border border-white/5"><div className="text-neutral-500 text-[8px] uppercase font-bold mb-1">{txt('admin_stats_open')}</div><div className="text-orange-500 font-mono font-bold text-lg">{openGames}</div></div>
                <div className="bg-white/5 p-2 rounded-xl text-center border border-white/5"><div className="text-neutral-500 text-[8px] uppercase font-bold mb-1">{txt('admin_stats_volume')}</div><div className="text-green-500 font-mono font-bold text-xs mt-1">{totalVolume.toLocaleString()}</div></div>
+            </div>
+
+            {/* BUTTON ZUM FRAGEN MANAGER */}
+            <div className="mb-2">
+              <button 
+                onClick={() => setView('admin_questions')}
+                className="w-full bg-orange-500/10 border border-orange-500/50 p-3 rounded-xl flex items-center justify-center gap-2 text-orange-500 font-bold uppercase text-xs hover:bg-orange-500 hover:text-black transition-all"
+              >
+                <Edit2 size={16}/> Fragen bearbeiten / hinzufügen
+              </button>
             </div>
 
             {/* Suche & Filter */}
@@ -1145,6 +1177,17 @@ export default function App() {
         </Background>
       );
     }
+  }
+
+  // --- ADMIN QUESTIONS MANAGER VIEW ---
+  if (view === 'admin_questions') {
+    return (
+      <Background>
+        <div className="w-full max-w-2xl flex flex-col h-[95vh] gap-4 px-4 mx-auto">
+           <AdminQuestionManager onBack={() => { setView('dashboard'); setDashboardView('admin'); }} />
+        </div>
+      </Background>
+    );
   }
 
   // --- PRE_GAME VIEW ---
