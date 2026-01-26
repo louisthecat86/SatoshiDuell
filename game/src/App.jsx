@@ -17,6 +17,7 @@ import Button from './components/Button';
 import Card from './components/Card';
 import Background from './components/Background';
 import AdminQuestionManager from './components/AdminQuestionManager';
+import SubmitQuestion from './components/SubmitQuestion';
 
 // --- KONFIGURATION ---
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
@@ -164,8 +165,7 @@ export default function App() {
 
     const fetchQuestions = async () => {
       try {
-        // NEU: Direkt aus der neuen Tabelle 'questions' laden
-        // Das funktioniert lokal UND live, da wir RLS "public read" aktiviert haben.
+        // Direkt aus der neuen Tabelle 'questions' laden
         const { data, error } = await supabase
           .from('questions')
           .select('*')
@@ -179,19 +179,14 @@ export default function App() {
           en: { q: row.question_en, options: row.options_en },
           es: { q: row.question_es, options: row.options_es },
           correct: row.correct_index,
-          // Wir speichern die echte ID für später, nutzen im Spiel aber weiter den Array-Index
           db_id: row.id 
         }));
-
-        // Optional: Fragen mischen, damit sie nicht immer in der gleichen Reihenfolge kommen
-        // formattedQuestions.sort(() => Math.random() - 0.5);
 
         setAllQuestions(formattedQuestions);
         setIsDataLoaded(true);
 
       } catch (e) {
         console.error("Failed to load questions", e);
-        // Fallback: Zeige Fehler nur, wenn es wirklich gar nicht geht
         alert("Fehler: Konnte Fragen nicht laden. Bitte Seite neu laden.");
       }
     };
@@ -254,6 +249,28 @@ export default function App() {
     if (view === 'dashboard' && user) {
       fetchAllLobbyData();
       
+      // CHECK AUF ANGENOMMENE FRAGEN
+      const checkSubmissions = async () => {
+         const { data } = await supabase
+           .from('questions')
+           .select('id')
+           .eq('submitted_by', user.name)
+           .eq('is_verified', true)
+           .eq('user_notified', false);
+         
+         if (data && data.length > 0) {
+            const msg = `Glückwunsch! ${data.length} deiner Fragen wurden angenommen!`;
+            if (Notification.permission === 'granted') {
+               new Notification("SatoshiDuell", { body: msg, icon: '/logo.png' });
+            }
+            alert(msg + " 🎉");
+            
+            const ids = data.map(q => q.id);
+            await supabase.from('questions').update({ user_notified: true }).in('id', ids);
+         }
+      };
+      checkSubmissions();
+
       const channel = supabase.channel('public:duels')
         .on('postgres_changes', { event: '*', schema: 'public', table: 'duels' }, (payload) => {
           fetchAllLobbyData();
@@ -900,194 +917,7 @@ export default function App() {
       );
     }
 
-    // --- NEUE VIEW: ACTIVE GAMES LIST ---
-    if (dashboardView === 'active_games') {
-      return (
-        <Background>
-          <div className="w-full max-w-md flex flex-col h-[95vh] gap-4 px-2">
-            <div className="flex items-center gap-4 py-4"><button onClick={() => setDashboardView('home')} className="bg-white/10 p-2 rounded-xl hover:bg-white/20 transition-colors"><ArrowLeft className="text-white"/></button><h2 className="text-xl font-black text-green-500 uppercase tracking-widest">{txt('active_games_title')}</h2></div>
-            
-            <div className="flex-1 overflow-y-auto space-y-2 custom-scrollbar">
-              {myOpenDuels.length === 0 && <div className="text-center py-20 text-neutral-600 italic">Keine offenen Spiele.</div>}
-              {myOpenDuels.map(d => {
-                 const created = new Date(d.created_at).getTime();
-                 const canRefund = (Date.now() - created > REFUND_TIMEOUT_MS);
-                 return (
-                    <div key={d.id} className="bg-neutral-900/80 border border-green-500/30 p-4 rounded-xl flex flex-col gap-3 shadow-lg">
-                       <div className="flex justify-between items-center">
-                          <div className="flex flex-col">
-                             <span className="text-green-500 font-black font-mono text-lg">{d.amount} Sats</span>
-                             <span className="text-neutral-500 text-[10px] uppercase font-bold tracking-wider">{d.target_player ? `${txt('challenge_sent')} ${formatName(d.target_player)}` : txt('lobby_wait')}</span>
-                          </div>
-                          {canRefund ? (
-                             <button onClick={() => handleRefund(d)} className="bg-red-500/20 text-red-500 border border-red-500/50 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase hover:bg-red-500 hover:text-white transition-all flex items-center gap-1"><RefreshCcw size={10}/> {txt('btn_refund')}</button>
-                          ) : (
-                             <span className="animate-pulse text-green-500/50 uppercase font-black text-[10px]">AKTIV</span>
-                          )}
-                       </div>
-                       
-                       {/* SHARE BUTTON */}
-                       {!canRefund && (
-                          <button onClick={(e) => {e.stopPropagation(); shareDuel(d);}} className="w-full bg-green-500/10 hover:bg-green-500/20 border border-green-500/50 text-green-500 py-3 rounded-lg transition-all flex items-center justify-center gap-2 group">
-                             <LinkIcon size={16} className="group-hover:animate-pulse"/> <span className="text-xs font-black uppercase tracking-widest">{txt('btn_share')}</span>
-                          </button>
-                       )}
-                    </div>
-                 );
-              })}
-            </div>
-          </div>
-        </Background>
-      );
-    }
-
-    if (dashboardView === 'lobby') {
-      const list = publicDuels.filter(d => d.creator !== user.name);
-      return (
-        <Background>
-          <div className="w-full max-w-md flex flex-col h-[95vh] gap-4 px-2">
-            <div className="flex items-center gap-4 py-4"><button onClick={() => setDashboardView('home')} className="bg-white/10 p-2 rounded-xl hover:bg-white/20 transition-colors"><ArrowLeft className="text-white"/></button><h2 className="text-xl font-black text-white uppercase tracking-widest">{txt('tile_lobby')}</h2></div>
-            <div className="flex-1 overflow-y-auto space-y-2 custom-scrollbar">
-              {list.length === 0 && <div className="text-center py-20 text-neutral-600 italic">Keine offenen Duelle.<br/>Starte selbst eins!</div>}
-              {list.map(d => (
-                <div key={d.id} className="bg-white/5 p-4 rounded-2xl flex justify-between items-center border border-white/5 hover:border-orange-500/30 transition-all">
-                  <div><p className="font-bold text-white text-sm uppercase">{formatName(d.creator)}</p><p className="text-xs text-orange-400 font-mono">{d.amount} sats</p></div>
-                  <button onClick={() => initJoinDuel(d)} className="bg-orange-500 text-black px-4 py-2 rounded-lg text-xs font-black uppercase hover:scale-105 transition-transform">{txt('lobby_fight')}</button>
-                </div>
-              ))}
-            </div>
-          </div>
-        </Background>
-      );
-    }
-
-    if (dashboardView === 'challenges') {
-      return (
-        <Background>
-          <div className="w-full max-w-md flex flex-col h-[95vh] gap-4 px-2">
-            <div className="flex items-center gap-4 py-4"><button onClick={() => setDashboardView('home')} className="bg-white/10 p-2 rounded-xl hover:bg-white/20 transition-colors"><ArrowLeft className="text-white"/></button><h2 className="text-xl font-black text-white uppercase tracking-widest text-purple-400">{txt('tile_challenges')}</h2></div>
-            <div className="flex-1 overflow-y-auto space-y-2 custom-scrollbar">
-              {targetedDuels.length === 0 && <div className="text-center py-20 text-neutral-600 italic">{txt('no_challenges')}</div>}
-              {targetedDuels.map(d => (
-                <div key={d.id} className="bg-purple-500/10 p-4 rounded-2xl flex justify-between items-center border border-purple-500/50 shadow-[0_0_15px_rgba(168,85,247,0.2)]">
-                  <div><p className="font-bold text-white text-sm uppercase">{formatName(d.creator)} ⚔️</p><p className="text-xs text-purple-300 font-mono">{d.amount} sats</p></div>
-                  <button onClick={() => initJoinDuel(d)} className="bg-purple-500 text-white px-4 py-2 rounded-lg text-xs font-black uppercase hover:scale-105 transition-transform">ACCEPT</button>
-                </div>
-              ))}
-            </div>
-          </div>
-        </Background>
-      );
-    }
-
-    if (dashboardView === 'leaderboard') {
-      return (
-        <Background>
-          <div className="w-full max-w-md flex flex-col h-[95vh] gap-4 px-2">
-            <div className="flex items-center gap-4 py-4"><button onClick={() => setDashboardView('home')} className="bg-white/10 p-2 rounded-xl hover:bg-white/20 transition-colors"><ArrowLeft className="text-white"/></button><h2 className="text-xl font-black text-white uppercase tracking-widest text-yellow-500">{txt('tile_leaderboard')}</h2></div>
-            <div className="flex-1 overflow-y-auto space-y-2 custom-scrollbar">
-              {leaderboard.map((p, i) => (
-                <div key={p.name} className="flex justify-between items-center bg-black/40 p-3 rounded-xl border border-white/5">
-                  <div className="flex items-center gap-3">
-                    <span className={`font-mono font-bold w-6 text-center ${i===0?'text-yellow-500 text-lg':i===1?'text-gray-400':i===2?'text-orange-700':'text-neutral-600'}`}>{i + 1}</span>
-                    <div className="flex flex-col"><span className="text-white font-bold uppercase text-sm">{formatName(p.name)}</span><span className="text-orange-400 font-mono text-[10px]">{p.satsWon} sats</span></div>
-                  </div>
-                  {p.name !== user.name && <button onClick={() => startChallenge(p.name)} className="text-neutral-500 hover:text-white p-2 rounded-full hover:bg-white/10 transition-all"><Swords size={18}/></button>}
-                </div>
-              ))}
-            </div>
-          </div>
-        </Background>
-      );
-    }
-
-    if (dashboardView === 'history') {
-      return (
-        <Background>
-          <div className="w-full max-w-md flex flex-col h-[95vh] gap-4 px-2">
-            <div className="flex items-center gap-4 py-4"><button onClick={() => setDashboardView('home')} className="bg-white/10 p-2 rounded-xl hover:bg-white/20 transition-colors"><ArrowLeft className="text-white"/></button><h2 className="text-xl font-black text-white uppercase tracking-widest text-blue-400">{txt('tile_history')}</h2></div>
-            <div className="flex-1 overflow-y-auto space-y-2 custom-scrollbar">
-              {myDuels.map(d => {
-                const isMyOpenDuel = d.creator === user.name && d.status === 'open';
-                const created = new Date(d.created_at).getTime();
-                const now = Date.now();
-                const canRefund = isMyOpenDuel && (now - created > REFUND_TIMEOUT_MS);
-                
-                return (
-                  <div key={d.id} className="bg-neutral-900/50 p-4 rounded-xl border border-white/5 flex flex-col gap-2">
-                    <div className="flex justify-between items-center">
-                      <div className="text-left">
-                        <p className="text-neutral-400 font-bold uppercase text-xs">
-                          {d.target_player ? `${txt('challenge_sent')} ${formatName(d.target_player)}` : `vs ${d.creator === user.name ? formatName(d.challenger || "???") : formatName(d.creator)}`}
-                        </p>
-                        <p className="text-[10px] font-mono text-orange-500">{d.amount} sats</p>
-                      </div>
-                      {d.status === 'finished' ? (
-                        <button onClick={() => openPastDuel(d)} className="text-orange-500 font-black uppercase text-[10px] bg-orange-500/10 px-3 py-1 rounded hover:bg-orange-500/20">{d.claimed ? txt('lobby_paid') : txt('lobby_details')}</button>
-                      ) : d.status === 'refunded' ? (
-                        <span className="text-red-500 font-black text-[10px] uppercase border border-red-500/50 px-2 py-1 rounded">REFUNDED</span>
-                      ) : canRefund ? (
-                        <button onClick={() => handleRefund(d)} className="bg-red-500/20 text-red-500 border border-red-500/50 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase hover:bg-red-500 hover:text-white transition-all flex items-center gap-1"><RefreshCcw size={10}/> {txt('btn_refund')}</button>
-                      ) : (
-                        <span className="animate-pulse text-neutral-600 uppercase font-black text-[10px]">{d.target_player ? txt('refund_wait') : txt('lobby_wait')}</span>
-                      )}
-                    </div>
-                    {/* HIER IST DER NEUE SHARE BUTTON */}
-                    {d.status === 'open' && d.creator === user.name && !canRefund && (
-                       <button onClick={(e) => {e.stopPropagation(); shareDuel(d);}} className="w-full mt-2 bg-blue-500/10 hover:bg-blue-600 border border-blue-500/30 hover:border-blue-500 text-blue-300 hover:text-white py-2 rounded-lg flex items-center justify-center gap-2 transition-all group"><LinkIcon size={14} className="group-hover:animate-pulse"/><span className="text-[10px] font-bold uppercase tracking-widest">{txt('btn_share')}</span></button>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </Background>
-      );
-    }
-
-    if (dashboardView === 'settings') {
-      return (
-        <Background>
-          <div className="w-full max-w-md flex flex-col h-[95vh] gap-4 px-2">
-            <div className="flex items-center gap-4 py-4"><button onClick={() => setDashboardView('home')} className="bg-white/10 p-2 rounded-xl hover:bg-white/20 transition-colors"><ArrowLeft className="text-white"/></button><h2 className="text-xl font-black text-white uppercase tracking-widest text-neutral-400">{txt('tile_settings')}</h2></div>
-            
-            <div className="flex-1 overflow-y-auto space-y-4 px-2">
-               
-               <div className="bg-white/5 p-4 rounded-2xl border border-white/5">
-                  <div className="flex items-center gap-3 mb-4 text-orange-500"><Bell size={20}/><span className="text-sm font-bold uppercase">{txt('settings_notifications')}</span></div>
-                  <div className="flex justify-between items-center">
-                     <p className="text-neutral-400 text-xs">{txt('settings_notifications_desc')}</p>
-                     <button onClick={toggleNotifications} className={`w-12 h-6 rounded-full p-1 transition-colors ${notificationsEnabled ? 'bg-green-500' : 'bg-neutral-700'}`}>
-                        <div className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform ${notificationsEnabled ? 'translate-x-6' : 'translate-x-0'}`}></div>
-                     </button>
-                  </div>
-                  {!notificationsEnabled && <p className="text-[10px] text-neutral-600 mt-2 italic">{txt('perm_request')}</p>}
-               </div>
-
-               <div className="bg-white/5 p-4 rounded-2xl border border-white/5">
-                  <div className="flex items-center gap-3 mb-4 text-blue-500"><Shield size={20}/><span className="text-sm font-bold uppercase">{txt('settings_security')}</span></div>
-                  <p className="text-neutral-400 text-xs mb-3">{txt('settings_change_pin')}</p>
-                  <div className="flex gap-2">
-                     <input type="password" placeholder="****" value={newPin} onChange={(e) => setNewPin(e.target.value)} className="w-full p-3 rounded-xl bg-black/40 border border-white/10 text-white text-center font-bold outline-none focus:border-blue-500"/>
-                     <button onClick={handleUpdatePin} className="bg-blue-500 text-white px-4 rounded-xl"><Save size={18}/></button>
-                  </div>
-                  {settingsMsg && <p className={`text-xs font-bold mt-2 ${settingsMsg.includes('!') ? 'text-green-500' : 'text-red-500'}`}>{settingsMsg}</p>}
-               </div>
-
-               {/* ADMIN BUTTON */}
-               {user.isAdmin && (
-                 <button onClick={() => { fetchAdminData(); setDashboardView('admin'); }} className="w-full bg-red-900/50 border border-red-500/50 p-4 rounded-2xl flex items-center justify-center gap-2 text-red-300 font-bold uppercase text-xs hover:bg-red-900 hover:text-white transition-all">
-                   <Shield size={16}/> {txt('admin_title')}
-                 </button>
-               )}
-
-            </div>
-          </div>
-        </Background>
-      );
-    }
-
-    // --- ADMIN VIEW MIT FILTER & SUCHE ---
+    // --- NEU: ADMIN VIEW MIT FILTER & SUCHE ---
     if (dashboardView === 'admin') {
       const totalGames = adminDuels.length;
       const openGames = adminDuels.filter(d => d.status === 'open').length;
@@ -1177,6 +1007,53 @@ export default function App() {
         </Background>
       );
     }
+
+    if (dashboardView === 'settings') {
+      return (
+        <Background>
+          <div className="w-full max-w-md flex flex-col h-[95vh] gap-4 px-2">
+            <div className="flex items-center gap-4 py-4"><button onClick={() => setDashboardView('home')} className="bg-white/10 p-2 rounded-xl hover:bg-white/20 transition-colors"><ArrowLeft className="text-white"/></button><h2 className="text-xl font-black text-white uppercase tracking-widest text-neutral-400">{txt('tile_settings')}</h2></div>
+            
+            <div className="flex-1 overflow-y-auto space-y-4 px-2">
+               
+               <div className="bg-white/5 p-4 rounded-2xl border border-white/5">
+                  <div className="flex items-center gap-3 mb-4 text-orange-500"><Bell size={20}/><span className="text-sm font-bold uppercase">{txt('settings_notifications')}</span></div>
+                  <div className="flex justify-between items-center">
+                     <p className="text-neutral-400 text-xs">{txt('settings_notifications_desc')}</p>
+                     <button onClick={toggleNotifications} className={`w-12 h-6 rounded-full p-1 transition-colors ${notificationsEnabled ? 'bg-green-500' : 'bg-neutral-700'}`}>
+                        <div className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform ${notificationsEnabled ? 'translate-x-6' : 'translate-x-0'}`}></div>
+                     </button>
+                  </div>
+                  {!notificationsEnabled && <p className="text-[10px] text-neutral-600 mt-2 italic">{txt('perm_request')}</p>}
+               </div>
+
+               <div className="bg-white/5 p-4 rounded-2xl border border-white/5">
+                  <div className="flex items-center gap-3 mb-4 text-blue-500"><Shield size={20}/><span className="text-sm font-bold uppercase">{txt('settings_security')}</span></div>
+                  <p className="text-neutral-400 text-xs mb-3">{txt('settings_change_pin')}</p>
+                  <div className="flex gap-2">
+                     <input type="password" placeholder="****" value={newPin} onChange={(e) => setNewPin(e.target.value)} className="w-full p-3 rounded-xl bg-black/40 border border-white/10 text-white text-center font-bold outline-none focus:border-blue-500"/>
+                     <button onClick={handleUpdatePin} className="bg-blue-500 text-white px-4 rounded-xl"><Save size={18}/></button>
+                  </div>
+                  {settingsMsg && <p className={`text-xs font-bold mt-2 ${settingsMsg.includes('!') ? 'text-green-500' : 'text-red-500'}`}>{settingsMsg}</p>}
+               </div>
+
+               {/* BUTTON FÜR FRAGE EINREICHEN */}
+               <button onClick={() => setView('submit_question')} className="w-full bg-purple-900/50 border border-purple-500/50 p-4 rounded-2xl flex items-center justify-center gap-2 text-purple-300 font-bold uppercase text-xs hover:bg-purple-900 hover:text-white transition-all">
+                 <Plus size={16}/> Eigene Frage einreichen
+               </button>
+
+               {/* ADMIN BUTTON */}
+               {user.isAdmin && (
+                 <button onClick={() => { fetchAdminData(); setDashboardView('admin'); }} className="w-full bg-red-900/50 border border-red-500/50 p-4 rounded-2xl flex items-center justify-center gap-2 text-red-300 font-bold uppercase text-xs hover:bg-red-900 hover:text-white transition-all mt-4">
+                   <Shield size={16}/> {txt('admin_title')}
+                 </button>
+               )}
+
+            </div>
+          </div>
+        </Background>
+      );
+    }
   }
 
   // --- ADMIN QUESTIONS MANAGER VIEW ---
@@ -1185,6 +1062,17 @@ export default function App() {
       <Background>
         <div className="w-full max-w-2xl flex flex-col h-[95vh] gap-4 px-4 mx-auto">
            <AdminQuestionManager onBack={() => { setView('dashboard'); setDashboardView('admin'); }} />
+        </div>
+      </Background>
+    );
+  }
+
+  // --- SUBMIT QUESTION VIEW ---
+  if (view === 'submit_question') {
+    return (
+      <Background>
+        <div className="w-full max-w-md flex flex-col h-[95vh] gap-4 px-4 mx-auto py-6">
+           <SubmitQuestion user={user} onBack={() => setView('dashboard')} />
         </div>
       </Background>
     );
