@@ -13,11 +13,16 @@ export const TRANSLATIONS = {
     btn_start: "Invoice erzeugen",
     btn_ready: "Bereit!",
     btn_share: "Herausfordern!", 
+    
+    // TILES (Kacheln)
     tile_lobby: "Lobby",
     tile_challenges: "Challenges",
-    tile_active_games: "Laufende", // NEU
-    active_games_title: "Deine offenen Spiele", // NEU
+    tile_active_games: "Laufende",
+    active_games_title: "Deine offenen Spiele",
     tile_leaderboard: "Bestenliste",
+    tile_history: "Historie",
+    tile_settings: "Einstellungen",
+    tile_tournaments: "Turniere", // <--- NEU: HIER WAR DER FEHLER
 
     // Login
     welcome_disclaimer: "Wichtiger Hinweis",
@@ -38,11 +43,6 @@ export const TRANSLATIONS = {
     sats_won: "Sats gewonnen",
     dashboard_new_duel: "Neues Duell",
     dashboard_donate: "Spenden",
-    tile_lobby: "Lobby",
-    tile_challenges: "Challenges",
-    tile_leaderboard: "Bestenliste",
-    tile_history: "Historie",
-    tile_settings: "Einstellungen",
     dash_unclaimed_title: "Gewinn verfügbar!",
     dash_unclaimed_text: "Du hast offene Gewinne",
 
@@ -75,6 +75,7 @@ export const TRANSLATIONS = {
     result_wait: "Warte auf Gegner...",
     result_win: "Gewonnen!",
     result_loss: "Verloren",
+    result_draw: "Unentschieden", // NEU für Remis
     refund_info: "Hier ist dein Refund-Code. Scanne ihn mit einer Lightning Wallet.",
 
     // Settings & Admin
@@ -102,6 +103,7 @@ export const TRANSLATIONS = {
     nostr_copied: "Text kopiert!",
     nostr_share_text: "Ich habe gerade {amount} sats in einem Quiz gewonnen! Score: {score}/5 #SatoshiDuell"
   },
+
   en: {
     btn_understood: "Understood",
     btn_cancel: "Cancel",
@@ -115,11 +117,15 @@ export const TRANSLATIONS = {
     btn_start: "Create Invoice",
     btn_ready: "Ready!",
     btn_share: "Challenge!",
+    
     tile_lobby: "Lobby",
     tile_challenges: "Challenges",
-    tile_active_games: "Active", // NEW
-    active_games_title: "Your Open Games", // NEW
+    tile_active_games: "Active",
+    active_games_title: "Your Open Games",
     tile_leaderboard: "Leaderboard",
+    tile_history: "History",
+    tile_settings: "Settings",
+    tile_tournaments: "Tournaments", // <--- NEW
 
     welcome_disclaimer: "Important Notice",
     welcome_text: "SatoshiDuell is an alpha-stage custodial Lightning service. We accept no liability for software errors, server outages, or lost sats. Please only deposit amounts you are willing to lose. Have fun & don't be reckless!",
@@ -138,11 +144,6 @@ export const TRANSLATIONS = {
     sats_won: "Sats won",
     dashboard_new_duel: "New Duel",
     dashboard_donate: "Donate",
-    tile_lobby: "Lobby",
-    tile_challenges: "Challenges",
-    tile_leaderboard: "Leaderboard",
-    tile_history: "History",
-    tile_settings: "Settings",
     dash_unclaimed_title: "Prize available!",
     dash_unclaimed_text: "You have unclaimed wins",
 
@@ -155,7 +156,6 @@ export const TRANSLATIONS = {
     refund_wait: "Wait period...",
     share_nostr: "Share on Nostr",
 
-    // Share Text
     share_content: "⚔️ SATOSHI DUELL ⚔️\n\nI bet {amount} Sats on my knowledge!\nDo you accept the bet?\n\nClick link to fight:\n{url}",
     share_success: "Link copied! Send it to your opponent.",
 
@@ -171,6 +171,7 @@ export const TRANSLATIONS = {
     result_wait: "Waiting for opponent...",
     result_win: "You Won!",
     result_loss: "You Lost",
+    result_draw: "Draw", // NEW
     refund_info: "Here is your refund code. Scan with Lightning Wallet.",
 
     settings_notifications: "Notifications",
@@ -197,6 +198,7 @@ export const TRANSLATIONS = {
     nostr_copied: "Text copied!",
     nostr_share_text: "I just won {amount} sats in a quiz! Score: {score}/5 #SatoshiDuell"
   },
+
   es: {
     btn_understood: "Entendido",
     btn_cancel: "Cancelar",
@@ -210,11 +212,15 @@ export const TRANSLATIONS = {
     btn_start: "Crear Factura",
     btn_ready: "Listo!",
     btn_share: "¡Desafiar!",
+    
     tile_lobby: "Lobby",
     tile_challenges: "Desafíos",
-    tile_active_games: "Activos", // NEW
-    active_games_title: "Tus Juegos Abiertos", // NEW
+    tile_active_games: "Activos",
+    active_games_title: "Tus Juegos Abiertos",
     tile_leaderboard: "Ranking",
+    tile_history: "Historial",
+    tile_settings: "Ajustes",
+    tile_tournaments: "Torneos", // <--- NUEVO
 
     welcome_disclaimer: "Aviso Importante",
     welcome_text: "SatoshiDuell es un servicio Lightning de custodia en fase alfa. No asumimos responsabilidad por errores de software, cortes del servidor o sats perdidos. Por favor, deposita solo lo que estés dispuesto a perder. ¡Diviértete!",
@@ -233,11 +239,6 @@ export const TRANSLATIONS = {
     sats_won: "Sats ganados",
     dashboard_new_duel: "Nuevo Duelo",
     dashboard_donate: "Donar",
-    tile_lobby: "Lobby",
-    tile_challenges: "Desafíos",
-    tile_leaderboard: "Ranking",
-    tile_history: "Historial",
-    tile_settings: "Ajustes",
     dash_unclaimed_title: "¡Premio disponible!",
     dash_unclaimed_text: "Tienes ganancias pendientes",
 
@@ -250,7 +251,6 @@ export const TRANSLATIONS = {
     refund_wait: "Espera...",
     share_nostr: "Compartir en Nostr",
 
-    // Share Text
     share_content: "⚔️ SATOSHI DUELL ⚔️\n\n¡Aposto {amount} Sats en mi conocimiento!\n¿Aceptas la apuesta?\n\nClic aquí para luchar:\n{url}",
     share_success: "¡Enlace copiado! Envíalo a tu oponente.",
 
@@ -266,6 +266,7 @@ export const TRANSLATIONS = {
     result_wait: "Esperando oponente...",
     result_win: "¡Ganaste!",
     result_loss: "Perdiste",
+    result_draw: "Empate", // NUEVO
     refund_info: "Aquí tienes tu código de reembolso.",
 
     settings_notifications: "Notificaciones",
