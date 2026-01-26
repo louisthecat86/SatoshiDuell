@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
-import { 
-  Zap, Trophy, Clock, User, Plus, Swords, RefreshCw, Copy, Check, 
-  ExternalLink, AlertTriangle, Loader2, LogOut, Fingerprint, Flame, 
-  History, Coins, Lock, Medal, Share2, Globe, Settings, Save, Heart, 
-  Github, CheckCircle, RefreshCcw, Rocket, ArrowLeft, Users, AlertCircle, 
-  Bell, Shield, Search, Link as LinkIcon, PlayCircle, Edit2 
+import {
+  Zap, Trophy, Clock, User, Plus, Swords, RefreshCw, Copy, Check,
+  ExternalLink, AlertTriangle, Loader2, LogOut, Fingerprint, Flame,
+  History, Coins, Lock, Medal, Share2, Globe, Settings, Save, Heart,
+  Github, CheckCircle, RefreshCcw, Rocket, ArrowLeft, Users, AlertCircle,
+  Bell, Shield, Search, Link as LinkIcon, PlayCircle, Edit2, 
+  Volume2, VolumeX // <--- Einfach hier am Ende dazu schreiben
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { QRCodeCanvas } from 'qrcode.react';
@@ -71,6 +72,33 @@ const getRobotAvatar = (name) => {
   return `https://api.dicebear.com/9.x/bottts-neutral/svg?seed=${name}`;
 };
 
+// --- SOUND & HAPTIK SYSTEM ---
+const playSound = (type, muted = false) => {
+  // 1. HAPTIK (Vibration am Handy)
+  // Nur wenn der Browser es unterstützt (meist Android)
+  if (navigator.vibrate) {
+    if (type === 'click') navigator.vibrate(10); // Ganz kurz (haptisches Feedback)
+    if (type === 'correct') navigator.vibrate([50, 50, 50]); // Zweimal kurz
+    if (type === 'wrong') navigator.vibrate(200); // Einmal lang
+    if (type === 'win') navigator.vibrate([100, 50, 100, 50, 200]); // Freudiges Muster
+  }
+
+  // 2. AUDIO
+  if (muted) return; // Wenn stummgeschaltet, hier abbrechen
+
+  let file = '';
+  if (type === 'click') file = '/click.mp3';
+  if (type === 'correct') file = '/correct.mp3';
+  if (type === 'wrong') file = '/wrong.mp3';
+  if (type === 'tick') file = '/tick.mp3'; // Optional für Timer
+
+  if (file) {
+    const audio = new Audio(file);
+    audio.volume = 0.5; // Lautstärke 50%
+    audio.play().catch(e => console.log("Audio play error (user interaction needed first)", e));
+  }
+};
+
 // --- HAUPT APP ---
 
 export default function App() {
@@ -81,6 +109,15 @@ export default function App() {
   
   const [lang, setLang] = useState('de'); 
   const [user, setUser] = useState(null);
+
+  // Liest die Einstellung aus dem Speicher
+  const [isMuted, setIsMuted] = useState(() => localStorage.getItem('satoshi_muted') === 'true');
+
+  const toggleMute = () => {
+    const newState = !isMuted;
+    setIsMuted(newState);
+    localStorage.setItem('satoshi_muted', newState);
+  };
   
   const [allQuestions, setAllQuestions] = useState([]);
   const [isDataLoaded, setIsDataLoaded] = useState(false);
@@ -871,12 +908,10 @@ if (dashboardView === 'home') {
                <img src="/logo.png" className="w-[90%] opacity-15" alt="Background" />
             </div>
 
-            {/* 2. USER CARD (Ohne Zahnrad, liegt über dem Wasserzeichen z-10) */}
-            {/* 2. USER CARD MIT AVATAR */}
+            {/* 2. USER CARD (Avatar, Name, Mute, Logout) */}
             <Card className="flex justify-between items-center py-3 border-orange-500/20 bg-black/40 backdrop-blur-md relative z-10">
+              {/* LINKE SEITE: Avatar & Name */}
               <div className="flex items-center gap-3">
-                
-                {/* --- HIER IST DIE ÄNDERUNG: BILD STATT BUCHSTABE --- */}
                 <div className="w-12 h-12 rounded-xl overflow-hidden border-2 border-orange-500/50 shadow-[0_0_15px_rgba(249,115,22,0.3)] bg-black">
                    <img 
                      src={user.avatar || getRobotAvatar(user.name)} 
@@ -884,14 +919,20 @@ if (dashboardView === 'home') {
                      className="w-full h-full object-cover"
                    />
                 </div>
-                {/* --------------------------------------------------- */}
-
                 <div className="text-left">
                   <p className="font-black text-white text-xl uppercase tracking-wider">{formatName(user.name)}</p>
                   <p className="text-[10px] text-orange-400 font-mono">{stats.satsWon.toLocaleString()} {txt('sats_won')}</p>
                 </div>
               </div>
+
+              {/* RECHTE SEITE: Buttons */}
               <div className="flex gap-2">
+                {/* MUTE BUTTON */}
+                <button onClick={toggleMute} className="p-2 text-neutral-500 hover:text-white transition-colors">
+                  {isMuted ? <VolumeX size={18}/> : <Volume2 size={18}/>}
+                </button>
+                
+                {/* LOGOUT BUTTON */}
                 <button onClick={handleLogout} className="p-2 text-neutral-500 hover:text-white"><LogOut size={18}/></button>
               </div>
             </Card>
@@ -905,7 +946,9 @@ if (dashboardView === 'home') {
             )}
 
             {/* NEW DUEL BUTTON */}
-            <Button onClick={openCreateSetup} className="py-5 text-lg animate-neon shadow-lg mb-2 relative z-10"><Plus size={24}/> {txt('dashboard_new_duel')}</Button>
+            <Button onClick={() => { playSound('click', isMuted); openCreateSetup(); }} className="py-5 text-lg animate-neon shadow-lg mb-2 relative z-10">
+              <Plus size={24}/> {txt('dashboard_new_duel')}
+            </Button>
             
             {/* 3. DAS GRID MIT DEN NEUEN KACHELN (Farbiger Text, Große Schrift) */}
             <div className="grid grid-cols-2 gap-2 flex-1 overflow-y-auto pb-4 relative z-10 custom-scrollbar">

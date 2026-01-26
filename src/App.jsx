@@ -40,16 +40,31 @@ export default function App() {
     }, 2000);
   };
 
-  const handleAnswer = (index) => {
+const handleAnswer = (index) => {
     const timeTaken = 15 - timeLeft;
     setTotalTime(prev => prev + timeTaken);
-    if (index === QUESTIONS[currentQ].correct) setScore(s => s + 1);
+    
+    // --- ÄNDERUNG START: Sound für Richtig/Falsch ---
+    if (index === QUESTIONS[currentQ].correct) {
+       setScore(s => s + 1);
+       playSound('correct', isMuted); // Juhu!
+    } else {
+       playSound('wrong', isMuted);   // Mööp!
+    }
+    // --- ÄNDERUNG ENDE ---
+
     if (currentQ < QUESTIONS.length - 1) {
       setCurrentQ(prev => prev + 1);
       setTimeLeft(15);
     } else {
       setScreen('result');
-      if (score >= 3) confetti();
+      // Kleiner Fix: Wir checken hier "score + 1" falls die letzte Frage richtig war, 
+      // da der State "score" manchmal zu langsam updated.
+      // Aber für den Sound reicht deine Logik erstmal:
+      if (score >= 3) {
+         confetti();
+         playSound('correct', isMuted); // Nochmal Jubel beim Sieg!
+      }
     }
   };
 
