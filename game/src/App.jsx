@@ -834,13 +834,19 @@ export default function App() {
     // Eigene offene Spiele
     const myOpenDuels = myDuels.filter(d => d.creator === user.name && d.status === 'open');
 
-    // --- SUB-VIEW: HOME ---
-    if (dashboardView === 'home') {
+if (dashboardView === 'home') {
       return (
         <Background>
-          <div className="w-full max-w-md flex flex-col h-[95vh] gap-4 px-2">
+          {/* --- ÄNDERUNG START: Container mit relative --- */}
+          <div className="w-full max-w-md flex flex-col h-[95vh] gap-4 px-2 relative">
             
-            <Card className="flex justify-between items-center py-3 border-orange-500/20 bg-black/40 backdrop-blur-md">
+            {/* 1. WASSERZEICHEN */}
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-0">
+               <img src="/logo.png" className="w-64 opacity-10 grayscale" alt="Background" />
+            </div>
+
+            {/* Inhalt muss jetzt z-10 haben damit er über dem Logo liegt */}
+            <Card className="flex justify-between items-center py-3 border-orange-500/20 bg-black/40 backdrop-blur-md relative z-10">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-orange-500 to-yellow-500 flex items-center justify-center font-black text-black text-xl">{user.name.charAt(0).toUpperCase()}</div>
                 <div className="text-left"><p className="font-bold text-white text-sm uppercase">{formatName(user.name)}</p><p className="text-[10px] text-orange-400 font-mono">{stats.satsWon.toLocaleString()} {txt('sats_won')}</p></div>
@@ -848,17 +854,11 @@ export default function App() {
               <div className="flex gap-2"><button onClick={() => setDashboardView('settings')} className="p-2 text-neutral-500 hover:text-white"><Settings size={18}/></button><button onClick={handleLogout} className="p-2 text-neutral-500 hover:text-white"><LogOut size={18}/></button></div>
             </Card>
 
-            {unclaimedWin && (
-              <button onClick={() => openPastDuel(unclaimedWin)} className="w-full bg-green-500 text-black p-4 rounded-2xl flex items-center justify-between font-black uppercase animate-bounce shadow-[0_0_20px_rgba(34,197,94,0.6)]">
-                 <div className="flex items-center gap-3"><Trophy size={24}/> <div className="text-left"><p className="text-sm leading-none">{txt('dash_unclaimed_title')}</p><p className="text-[10px] opacity-75 font-normal normal-case">{txt('dash_unclaimed_text')}</p></div></div>
-                 <div className="bg-black/20 p-2 rounded-lg"><ArrowLeft className="rotate-180" size={16}/></div>
-              </button>
-            )}
-
-            <Button onClick={openCreateSetup} className="py-5 text-lg animate-neon shadow-lg mb-2"><Plus size={24}/> {txt('dashboard_new_duel')}</Button>
-
-            {/* DAS NEUE GRID (6 Kacheln) */}
-            <div className="grid grid-cols-2 gap-1 flex-1 overflow-y-auto pb-4">
+            {/* Button und Grid auch z-10 */}
+            <Button onClick={openCreateSetup} className="py-5 text-lg animate-neon shadow-lg mb-2 relative z-10"><Plus size={24}/> {txt('dashboard_new_duel')}</Button>
+            
+            <div className="grid grid-cols-2 gap-1 flex-1 overflow-y-auto pb-4 relative z-10">
+              {/* --- ÄNDERUNG ENDE (Der Rest der Buttons kommt gleich in Schritt 2) --- */}
               
               <button onClick={() => setDashboardView('lobby')} className="bg-neutral-900/60 border border-white/5 hover:border-orange-500/50 hover:bg-neutral-800 p-4 rounded-2xl flex flex-col items-center justify-center gap-2 aspect-[4/3] transition-all group relative">
                 <Users size={28} className="text-orange-500 group-hover:scale-110 transition-transform"/>
