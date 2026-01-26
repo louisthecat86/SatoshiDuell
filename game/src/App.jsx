@@ -51,6 +51,26 @@ const formatName = (name) => {
   return (name.substring(0, 6) + '...' + name.substring(name.length - 4)).toUpperCase();
 };
 
+// --- NEU: AVATAR HELPER ---
+
+// Holt das Profilbild von Nostr (über nostr.band API)
+const fetchNostrImage = async (pubkey) => {
+  if (!pubkey) return null;
+  try {
+    const res = await fetch(`https://api.nostr.band/v0/profile/${pubkey}`);
+    const data = await res.json();
+    return data?.profile?.picture || null;
+  } catch (e) {
+    console.error("Nostr img error", e);
+    return null;
+  }
+};
+
+// Generiert einen Roboter-Avatar basierend auf dem Namen
+const getRobotAvatar = (name) => {
+  return `https://api.dicebear.com/9.x/bottts-neutral/svg?seed=${name}`;
+};
+
 // --- HAUPT APP ---
 
 export default function App() {
@@ -385,31 +405,38 @@ export default function App() {
     } catch (err) { console.error(err); setLoginError("Error."); } finally { if (!nostrSetupPubkey) setIsLoginLoading(false); }
   };
 
-  const finishLogin = (name, pubkey, isAdmin = false) => {
-    const userObj = { name, pubkey, isAdmin };
+   const finishLogin = (name, pubkey, isAdmin = false, avatar = null) => {
+    // Wenn kein echtes Bild da ist, generieren wir einen Roboter aus dem Namen
+    const finalAvatar = avatar || getRobotAvatar(name);
+    
+    const userObj = { name, pubkey, isAdmin, avatar: finalAvatar };
     setUser(userObj); 
     localStorage.setItem('satoshi_user', JSON.stringify(userObj)); 
     localStorage.setItem('saved_pin', loginPin); 
     checkPendingJoinAfterAuth(userObj);
   };
 
-  const handleExtensionLogin = async () => {
-    if (!window.nostr) { 
-      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-      if (isMobile) {
-        alert("In diesem Browser fehlt die Schnittstelle.\n\nTIPP: Öffne diese Seite in der 'Amethyst' App oder nutze den 'Kiwi Browser'!");
-      } else {
-        alert("Keine Nostr-Extension gefunden!\nBitte installiere Alby oder nos2x.");
-      }
-      return; 
-    }
-    try {
-      const pubkey = await window.nostr.getPublicKey();
+const handleExtensionLogin = async () => { 
+    if (!window.nostr) return alert("Keine Nostr Extension!"); 
+    try { 
+      const pubkey = await window.nostr.getPublicKey(); 
+      // Kleiner Trick um das Input Feld zu füllen (optisch)
       setLoginInput(nip19.npubEncode(pubkey)); 
-      const { data: existingUser } = await supabase.from('players').select('*').eq('pubkey', pubkey).single();
-      if (existingUser) finishLogin(existingUser.name, pubkey, existingUser.is_admin);
-      else { localStorage.setItem('temp_nostr_pin', 'extension-auth'); setNostrSetupPubkey(pubkey); setView('nostr_setup'); }
-    } catch (e) { console.error(e); }
+      
+      const { data: existingUser } = await supabase.from('players').select('*').eq('pubkey', pubkey).single(); 
+      
+      // --- NEU: Bild holen (im Hintergrund) ---
+      const nostrPic = await fetchNostrImage(pubkey);
+
+      if (existingUser) {
+        finishLogin(existingUser.name, pubkey, existingUser.is_admin, nostrPic);
+      } else { 
+        setNostrSetupPubkey(pubkey); 
+        // Falls wir uns neu registrieren, merken wir uns das Bild temporär
+        if(nostrPic) localStorage.setItem('temp_nostr_avatar', nostrPic);
+        setView('nostr_setup'); 
+      } 
+    } catch (e) { console.error(e); } 
   };
 
   const completeNostrRegistration = async (e) => {
@@ -845,16 +872,26 @@ if (dashboardView === 'home') {
             </div>
 
             {/* 2. USER CARD (Ohne Zahnrad, liegt über dem Wasserzeichen z-10) */}
+            {/* 2. USER CARD MIT AVATAR */}
             <Card className="flex justify-between items-center py-3 border-orange-500/20 bg-black/40 backdrop-blur-md relative z-10">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-orange-500 to-yellow-500 flex items-center justify-center font-black text-black text-xl">{user.name.charAt(0).toUpperCase()}</div>
+                
+                {/* --- HIER IST DIE ÄNDERUNG: BILD STATT BUCHSTABE --- */}
+                <div className="w-12 h-12 rounded-xl overflow-hidden border-2 border-orange-500/50 shadow-[0_0_15px_rgba(249,115,22,0.3)] bg-black">
+                   <img 
+                     src={user.avatar || getRobotAvatar(user.name)} 
+                     alt="Avatar" 
+                     className="w-full h-full object-cover"
+                   />
+                </div>
+                {/* --------------------------------------------------- */}
+
                 <div className="text-left">
                   <p className="font-bold text-white text-sm uppercase">{formatName(user.name)}</p>
                   <p className="text-[10px] text-orange-400 font-mono">{stats.satsWon.toLocaleString()} {txt('sats_won')}</p>
                 </div>
               </div>
               <div className="flex gap-2">
-                {/* Zahnrad entfernt, nur noch Logout */}
                 <button onClick={handleLogout} className="p-2 text-neutral-500 hover:text-white"><LogOut size={18}/></button>
               </div>
             </Card>
@@ -931,7 +968,7 @@ if (dashboardView === 'home') {
                    )}
                 </div>
               </button>
-              
+
               {/* SETTINGS (Neutral) */}
               <button onClick={() => setDashboardView('settings')} className="bg-neutral-900/60 border border-white/5 hover:border-neutral-500 hover:bg-neutral-800 p-4 rounded-2xl flex flex-col items-center justify-center gap-3 aspect-[4/3] transition-all group">
                 <Settings size={32} className="text-neutral-400 group-hover:rotate-45 transition-transform"/>
