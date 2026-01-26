@@ -165,7 +165,7 @@ export default function App() {
 
     const fetchQuestions = async () => {
       try {
-        // Direkt aus der neuen Tabelle 'questions' laden
+        // NEU: Direkt aus der neuen Tabelle 'questions' laden
         const { data, error } = await supabase
           .from('questions')
           .select('*')
