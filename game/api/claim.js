@@ -1,124 +1,64 @@
 import { createClient } from '@supabase/supabase-js';
 
-// Verbindung zur DB herstellen (mit Service Key für Schreibrechte)
-const supabase = createClient(
-  process.env.VITE_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
-);
-
 export default async function handler(req, res) {
-  // Nur POST Anfragen erlauben
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
-  }
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  // Wir holen uns ID und Typ vom Frontend
-  // 'type' ist standardmäßig 'duel', falls das Frontend nichts mitschickt (für alte Versionen)
-  const { id, type = 'duel' } = req.body;
+  const { duelId } = req.body; // Wir brauchen nur die ID, den Betrag holen wir sicherheitshalber aus der DB
+  if (!duelId) return res.status(400).json({ error: 'Missing duelId' });
 
-  if (!id) return res.status(400).json({ error: 'Missing ID' });
+  const ADMIN_KEY = process.env.LNBITS_ADMIN_KEY;
+  const LNBITS_URL = process.env.VITE_LNBITS_URL;
+
+  const supabaseAdmin = createClient(
+    process.env.VITE_SUPABASE_URL,
+    process.env.SUPABASE_SERVICE_ROLE_KEY
+  );
 
   try {
-    let payoutAmount = 0;
-    let title = "";
-    let tableName = "";
+    // 1. Daten aus DB holen
+    const { data: duel, error: fetchError } = await supabaseAdmin
+      .from('duels')
+      .select('claimed, amount, status')
+      .eq('id', duelId)
+      .single();
 
-    // ---------------------------------------------------------
-    // FALL 1: DUELL (1 vs 1)
-    // ---------------------------------------------------------
-    if (type === 'duel') {
-      tableName = 'duels';
-      const { data: duel, error } = await supabase
-        .from('duels')
-        .select('*')
-        .eq('id', id)
-        .single();
+    if (fetchError || !duel) return res.status(404).json({ error: 'Duel not found' });
+    if (duel.claimed === true) return res.status(400).json({ error: 'ALREADY_PAID' });
+    if (duel.status !== 'finished') return res.status(400).json({ error: 'Duel not finished' });
 
-      if (error || !duel) return res.status(404).json({ error: 'Duel not found' });
-      if (duel.claimed) return res.status(400).json({ error: 'Already claimed' });
-      
-      // Sicherheits-Check: Ist das Spiel wirklich vorbei?
-      if (duel.status !== 'finished' && duel.status !== 'refunded') {
-         return res.status(400).json({ error: 'Game not finished' });
-      }
+    // 2. BERECHNUNG DES GEWINNS: Einsatz x 2
+    const winAmount = duel.amount * 2;
 
-      // Gewinn berechnen: Einsatz * 2
-      payoutAmount = duel.amount * 2;
-      title = `SatoshiDuell Win ⚔️`;
-    } 
-    
-    // ---------------------------------------------------------
-    // FALL 2: TURNIER (Jackpot)
-    // ---------------------------------------------------------
-    else if (type === 'tournament') {
-      tableName = 'tournaments';
-      const { data: t, error } = await supabase
-        .from('tournaments')
-        .select('*')
-        .eq('id', id)
-        .single();
-
-      if (error || !t) return res.status(404).json({ error: 'Tournament not found' });
-      if (t.claimed) return res.status(400).json({ error: 'Already claimed' });
-      
-      if (t.status !== 'finished') {
-         return res.status(400).json({ error: 'Tournament not finished' });
-      }
-
-      // Gewinn berechnen: Einsatz * Spieleranzahl
-      // Beispiel: 5 Spieler * 100 Sats = 500 Sats
-      payoutAmount = t.entry_fee * t.max_players;
-      title = `Tournament Jackpot 🏆`;
-    } else {
-        return res.status(400).json({ error: 'Invalid game type' });
-    }
-
-    // ---------------------------------------------------------
-    // LNBITS: Auszahlungs-Link generieren (Withdraw Link)
-    // ---------------------------------------------------------
-    const lnbitsUrl = process.env.VITE_LNBITS_URL;
-    const lnbitsKey = process.env.VITE_INVOICE_KEY; 
-
-    // Payload für LNbits
-    const withdrawBody = {
-      title: title,
-      min_withdrawable: payoutAmount,
-      max_withdrawable: payoutAmount,
-      uses: 1,
-      wait_time: 1,
-      is_unique: true
-    };
-
-    const lnbitsRes = await fetch(`${lnbitsUrl}/withdraw/api/v1/links`, {
+    // 3. LNbits Aufruf mit dem DOPPELTEN Betrag
+    const cleanUrl = LNBITS_URL ? LNBITS_URL.replace(/\/$/, "") : "";
+    const lnbitsResponse = await fetch(`${cleanUrl}/withdraw/api/v1/links`, {
       method: 'POST',
-      headers: { 
-        'Content-Type': 'application/json', 
-        'X-Api-Key': lnbitsKey 
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Api-Key': ADMIN_KEY
       },
-      body: JSON.stringify(withdrawBody)
+      body: JSON.stringify({
+        title: `SatoshiDuell Jackpot #${duelId}`,
+        min_withdrawable: winAmount,
+        max_withdrawable: winAmount,
+        uses: 1,
+        wait_time: 1,
+        is_unique: true
+      })
     });
 
-    const lnbitsData = await lnbitsRes.json();
+    const lnbitsData = await lnbitsResponse.json();
 
-    if (!lnbitsData.lnurl) {
-        console.error('LNbits Error:', lnbitsData);
-        return res.status(500).json({ error: 'Failed to create withdraw link from LNbits' });
+    if (!lnbitsResponse.ok || !lnbitsData.lnurl) {
+      return res.status(500).json({ error: 'LNbits Error', details: lnbitsData.detail });
     }
 
-    // ---------------------------------------------------------
-    // DB UPDATE: Als "ausbezahlt" markieren
-    // ---------------------------------------------------------
-    // Wir machen das erst NACHDEM wir den Link von LNbits haben.
-    await supabase.from(tableName).update({ claimed: true }).eq('id', id);
-
-    // Erfolg zurückmelden
-    return res.status(200).json({ 
-        lnurl: lnbitsData.lnurl, 
-        id: lnbitsData.id 
-    });
+    // 4. Als claimed markieren
+    await supabaseAdmin.from('duels').update({ claimed: true }).eq('id', duelId);
+    
+    return res.status(200).json(lnbitsData);
 
   } catch (error) {
-    console.error("Server Error:", error);
-    return res.status(500).json({ error: 'Internal Server Error', details: error.message });
+    return res.status(500).json({ error: 'Server Error', details: error.message });
   }
 }

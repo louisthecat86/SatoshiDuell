@@ -17,7 +17,7 @@ import Button from './components/Button';
 import Card from './components/Card';
 import Background from './components/Background';
 import AdminQuestionManager from './components/AdminQuestionManager';
-import SubmitQuestion from './components/SubmitQuestion';
+import SubmitQuestion from './components/SubmitQuestion'
 
 // --- KONFIGURATION ---
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
