@@ -887,7 +887,7 @@ if (dashboardView === 'home') {
                 {/* --------------------------------------------------- */}
 
                 <div className="text-left">
-                  <p className="font-bold text-white text-sm uppercase">{formatName(user.name)}</p>
+                  <p className="font-black text-white text-xl uppercase tracking-wider">{formatName(user.name)}</p>
                   <p className="text-[10px] text-orange-400 font-mono">{stats.satsWon.toLocaleString()} {txt('sats_won')}</p>
                 </div>
               </div>
