@@ -842,7 +842,7 @@ if (dashboardView === 'home') {
             
             {/* 1. WASSERZEICHEN */}
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-0">
-            <img src="/logo.png" className="w-[90%] opacity-15" alt="Background" />
+            <img src="/logo.png" className="w-[95%] opacity-15" alt="Background" />
             </div>
 
             {/* Inhalt muss jetzt z-10 haben damit er über dem Logo liegt */}
@@ -851,7 +851,7 @@ if (dashboardView === 'home') {
                 <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-orange-500 to-yellow-500 flex items-center justify-center font-black text-black text-xl">{user.name.charAt(0).toUpperCase()}</div>
                 <div className="text-left"><p className="font-bold text-white text-sm uppercase">{formatName(user.name)}</p><p className="text-[10px] text-orange-400 font-mono">{stats.satsWon.toLocaleString()} {txt('sats_won')}</p></div>
               </div>
-              <div className="flex gap-2"><button onClick={() => setDashboardView('settings')} className="p-2 text-neutral-500 hover:text-white"><Settings size={18}/></button><button onClick={handleLogout} className="p-2 text-neutral-500 hover:text-white"><LogOut size={18}/></button></div>
+              <div className="flex gap-2"><button onClick={handleLogout} className="p-2 text-neutral-500 hover:text-white"><LogOut size={18}/></button></div>
             </Card>
 
             {/* Button und Grid auch z-10 */}
