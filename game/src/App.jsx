@@ -887,13 +887,6 @@ if (dashboardView === 'home') {
                 {challengeCount > 0 && <span className="absolute top-2 right-2 bg-purple-500 text-white text-[10px] font-black w-6 h-6 rounded-full flex items-center justify-center shadow-lg border border-white/20">{challengeCount}</span>}
               </button>
 
-              {/* TURNIERE (Purple Variante) */}
-              <button onClick={() => setDashboardView('tournaments')} className="bg-neutral-900/60 border border-purple-500/30 hover:border-purple-500 hover:bg-purple-900/20 p-4 rounded-2xl flex flex-col items-center justify-center gap-3 aspect-[4/3] relative transition-all group">
-                <Trophy size={32} className="text-purple-500 group-hover:scale-110 transition-transform"/>
-                <span className="text-sm font-black text-purple-500 uppercase tracking-widest shadow-black drop-shadow-md">{txt('tile_tournaments') || 'TURNIERE'}</span>
-                <span className="absolute top-2 right-2 bg-purple-600 text-white text-[9px] font-black px-2 py-0.5 rounded-md uppercase border border-white/10">NEW</span>
-              </button>
-
               {/* ACTIVE GAMES (Green) */}
               <button onClick={() => setDashboardView('active_games')} className="bg-neutral-900/60 border border-white/5 hover:border-green-500/50 hover:bg-neutral-800 p-4 rounded-2xl flex flex-col items-center justify-center gap-3 aspect-[4/3] relative group">
                 <PlayCircle size={32} className="text-green-500 group-hover:scale-110 transition-transform"/>
