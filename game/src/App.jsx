@@ -733,7 +733,7 @@ export default function App() {
   if (view === 'language_select') {
     return (
       <Background>
-        <div className="w-full max-w-sm flex flex-col items-center justify-center min-h-[90vh] px-4 gap-6 animate-float">
+        <div className="w-full max-w-sm flex flex-col items-center justify-center min-h-[90vh] px-4 gap-6">
           <div className="flex flex-col items-center justify-center">
              <div className="relative mb-4"><div className="absolute inset-0 bg-orange-500 blur-[50px] opacity-20 rounded-full"></div><img src="/logo.png" alt="Satoshi Duell" className="relative w-40 h-40 object-contain drop-shadow-2xl mx-auto" /></div>
              <h1 className="text-4xl font-black text-white italic uppercase drop-shadow-md">SATOSHI<span className="text-orange-500">DUELL</span></h1>
@@ -754,7 +754,7 @@ export default function App() {
   if (view === 'login') {
     return (
       <Background>
-        <div className="w-full max-w-sm flex flex-col gap-6 animate-float text-center px-4">
+        <div className="w-full max-w-sm flex flex-col gap-6 text-center px-4">
           <div className="flex flex-col items-center justify-center">
              <div className="relative mb-4"><div className="absolute inset-0 bg-orange-500 blur-[50px] opacity-20 rounded-full"></div><img src="/logo.png" alt="Satoshi Duell" className="relative w-48 h-48 object-contain drop-shadow-2xl mx-auto" /></div>
              <h1 className="text-5xl font-black text-white tracking-tighter italic uppercase drop-shadow-md">SATOSHI<span className="text-orange-500">DUELL</span></h1>
@@ -779,7 +779,7 @@ export default function App() {
     }
     return (
       <Background>
-        <div className="w-full max-w-sm flex flex-col gap-6 animate-float text-center px-4">
+        <div className="w-full max-w-sm flex flex-col gap-6 text-center px-4">
           <Heart size={48} className="text-orange-500 mx-auto animate-pulse"/>
           <h2 className="text-2xl font-black text-white uppercase">{txt('donate_title')}</h2>
           <p className="text-neutral-400 text-sm">{txt('donate_text')}</p>
@@ -809,7 +809,7 @@ export default function App() {
   if (view === 'nostr_setup') {
     return (
       <Background>
-         <div className="w-full max-w-sm flex flex-col gap-6 animate-float text-center px-4">
+         <div className="w-full max-w-sm flex flex-col gap-6 text-center px-4">
             <div className="w-16 h-16 bg-purple-500/20 rounded-full flex items-center justify-center mx-auto mb-2 text-purple-400 border border-purple-500/50"><Globe size={32}/></div>
             <h2 className="text-2xl font-black text-white uppercase">{txt('nostr_setup_title')}</h2><p className="text-neutral-400 text-sm">{txt('nostr_setup_text')}</p>
             <form onSubmit={completeNostrRegistration} className="flex flex-col gap-4"><input type="text" placeholder="GAMERTAG" value={nostrSetupName} onChange={(e) => setNostrSetupName(e.target.value)} className="w-full p-4 rounded-xl bg-[#0a0a0a] border border-white/10 text-white outline-none focus:border-orange-500 font-bold uppercase text-center shadow-lg"/><Button variant="primary" onClick={completeNostrRegistration}>OK</Button><button onClick={() => setView('login')} className="text-xs text-neutral-600 uppercase font-bold">Zurück</button></form>
@@ -1225,7 +1225,7 @@ if (dashboardView === 'home') {
      if (!checkingPayment) { confetti({ particleCount: 150, spread: 100, origin: { y: 0.6 } }); }
      return (
        <Background>
-          <div className="w-full max-w-sm flex flex-col gap-6 animate-float text-center px-4 items-center justify-center min-h-[60vh]">
+          <div className="w-full max-w-sm flex flex-col gap-6 text-center px-4 items-center justify-center min-h-[60vh]">
              <div className="relative"><div className="absolute inset-0 bg-green-500 blur-[50px] opacity-40 rounded-full animate-pulse"></div><CheckCircle size={100} className="text-green-500 relative animate-bounce" /></div>
              <div className="space-y-2"><h2 className="text-3xl font-black text-white uppercase drop-shadow-lg">{txt('pre_game_title')}</h2><p className="text-neutral-400 text-sm font-bold uppercase tracking-widest">{txt('pre_game_text')}</p></div>
              <Button variant="primary" onClick={startGame} className="animate-neon mt-8"><Rocket size={20} className="mr-2" />{txt('btn_ready')}</Button>
