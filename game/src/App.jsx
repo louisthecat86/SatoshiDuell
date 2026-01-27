@@ -463,13 +463,15 @@ export default function App() {
     }
   };
 
-  // --- REPARIERTER SMART LOGIN (Name vs. Key Erkennung) ---
+ // --- REPARIERTER SMART LOGIN (NPUB + HEX Support) ---
   const handleSmartLogin = async (e) => {
     if (e) e.preventDefault(); 
     setLoginError(''); 
     setIsLoginLoading(true);
 
+    // 1. Input putzen
     let input = loginInput.trim();
+    // Falls jemand versehentlich "nostr:npub..." oder "nostr:hex..." eingibt
     if (input.startsWith('nostr:')) {
         input = input.replace('nostr:', '');
     }
@@ -483,17 +485,28 @@ export default function App() {
         return; 
     }
 
+    // --- SCHLÜSSEL ERKENNUNG (JETZT VERBESSERT) ---
+    
+    // A) Ist es ein Bech32 Code (npub1...)?
     if (input.startsWith('npub1')) {
       try { 
           const { type, data } = nip19.decode(input); 
           if (type === 'npub') pubkeyFromInput = data; 
       } catch (err) { 
-          setLoginError("Der eingefügte Key scheint ungültig zu sein."); 
+          setLoginError("Der eingefügte npub-Key ist ungültig."); 
           setIsLoginLoading(false); 
           return; 
       }
-    } else {
+    } 
+    // B) NEU: Ist es ein Hex-Key? (64 Zeichen, 0-9, a-f)
+    // Das fängt deinen "fa..." String ab!
+    else if (/^[0-9a-fA-F]{64}$/.test(input)) {
+        pubkeyFromInput = input.toLowerCase();
+    }
+    // C) Wenn weder noch -> Dann ist es ein normaler Username
+    else {
       nameFromInput = input.toLowerCase();
+      // Validierung: Namen müssen min. 3 Zeichen haben
       if (nameFromInput.length < 3) { 
           setLoginError(txt('login_error_name')); 
           setIsLoginLoading(false); 
@@ -501,6 +514,7 @@ export default function App() {
       }
     }
 
+    // --- AB HIER BLEIBT ALLES GLEICH ---
     try {
       const hashedPin = await hashPin(loginPin);
       
@@ -514,8 +528,9 @@ export default function App() {
       const { data: existingUser } = await query.single();
 
       if (existingUser) {
+        // User existiert schon
         if (nameFromInput && existingUser.pubkey) { 
-            setLoginError("Dieser Name ist mit Nostr verknüpft. Bitte nutze deinen npub (Schlüssel) zum Login."); 
+            setLoginError("Dieser Name gehört zu einem Nostr-Account. Bitte Key nutzen."); 
             setIsLoginLoading(false); 
             return; 
         }
@@ -528,7 +543,9 @@ export default function App() {
         }
 
       } else {
+        // User ist NEU
         if (pubkeyFromInput) { 
+            // -> Wir leiten weiter zum Setup
             localStorage.setItem('temp_nostr_pin', hashedPin); 
             
             const nostrPic = await fetchNostrImage(pubkeyFromInput);
@@ -538,6 +555,7 @@ export default function App() {
             setIsLoginLoading(false); 
             setView('nostr_setup'); 
         } else {
+             // -> Wir registrieren den normalen Namen
              const { data: nameTaken } = await supabase.from('players').select('*').eq('name', nameFromInput).single();
              if(nameTaken) { 
                  setLoginError(txt('login_error_taken')); 
@@ -550,7 +568,7 @@ export default function App() {
       }
     } catch (err) { 
         console.error(err); 
-        setLoginError("Verbindungsfehler zur Datenbank."); 
+        setLoginError("Datenbankfehler."); 
     } finally { 
         if (!nostrSetupPubkey) setIsLoginLoading(false); 
     }
