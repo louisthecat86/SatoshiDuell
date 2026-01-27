@@ -234,49 +234,52 @@ export default function App() {
     };
   }, [view, selectedAnswer, isMuted]);
 
-// --- AMBER LOGIN CHECK (Android Intent Return) ---
+// --- AMBER LOGIN LISTENER (Fix) ---
   useEffect(() => {
+    // Prüfen ob wir von Amber zurückkommen (?pubkey=... in der URL)
     const params = new URLSearchParams(window.location.search);
-    const amberPubkey = params.get('pubkey'); // Amber sendet ?pubkey=npub...
-    
+    const amberPubkey = params.get('pubkey') || params.get('npub') || params.get('signature'); 
+
     if (amberPubkey) {
-      // URL sauber machen (Parameter entfernen)
+      // URL sauber machen (Parameter verstecken)
       window.history.replaceState({}, document.title, window.location.pathname);
-      
-      // Automatisch einloggen versuchen
-      const tryAmberAuth = async () => {
+
+      const handleAmberReturn = async () => {
         setIsLoginLoading(true);
         try {
           let hexKey = amberPubkey;
-          // Falls Amber npub sendet, in Hex umwandeln
+          
+          // Falls Amber "npub1..." sendet, decodieren wir es zu Hex
           if (amberPubkey.startsWith('npub')) {
-             const { data } = nip19.decode(amberPubkey);
-             hexKey = data;
+             try {
+               const { data } = nip19.decode(amberPubkey);
+               hexKey = data;
+             } catch (e) {
+               console.error("Decode Error", e);
+               return;
+             }
           }
-          
-          // Profilbild holen
+
+          // Ab hier normaler Login Flow
           const nostrPic = await fetchNostrImage(hexKey);
-          
-          // Checken ob User existiert
           const { data: existingUser } = await supabase.from('players').select('*').eq('pubkey', hexKey).single();
-          
+
           if (existingUser) {
-            finishLogin(existingUser.name, hexKey, existingUser.is_admin, nostrPic);
+             finishLogin(existingUser.name, hexKey, existingUser.is_admin, nostrPic);
           } else {
-            // Neuer User Setup
-            setNostrSetupPubkey(hexKey);
-            if(nostrPic) localStorage.setItem('temp_nostr_avatar', nostrPic);
-            setView('nostr_setup');
+             setNostrSetupPubkey(hexKey);
+             if(nostrPic) localStorage.setItem('temp_nostr_avatar', nostrPic);
+             setView('nostr_setup');
           }
         } catch (e) {
-          console.error("Amber Auth Error", e);
+          console.error("Amber Login Error", e);
           setLoginError("Amber Login fehlgeschlagen.");
         } finally {
           setIsLoginLoading(false);
         }
       };
       
-      tryAmberAuth();
+      handleAmberReturn();
     }
   }, []);
 
@@ -550,20 +553,21 @@ const handleExtensionLogin = async () => {
   };
 
 const handleAmberLogin = () => {
-    // 1. Wohin soll Amber zurückspringen? (Unsere aktuelle Seite)
+    // 1. URL bauen
     const callbackUrl = `${window.location.origin}${window.location.pathname}`;
     
-    // 2. VEREINFACHTER LINK: Wir entfernen "compression" und "returnType", 
-    // da diese für das Signieren von Events sind, aber wir wollen nur den Key.
-    const amberUrl = `nostrsigner:?type=get_public_key&callbackUrl=${encodeURIComponent(callbackUrl)}`;
+    // 2. Amber Intent Link (NIP-55)
+    // WICHTIG: 'name' füllt das "null" im Dialog
+    // 'compressionType=none' verhindert Fehler beim Rücksprung
+    const amberUrl = `nostrsigner:?type=get_public_key&name=SatoshiDuell&compressionType=none&callbackUrl=${encodeURIComponent(callbackUrl)}`;
     
     // 3. Öffnen
     window.location.href = amberUrl;
     
-    // 4. Fallback-Meldung (nur sichtbar, wenn der Reload NICHT passiert)
+    // 4. Fallback Timer (nur sichtbar, wenn Amber NICHT zurückspringt)
     setTimeout(() => {
-       setLoginError("Falls Amber nicht öffnet: Installiere 'Amber for Nostr' oder nutze die Extension.");
-    }, 4000); // Zeit etwas erhöht auf 4s, damit es nicht sofort aufblinkt
+       setLoginError("Verbindung fehlgeschlagen. Prüfe, ob 'Amber' installiert und eingerichtet ist.");
+    }, 5000);
   };
 
   const completeNostrRegistration = async (e) => {
