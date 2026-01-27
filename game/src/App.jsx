@@ -2,15 +2,15 @@ import React, { useState, useEffect, useRef } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import {
   Zap, Trophy, Clock, User, Plus, Swords, RefreshCw, Copy, Check,
-  ExternalLink, AlertTriangle, Loader2, LogOut, Fingerprint, Flame, Smartphone,
+  ExternalLink, AlertTriangle, Loader2, LogOut, Fingerprint, Flame,
   History, Coins, Lock, Medal, Share2, Globe, Settings, Save, Heart,
   Github, CheckCircle, RefreshCcw, Rocket, ArrowLeft, Users, AlertCircle,
   Bell, Shield, Search, Link as LinkIcon, PlayCircle, Edit2, 
-  Volume2, VolumeX // <--- Einfach hier am Ende dazu schreiben
+  Volume2, VolumeX, Smartphone // <--- WICHTIG: Smartphone Icon ist hier
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { QRCodeCanvas } from 'qrcode.react';
-import { nip19 } from 'nostr-tools'; 
+import { nip19 } from 'nostr-tools'; // <--- WICHTIG: nip19 für Key-Erkennung
 
 // --- EIGENE IMPORTS ---
 import { TRANSLATIONS } from './translations'; 
@@ -18,7 +18,7 @@ import Button from './components/Button';
 import Card from './components/Card';
 import Background from './components/Background';
 import AdminQuestionManager from './components/AdminQuestionManager';
-import SubmitQuestion from './components/SubmitQuestion'
+import SubmitQuestion from './components/SubmitQuestion';
 
 // --- KONFIGURATION ---
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
@@ -29,7 +29,7 @@ const INVOICE_KEY = import.meta.env.VITE_INVOICE_KEY;
 // 🔥 DEINE DOMAIN
 const MAIN_DOMAIN = "https://satoshiduell.vercel.app"; 
 
-// --- SUPABASE CLIENT (Außerhalb der Komponente = Fix für Warnung) ---
+// --- SUPABASE CLIENT ---
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 // --- KONSTANTEN ---
@@ -45,16 +45,15 @@ async function hashPin(pin) {
   return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
-// Formatiert Namen, damit sie das Layout nicht sprengen
+// Formatiert Namen
 const formatName = (name) => {
   if (!name) return '';
   if (name.length <= 14) return name.toUpperCase();
   return (name.substring(0, 6) + '...' + name.substring(name.length - 4)).toUpperCase();
 };
 
-// --- NEU: AVATAR HELPER ---
+// --- AVATAR HELPER ---
 
-// Holt das Profilbild von Nostr (über nostr.band API)
 const fetchNostrImage = async (pubkey) => {
   if (!pubkey) return null;
   try {
@@ -67,35 +66,30 @@ const fetchNostrImage = async (pubkey) => {
   }
 };
 
-// Generiert einen Roboter-Avatar basierend auf dem Namen
 const getRobotAvatar = (name) => {
   return `https://api.dicebear.com/9.x/bottts-neutral/svg?seed=${name}`;
 };
 
 // --- SOUND & HAPTIK SYSTEM ---
 const playSound = (type, muted = false) => {
-  // 1. HAPTIK (Vibration am Handy)
-  // Nur wenn der Browser es unterstützt (meist Android)
   if (navigator.vibrate) {
-    if (type === 'click') navigator.vibrate(10); // Ganz kurz (haptisches Feedback)
-    if (type === 'correct') navigator.vibrate([50, 50, 50]); // Zweimal kurz
-    if (type === 'wrong') navigator.vibrate(200); // Einmal lang
-    if (type === 'win') navigator.vibrate([100, 50, 100, 50, 200]); // Freudiges Muster
+    if (type === 'click') navigator.vibrate(10);
+    if (type === 'correct') navigator.vibrate([50, 50, 50]);
+    if (type === 'wrong') navigator.vibrate(200);
+    if (type === 'win') navigator.vibrate([100, 50, 100, 50, 200]);
   }
 
-  // 2. AUDIO
-  if (muted) return; // Wenn stummgeschaltet, hier abbrechen
+  if (muted) return;
 
   let file = '';
   if (type === 'click') file = '/click.mp3';
   if (type === 'correct') file = '/correct.mp3';
   if (type === 'wrong') file = '/wrong.mp3';
-  if (type === 'tick') file = '/tick.mp3'; // Optional für Timer
 
   if (file) {
     const audio = new Audio(file);
-    audio.volume = 0.5; // Lautstärke 50%
-    audio.play().catch(e => console.log("Audio play error (user interaction needed first)", e));
+    audio.volume = 0.5;
+    audio.play().catch(e => console.log("Audio play error", e));
   }
 };
 
@@ -103,7 +97,7 @@ const playSound = (type, muted = false) => {
 
 export default function App() {
   // --- STATE MANAGEMENT ---
-  const tickRef = useRef(null); // Speichert den Sound-Player
+  const tickRef = useRef(null); 
   
   const [view, setView] = useState('loading_data'); 
   const [dashboardView, setDashboardView] = useState('home'); 
@@ -111,7 +105,6 @@ export default function App() {
   const [lang, setLang] = useState('de'); 
   const [user, setUser] = useState(null);
 
-  // Liest die Einstellung aus dem Speicher
   const [isMuted, setIsMuted] = useState(() => localStorage.getItem('satoshi_muted') === 'true');
 
   const toggleMute = () => {
@@ -210,57 +203,47 @@ export default function App() {
     });
   };
 
-  // --- INITIALISIERUNG & DEEP LINK ---
-// --- NEUER SOUND PLAYER (Endlos-Schleife) ---
+  // --- SOUND PLAYER EFFECT ---
   useEffect(() => {
-    // Startet das Ticken NUR im Spiel, wenn noch keine Antwort gewählt ist
     if (view === 'game' && selectedAnswer === null && !isMuted) {
       if (!tickRef.current) {
          tickRef.current = new Audio('/tick.mp3'); 
-         tickRef.current.loop = true;  // Wichtig: Endlos abspielen
-         tickRef.current.volume = 0.4; // Lautstärke anpassen
+         tickRef.current.loop = true;  
+         tickRef.current.volume = 0.4; 
       }
-      tickRef.current.play().catch(e => { /* Autoplay Blocked abfangen */ });
+      tickRef.current.play().catch(e => { });
     } else {
-      // Stoppt sofort bei Antwort oder View-Wechsel
       if (tickRef.current) {
         tickRef.current.pause();
-        tickRef.current.currentTime = 0; // Zurückspulen
+        tickRef.current.currentTime = 0; 
       }
     }
-    // Aufräumen beim Verlassen der Komponente
     return () => {
       if (tickRef.current) tickRef.current.pause();
     };
   }, [view, selectedAnswer, isMuted]);
 
-// --- AMBER LOGIN LISTENER (Update) ---
+  // --- AMBER LOGIN LISTENER ---
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    // Amber nutzt manchmal verschiedene Parameter, wir checken alle
     const amberPubkey = params.get('pubkey') || params.get('npub') || params.get('signature'); 
 
     if (amberPubkey) {
-      // 1. URL sofort aufräumen
       window.history.replaceState({}, document.title, window.location.pathname);
 
       const handleAmberReturn = async () => {
         setIsLoginLoading(true);
         try {
           let hexKey = amberPubkey;
-          
-          // Falls es ein npub ist, umwandeln
           if (amberPubkey.startsWith('npub')) {
              try {
                const { data } = nip19.decode(amberPubkey);
                hexKey = data;
              } catch (e) {
-               // Ignorieren oder loggen
                return; 
              }
           }
 
-          // Ab hier normaler Login...
           const nostrPic = await fetchNostrImage(hexKey);
           const { data: existingUser } = await supabase.from('players').select('*').eq('pubkey', hexKey).single();
 
@@ -282,6 +265,7 @@ export default function App() {
     }
   }, []);
 
+  // --- INITIALISIERUNG ---
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const joinId = params.get('join');
@@ -374,7 +358,6 @@ export default function App() {
     if (view === 'dashboard' && user) {
       fetchAllLobbyData();
       
-      // CHECK: Fragen Status (Community Feature)
       const checkSubmissions = async () => {
          const { data } = await supabase
            .from('questions')
@@ -425,16 +408,15 @@ export default function App() {
     }
   }, [view, user]);
 
- // --- TIMER LOGIK (NUR NOCH ZEIT ZÄHLEN) ---
+ // --- TIMER LOGIK ---
   useEffect(() => {
     let timer;
     if (view === 'game' && timeLeft > 0 && selectedAnswer === null) {
       timer = setInterval(() => {
         setTimeLeft(t => {
-          // HIER KEIN playSound MEHR! Nur Mathe:
           return Math.max(0, t - 1); 
         });
-      }, 1000); // Jede Sekunde
+      }, 1000); 
     } else if (view === 'game' && timeLeft <= 0 && selectedAnswer === null) {
       handleAnswer(-1); 
     }
@@ -481,12 +463,12 @@ export default function App() {
     }
   };
 
+  // --- REPARIERTER SMART LOGIN (Name vs. Key Erkennung) ---
   const handleSmartLogin = async (e) => {
     if (e) e.preventDefault(); 
     setLoginError(''); 
     setIsLoginLoading(true);
 
-    // 1. Input putzen (Leerzeichen und 'nostr:' Prefix entfernen)
     let input = loginInput.trim();
     if (input.startsWith('nostr:')) {
         input = input.replace('nostr:', '');
@@ -495,15 +477,12 @@ export default function App() {
     let pubkeyFromInput = null; 
     let nameFromInput = null;
 
-    // PIN Check (Mindestens 4 Zeichen)
     if (loginPin.length < 4) { 
         setLoginError(txt('login_error_pin')); 
         setIsLoginLoading(false); 
         return; 
     }
 
-    // 2. SCHLÜSSEL ERKENNUNG
-    // Prüfen, ob das Eingefügte ein Nostr-Key ist (npub1...)
     if (input.startsWith('npub1')) {
       try { 
           const { type, data } = nip19.decode(input); 
@@ -514,7 +493,6 @@ export default function App() {
           return; 
       }
     } else {
-      // Wenn es KEIN Key ist -> dann ist es ein normaler Username
       nameFromInput = input.toLowerCase();
       if (nameFromInput.length < 3) { 
           setLoginError(txt('login_error_name')); 
@@ -526,7 +504,6 @@ export default function App() {
     try {
       const hashedPin = await hashPin(loginPin);
       
-      // Datenbank prüfen: Kennen wir diesen Key oder Namen schon?
       let query = supabase.from('players').select('*');
       if (pubkeyFromInput) {
           query = query.eq('pubkey', pubkeyFromInput); 
@@ -537,16 +514,13 @@ export default function App() {
       const { data: existingUser } = await query.single();
 
       if (existingUser) {
-        // --- FALL A: User existiert schon ---
         if (nameFromInput && existingUser.pubkey) { 
             setLoginError("Dieser Name ist mit Nostr verknüpft. Bitte nutze deinen npub (Schlüssel) zum Login."); 
             setIsLoginLoading(false); 
             return; 
         }
         
-        // PIN prüfen
         if (existingUser.pin === hashedPin) { 
-            // Profilbild aktualisieren (falls vorhanden)
             const nostrPic = pubkeyFromInput ? await fetchNostrImage(pubkeyFromInput) : null;
             finishLogin(existingUser.name, existingUser.pubkey, existingUser.is_admin, nostrPic); 
         } else { 
@@ -554,23 +528,16 @@ export default function App() {
         }
 
       } else {
-        // --- FALL B: User ist NEU ---
-        
         if (pubkeyFromInput) { 
-            // WICHTIG: Das ist dein Fall!
-            // Du hast einen Key eingefügt, aber bist noch nicht registriert.
-            // -> Wir merken uns den Key und schicken dich zur Namenswahl.
             localStorage.setItem('temp_nostr_pin', hashedPin); 
             
-            // Profilbild vorladen
             const nostrPic = await fetchNostrImage(pubkeyFromInput);
             if(nostrPic) localStorage.setItem('temp_nostr_avatar', nostrPic);
             
             setNostrSetupPubkey(pubkeyFromInput); 
             setIsLoginLoading(false); 
-            setView('nostr_setup'); // <--- Hierhin wirst du weitergeleitet!
+            setView('nostr_setup'); 
         } else {
-            // Normaler User (ohne Nostr) registriert sich
              const { data: nameTaken } = await supabase.from('players').select('*').eq('name', nameFromInput).single();
              if(nameTaken) { 
                  setLoginError(txt('login_error_taken')); 
@@ -585,23 +552,50 @@ export default function App() {
         console.error(err); 
         setLoginError("Verbindungsfehler zur Datenbank."); 
     } finally { 
-        // Ladezustand beenden (außer wir leiten weiter)
         if (!nostrSetupPubkey) setIsLoginLoading(false); 
     }
   };
 
-const handleAmberLogin = () => {
-    // Fehler zurücksetzen
-    setLoginError("");
-    setLoginInput(""); // Feld leeren
+   const finishLogin = (name, pubkey, isAdmin = false, avatar = null) => {
+    const finalAvatar = avatar || getRobotAvatar(name);
+    
+    const userObj = { name, pubkey, isAdmin, avatar: finalAvatar };
+    setUser(userObj); 
+    localStorage.setItem('satoshi_user', JSON.stringify(userObj)); 
+    localStorage.setItem('saved_pin', loginPin); 
+    checkPendingJoinAfterAuth(userObj);
+  };
 
-    // Wir nutzen den "Clipboard"-Modus (keine Callback URL)
-    // Amber kopiert den Key dann automatisch in die Zwischenablage.
+  const handleExtensionLogin = async () => { 
+    if (!window.nostr) return alert("Keine Nostr Extension!"); 
+    try { 
+      const pubkey = await window.nostr.getPublicKey(); 
+      setLoginInput(nip19.npubEncode(pubkey)); 
+      
+      const { data: existingUser } = await supabase.from('players').select('*').eq('pubkey', pubkey).single(); 
+      
+      const nostrPic = await fetchNostrImage(pubkey);
+
+      if (existingUser) {
+        finishLogin(existingUser.name, pubkey, existingUser.is_admin, nostrPic);
+      } else { 
+        setNostrSetupPubkey(pubkey); 
+        if(nostrPic) localStorage.setItem('temp_nostr_avatar', nostrPic);
+        setView('nostr_setup'); 
+      } 
+    } catch (e) { console.error(e); } 
+  };
+
+  // --- AMBER LOGIN (COPY MODE - SICHER) ---
+  const handleAmberLogin = () => {
+    setLoginError("");
+    setLoginInput(""); 
+
+    // Wir nutzen Intent ohne Callback -> Zwingt Amber zum Kopieren
     const intentUrl = "intent:#Intent;scheme=nostrsigner;package=com.greenart7c3.nostrsigner;S.type=get_public_key;end";
     
     window.location.href = intentUrl;
     
-    // Anleitung anzeigen
     setTimeout(() => {
        setLoginError("Dein Key ist in der Zwischenablage! Füge ihn jetzt oben bei 'Nutzername' ein.");
     }, 1500);
@@ -824,7 +818,7 @@ const handleAnswer = (displayIndex) => {
     }
     // --- SAFE GUARD ENDE ---
 
-    // --- SOUND LOGIK START ---
+    // --- SOUND LOGIK START (Nur Effekte, kein Ticken hier) ---
     const originalIndex = roundConfig.order[displayIndex];
     const correctIndex = allQuestions[roundConfig.id].correct;
     const isCorrectCheck = (originalIndex === correctIndex);
@@ -959,7 +953,7 @@ const handleAnswer = (displayIndex) => {
     );
   }
 
-if (view === 'login') {
+  if (view === 'login') {
     return (
       <Background>
         <div className="w-full max-w-sm flex flex-col gap-6 text-center px-4">
@@ -1211,7 +1205,7 @@ if (dashboardView === 'home') {
                           {canRefund ? (
                              <button onClick={() => handleRefund(d)} className="bg-red-500/20 text-red-500 border border-red-500/50 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase hover:bg-red-500 hover:text-white transition-all flex items-center gap-1"><RefreshCcw size={10}/> {txt('btn_refund')}</button>
                           ) : (
-                             <span className="animate-pulse text-green-500/50 uppercase font-black text-[10px]">AKTIV</span>
+                             <span className="animate-pulse text-green-500/50 uppercase font-black
                           )}
                        </div>
                        
