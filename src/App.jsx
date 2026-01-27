@@ -1541,4 +1541,3 @@ if (dashboardView === 'home') {
       </Background>
     ); 
   }
-}
