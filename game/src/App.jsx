@@ -552,23 +552,30 @@ const handleExtensionLogin = async () => {
   };
 
 const handleAmberLogin = () => {
-    // 1. KEIN Ladekringel setzen. 
-    // Grund: Wenn Amber zurückkommt, lädt die Seite eh neu. 
-    // Wenn nicht, sollst du nicht blockiert sein.
+    // 1. Ladezustand anzeigen
+    setIsLoginLoading(true);
     setLoginError(""); 
 
-    // 2. Wohin soll Amber zurückkommen?
+    // 2. Callback URL vorbereiten
     const callbackUrl = `${window.location.origin}${window.location.pathname}`;
     const encodedCallback = encodeURIComponent(callbackUrl);
 
-    // 3. Die "Android Muttersprache" (Intent mit S. Parametern)
-    // S.type = String Parameter "type"
-    // S.callbackUrl = String Parameter "callbackUrl"
-    // S.name = Damit "SatoshiDuell" statt "null" steht
-    const intentUrl = `intent:#Intent;scheme=nostrsigner;package=com.greenart7c3.nostrsigner;S.type=get_public_key;S.name=SatoshiDuell;S.callbackUrl=${encodedCallback};end`;
+    // 3. Der "Panzer"-Link für Android
+    // Wir setzen compressionType=none an ZWEI Stellen, um den Absturz zu verhindern.
+    // Wir entfernen 'package', damit Android selbst die beste App (Amber) sucht.
+    const intentUrl = `intent:?type=get_public_key&compressionType=none&callbackUrl=${encodedCallback}#Intent;scheme=nostrsigner;S.type=get_public_key;S.compressionType=none;S.callbackUrl=${encodedCallback};end`;
 
     // 4. Öffnen
     window.location.href = intentUrl;
+    
+    // 5. Sicherheits-Fallback, falls Amber gar nicht reagiert
+    setTimeout(() => {
+        // Wenn der Browser nach 3 Sek noch da ist, Ladezustand beenden
+        if (!document.hidden) {
+           setIsLoginLoading(false);
+           setLoginError("Keine Rückmeldung von Amber. Bitte versuche es erneut oder kopiere deinen Key manuell.");
+        }
+    }, 4000);
   };
 
   const completeNostrRegistration = async (e) => {
