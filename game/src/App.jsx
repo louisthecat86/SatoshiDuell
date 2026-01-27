@@ -550,20 +550,20 @@ const handleExtensionLogin = async () => {
   };
 
 const handleAmberLogin = () => {
-    // Wir bauen die URL, zu der Amber zurückkehren soll (unsere aktuelle Seite)
+    // 1. Wohin soll Amber zurückspringen? (Unsere aktuelle Seite)
     const callbackUrl = `${window.location.origin}${window.location.pathname}`;
     
-    // Das ist der magische Link für Android (NIP-55)
-    // Wir fragen nach "get_public_key"
-    const amberUrl = `nostrsigner:?compressionType=none&returnType=signature&type=get_public_key&callbackUrl=${encodeURIComponent(callbackUrl)}`;
+    // 2. VEREINFACHTER LINK: Wir entfernen "compression" und "returnType", 
+    // da diese für das Signieren von Events sind, aber wir wollen nur den Key.
+    const amberUrl = `nostrsigner:?type=get_public_key&callbackUrl=${encodeURIComponent(callbackUrl)}`;
     
-    // Versuch, die App zu öffnen
+    // 3. Öffnen
     window.location.href = amberUrl;
     
-    // Hinweis, falls nichts passiert (User hat kein Amber)
+    // 4. Fallback-Meldung (nur sichtbar, wenn der Reload NICHT passiert)
     setTimeout(() => {
        setLoginError("Falls Amber nicht öffnet: Installiere 'Amber for Nostr' oder nutze die Extension.");
-    }, 2500);
+    }, 4000); // Zeit etwas erhöht auf 4s, damit es nicht sofort aufblinkt
   };
 
   const completeNostrRegistration = async (e) => {
