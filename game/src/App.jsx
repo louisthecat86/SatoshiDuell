@@ -482,93 +482,129 @@ export default function App() {
   };
 
   const handleSmartLogin = async (e) => {
-    if (e) e.preventDefault(); setLoginError(''); setIsLoginLoading(true);
-    const input = loginInput.trim();
-    let pubkeyFromInput = null; let nameFromInput = null;
-    if (loginPin.length < 4) { setLoginError(txt('login_error_pin')); setIsLoginLoading(false); return; }
-    if (input.startsWith('npub1')) {
-      try { const { type, data } = nip19.decode(input); if (type === 'npub') pubkeyFromInput = data; } 
-      catch (err) { setLoginError("Invalid NPUB"); setIsLoginLoading(false); return; }
-    } else {
-      nameFromInput = input.toLowerCase();
-      if (nameFromInput.length < 3) { setLoginError(txt('login_error_name')); setIsLoginLoading(false); return; }
+    if (e) e.preventDefault(); 
+    setLoginError(''); 
+    setIsLoginLoading(true);
+
+    // 1. Input putzen (Leerzeichen und 'nostr:' Prefix entfernen)
+    let input = loginInput.trim();
+    if (input.startsWith('nostr:')) {
+        input = input.replace('nostr:', '');
     }
+
+    let pubkeyFromInput = null; 
+    let nameFromInput = null;
+
+    // PIN Check (Mindestens 4 Zeichen)
+    if (loginPin.length < 4) { 
+        setLoginError(txt('login_error_pin')); 
+        setIsLoginLoading(false); 
+        return; 
+    }
+
+    // 2. SCHLÜSSEL ERKENNUNG
+    // Prüfen, ob das Eingefügte ein Nostr-Key ist (npub1...)
+    if (input.startsWith('npub1')) {
+      try { 
+          const { type, data } = nip19.decode(input); 
+          if (type === 'npub') pubkeyFromInput = data; 
+      } catch (err) { 
+          setLoginError("Der eingefügte Key scheint ungültig zu sein."); 
+          setIsLoginLoading(false); 
+          return; 
+      }
+    } else {
+      // Wenn es KEIN Key ist -> dann ist es ein normaler Username
+      nameFromInput = input.toLowerCase();
+      if (nameFromInput.length < 3) { 
+          setLoginError(txt('login_error_name')); 
+          setIsLoginLoading(false); 
+          return; 
+      }
+    }
+
     try {
       const hashedPin = await hashPin(loginPin);
+      
+      // Datenbank prüfen: Kennen wir diesen Key oder Namen schon?
       let query = supabase.from('players').select('*');
-      if (pubkeyFromInput) query = query.eq('pubkey', pubkeyFromInput); else query = query.eq('name', nameFromInput);
-      const { data: existingUser } = await query.single();
-      if (existingUser) {
-        if (nameFromInput && existingUser.pubkey) { setLoginError(txt('login_error_nostr')); setIsLoginLoading(false); return; }
-        if (existingUser.pin === 'nostr-auth' || existingUser.pin === 'extension-auth') { setLoginError(txt('login_error_wrong_pin')); } 
-        else if (existingUser.pin === hashedPin) { 
-            finishLogin(existingUser.name, existingUser.pubkey, existingUser.is_admin); 
-        } 
-        else { setLoginError(txt('login_error_wrong_pin')); }
+      if (pubkeyFromInput) {
+          query = query.eq('pubkey', pubkeyFromInput); 
       } else {
-        if (pubkeyFromInput) { localStorage.setItem('temp_nostr_pin', hashedPin); setNostrSetupPubkey(pubkeyFromInput); setIsLoginLoading(false); setView('nostr_setup'); } 
-        else {
-          const { data: nameTaken } = await supabase.from('players').select('*').eq('name', nameFromInput).single();
-          if(nameTaken) { setLoginError(txt('login_error_taken')); setIsLoginLoading(false); return; }
-          await supabase.from('players').insert([{ name: nameFromInput, pin: hashedPin }]);
-          finishLogin(nameFromInput, null, false);
+          query = query.eq('name', nameFromInput);
+      }
+      
+      const { data: existingUser } = await query.single();
+
+      if (existingUser) {
+        // --- FALL A: User existiert schon ---
+        if (nameFromInput && existingUser.pubkey) { 
+            setLoginError("Dieser Name ist mit Nostr verknüpft. Bitte nutze deinen npub (Schlüssel) zum Login."); 
+            setIsLoginLoading(false); 
+            return; 
+        }
+        
+        // PIN prüfen
+        if (existingUser.pin === hashedPin) { 
+            // Profilbild aktualisieren (falls vorhanden)
+            const nostrPic = pubkeyFromInput ? await fetchNostrImage(pubkeyFromInput) : null;
+            finishLogin(existingUser.name, existingUser.pubkey, existingUser.is_admin, nostrPic); 
+        } else { 
+            setLoginError(txt('login_error_wrong_pin')); 
+        }
+
+      } else {
+        // --- FALL B: User ist NEU ---
+        
+        if (pubkeyFromInput) { 
+            // WICHTIG: Das ist dein Fall!
+            // Du hast einen Key eingefügt, aber bist noch nicht registriert.
+            // -> Wir merken uns den Key und schicken dich zur Namenswahl.
+            localStorage.setItem('temp_nostr_pin', hashedPin); 
+            
+            // Profilbild vorladen
+            const nostrPic = await fetchNostrImage(pubkeyFromInput);
+            if(nostrPic) localStorage.setItem('temp_nostr_avatar', nostrPic);
+            
+            setNostrSetupPubkey(pubkeyFromInput); 
+            setIsLoginLoading(false); 
+            setView('nostr_setup'); // <--- Hierhin wirst du weitergeleitet!
+        } else {
+            // Normaler User (ohne Nostr) registriert sich
+             const { data: nameTaken } = await supabase.from('players').select('*').eq('name', nameFromInput).single();
+             if(nameTaken) { 
+                 setLoginError(txt('login_error_taken')); 
+                 setIsLoginLoading(false); 
+                 return; 
+             }
+             await supabase.from('players').insert([{ name: nameFromInput, pin: hashedPin }]);
+             finishLogin(nameFromInput, null, false);
         }
       }
-    } catch (err) { console.error(err); setLoginError("Error."); } finally { if (!nostrSetupPubkey) setIsLoginLoading(false); }
-  };
-
-   const finishLogin = (name, pubkey, isAdmin = false, avatar = null) => {
-    // Wenn kein echtes Bild da ist, generieren wir einen Roboter aus dem Namen
-    const finalAvatar = avatar || getRobotAvatar(name);
-    
-    const userObj = { name, pubkey, isAdmin, avatar: finalAvatar };
-    setUser(userObj); 
-    localStorage.setItem('satoshi_user', JSON.stringify(userObj)); 
-    localStorage.setItem('saved_pin', loginPin); 
-    checkPendingJoinAfterAuth(userObj);
-  };
-
-const handleExtensionLogin = async () => { 
-    if (!window.nostr) return alert("Keine Nostr Extension!"); 
-    try { 
-      const pubkey = await window.nostr.getPublicKey(); 
-      // Kleiner Trick um das Input Feld zu füllen (optisch)
-      setLoginInput(nip19.npubEncode(pubkey)); 
-      
-      const { data: existingUser } = await supabase.from('players').select('*').eq('pubkey', pubkey).single(); 
-      
-      // --- NEU: Bild holen (im Hintergrund) ---
-      const nostrPic = await fetchNostrImage(pubkey);
-
-      if (existingUser) {
-        finishLogin(existingUser.name, pubkey, existingUser.is_admin, nostrPic);
-      } else { 
-        setNostrSetupPubkey(pubkey); 
-        // Falls wir uns neu registrieren, merken wir uns das Bild temporär
-        if(nostrPic) localStorage.setItem('temp_nostr_avatar', nostrPic);
-        setView('nostr_setup'); 
-      } 
-    } catch (e) { console.error(e); } 
+    } catch (err) { 
+        console.error(err); 
+        setLoginError("Verbindungsfehler zur Datenbank."); 
+    } finally { 
+        // Ladezustand beenden (außer wir leiten weiter)
+        if (!nostrSetupPubkey) setIsLoginLoading(false); 
+    }
   };
 
 const handleAmberLogin = () => {
-    // 1. Wir löschen eventuelle alte Fehler
+    // Fehler zurücksetzen
     setLoginError("");
-    
-    // 2. Wir nutzen den "Clipboard"-Modus von Amber (ohne CallbackUrl)
-    // Wenn man keine CallbackUrl angibt, kopiert Amber das Ergebnis (den npub)
-    // automatisch in die Zwischenablage!
+    setLoginInput(""); // Feld leeren
+
+    // Wir nutzen den "Clipboard"-Modus (keine Callback URL)
+    // Amber kopiert den Key dann automatisch in die Zwischenablage.
     const intentUrl = "intent:#Intent;scheme=nostrsigner;package=com.greenart7c3.nostrsigner;S.type=get_public_key;end";
     
-    // 3. Öffnen
     window.location.href = intentUrl;
     
-    // 4. Hilfestellung anzeigen
+    // Anleitung anzeigen
     setTimeout(() => {
-       // Wir füllen das Input-Feld schon mal optisch, damit der User weiß, wo es hin muss
-       setLoginInput(""); 
-       setLoginError("1. In Amber 'Genehmigen' drücken. 2. Dein Key ist dann in der Zwischenablage. 3. Füge ihn oben bei 'Nutzername' ein!");
-    }, 1000);
+       setLoginError("Dein Key ist in der Zwischenablage! Füge ihn jetzt oben bei 'Nutzername' ein.");
+    }, 1500);
   };
 
   const completeNostrRegistration = async (e) => {
