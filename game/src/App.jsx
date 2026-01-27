@@ -354,17 +354,24 @@ export default function App() {
     }
   }, [view, user]);
 
+ // --- TIMER LOGIK (TICKEN) ---
   useEffect(() => {
     let timer;
+    // Wir ändern das Intervall auf 1000ms (1 Sekunde) für das Ticken
     if (view === 'game' && timeLeft > 0 && selectedAnswer === null) {
       timer = setInterval(() => {
-        setTimeLeft(t => Math.max(0, t - 0.1));
-      }, 100);
+        setTimeLeft(t => {
+          const newTime = Math.max(0, t - 1);
+          // HIER: Das Ticken abspielen
+          playSound('tick', isMuted);
+          return newTime;
+        });
+      }, 1000); // <--- Jetzt jede Sekunde (1000ms)
     } else if (view === 'game' && timeLeft <= 0 && selectedAnswer === null) {
       handleAnswer(-1); 
     }
     return () => clearInterval(timer);
-  }, [view, timeLeft, selectedAnswer]);
+  }, [view, timeLeft, selectedAnswer, isMuted]);
 
   useEffect(() => {
     let interval;
@@ -681,10 +688,40 @@ const handleExtensionLogin = async () => {
 
   const startGame = () => { setCurrentQ(0); setScore(0); setTotalTime(0); setTimeLeft(15.0); setSelectedAnswer(null); setIsProcessingGame(false); setView('game'); };
 
-  const handleAnswer = (displayIndex) => {
+const handleAnswer = (displayIndex) => {
     if (selectedAnswer !== null) return; 
+    
+    // --- SOUND LOGIK START ---
+    // Wir prüfen sofort, ob es richtig ist, um den Sound zu spielen
+    const roundConfig = gameData[currentQ];
+    // Sicherheitscheck
+    if (!allQuestions[roundConfig.id]) return;
+
+    const originalIndex = roundConfig.order[displayIndex];
+    const correctIndex = allQuestions[roundConfig.id].correct;
+    const isCorrectCheck = (originalIndex === correctIndex);
+
+    if (isCorrectCheck) {
+        playSound('correct', isMuted); // PING!
+    } else {
+        playSound('wrong', isMuted);   // BUZZ!
+    }
+    // --------------------------
+
     setSelectedAnswer(displayIndex);
     setTotalTime(prev => prev + (15.0 - timeLeft)); 
+    
+    if (isCorrectCheck) setScore(s => s + 1);
+    
+    setTimeout(() => {
+      if (currentQ < 4) { setCurrentQ(p => p + 1); setTimeLeft(15.0); setSelectedAnswer(null); } 
+      else { 
+          // Sieg-Sound am Ende (optional)
+          if ((isCorrectCheck ? score + 1 : score) >= 3) playSound('correct', isMuted);
+          finishGameLogic(isCorrectCheck ? score + 1 : score); 
+      }
+    }, 2000); 
+  };
     
     // SAFE GUARD: Existiert die Frage überhaupt?
     const roundConfig = gameData[currentQ];
