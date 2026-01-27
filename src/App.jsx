@@ -18,15 +18,20 @@ export default function App() {
   const [timeLeft, setTimeLeft] = useState(15);
   const [totalTime, setTotalTime] = useState(0);
 
+// --- TIMER LOGIK (TICKEN) ---
   useEffect(() => {
     let timer;
     if (screen === 'quiz' && timeLeft > 0) {
-      timer = setInterval(() => setTimeLeft((t) => t - 1), 1000);
+      timer = setInterval(() => {
+        setTimeLeft((t) => t - 1);
+        // Spielt den Sound ab (wenn nicht stumm)
+        playSound('tick', isMuted);
+      }, 1000);
     } else if (screen === 'quiz' && timeLeft === 0) {
-      handleAnswer(-1);
+      handleAnswer(-1); // Zeit abgelaufen
     }
     return () => clearInterval(timer);
-  }, [screen, timeLeft]);
+  }, [screen, timeLeft, isMuted]);
 
   const startDuel = () => {
     setScreen('loading');
@@ -41,29 +46,33 @@ export default function App() {
   };
 
 const handleAnswer = (index) => {
+    // --- SOUND LOGIK START ---
+    // Wir prüfen sofort, ob es richtig ist
+    const isCorrect = (index === QUESTIONS[currentQ].correct);
+
+    if (isCorrect) {
+       playSound('correct', isMuted); // PING!
+    } else {
+       playSound('wrong', isMuted);   // BUZZ!
+    }
+    // --- SOUND LOGIK ENDE ---
+
     const timeTaken = 15 - timeLeft;
     setTotalTime(prev => prev + timeTaken);
     
-    // --- ÄNDERUNG START: Sound für Richtig/Falsch ---
-    if (index === QUESTIONS[currentQ].correct) {
-       setScore(s => s + 1);
-       playSound('correct', isMuted); // Juhu!
-    } else {
-       playSound('wrong', isMuted);   // Mööp!
-    }
-    // --- ÄNDERUNG ENDE ---
+    // Punkte vergeben
+    if (isCorrect) setScore(s => s + 1);
 
+    // Nächste Frage oder Ergebnis
     if (currentQ < QUESTIONS.length - 1) {
       setCurrentQ(prev => prev + 1);
       setTimeLeft(15);
     } else {
       setScreen('result');
-      // Kleiner Fix: Wir checken hier "score + 1" falls die letzte Frage richtig war, 
-      // da der State "score" manchmal zu langsam updated.
-      // Aber für den Sound reicht deine Logik erstmal:
-      if (score >= 3) {
+      // Sieg-Fanfare (Konfetti & Sound)
+      if (score + (isCorrect ? 1 : 0) >= 3) {
          confetti();
-         playSound('correct', isMuted); // Nochmal Jubel beim Sieg!
+         playSound('correct', isMuted); 
       }
     }
   };
