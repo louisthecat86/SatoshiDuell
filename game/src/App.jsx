@@ -553,21 +553,22 @@ const handleExtensionLogin = async () => {
   };
 
 const handleAmberLogin = () => {
-    // 1. URL bauen
+    // 1. Die URL, zu der Amber zurückkommen soll (deine Webseite)
+    // Wir nehmen nur Origin + Path (ohne ?Parameter), damit es sauber ist
     const callbackUrl = `${window.location.origin}${window.location.pathname}`;
     
-    // 2. Amber Intent Link (NIP-55)
-    // WICHTIG: 'name' füllt das "null" im Dialog
-    // 'compressionType=none' verhindert Fehler beim Rücksprung
-    const amberUrl = `nostrsigner:?type=get_public_key&name=SatoshiDuell&compressionType=none&callbackUrl=${encodeURIComponent(callbackUrl)}`;
+    // 2. Der Link für Amber (NIP-55)
+    // Wir fragen NUR nach "get_public_key" und geben deinen App-Namen mit.
+    // Keine compression, keine signature types -> Das verhindert den Crash.
+    const amberUrl = `nostrsigner:?type=get_public_key&name=SatoshiDuell&callbackUrl=${encodeURIComponent(callbackUrl)}`;
     
     // 3. Öffnen
     window.location.href = amberUrl;
     
-    // 4. Fallback Timer (nur sichtbar, wenn Amber NICHT zurückspringt)
+    // 4. Fallback, falls Amber nicht installiert ist
     setTimeout(() => {
-       setLoginError("Verbindung fehlgeschlagen. Prüfe, ob 'Amber' installiert und eingerichtet ist.");
-    }, 5000);
+       setLoginError("Verbindung fehlgeschlagen. Ist Amber installiert?");
+    }, 4000);
   };
 
   const completeNostrRegistration = async (e) => {
