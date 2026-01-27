@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import {
   Zap, Trophy, Clock, User, Plus, Swords, RefreshCw, Copy, Check,
-  ExternalLink, AlertTriangle, Loader2, LogOut, Fingerprint, Flame,
+  ExternalLink, AlertTriangle, Loader2, LogOut, Fingerprint, Flame, Smartphone,
   History, Coins, Lock, Medal, Share2, Globe, Settings, Save, Heart,
   Github, CheckCircle, RefreshCcw, Rocket, ArrowLeft, Users, AlertCircle,
   Bell, Shield, Search, Link as LinkIcon, PlayCircle, Edit2, 
@@ -233,6 +233,52 @@ export default function App() {
       if (tickRef.current) tickRef.current.pause();
     };
   }, [view, selectedAnswer, isMuted]);
+
+// --- AMBER LOGIN CHECK (Android Intent Return) ---
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const amberPubkey = params.get('pubkey'); // Amber sendet ?pubkey=npub...
+    
+    if (amberPubkey) {
+      // URL sauber machen (Parameter entfernen)
+      window.history.replaceState({}, document.title, window.location.pathname);
+      
+      // Automatisch einloggen versuchen
+      const tryAmberAuth = async () => {
+        setIsLoginLoading(true);
+        try {
+          let hexKey = amberPubkey;
+          // Falls Amber npub sendet, in Hex umwandeln
+          if (amberPubkey.startsWith('npub')) {
+             const { data } = nip19.decode(amberPubkey);
+             hexKey = data;
+          }
+          
+          // Profilbild holen
+          const nostrPic = await fetchNostrImage(hexKey);
+          
+          // Checken ob User existiert
+          const { data: existingUser } = await supabase.from('players').select('*').eq('pubkey', hexKey).single();
+          
+          if (existingUser) {
+            finishLogin(existingUser.name, hexKey, existingUser.is_admin, nostrPic);
+          } else {
+            // Neuer User Setup
+            setNostrSetupPubkey(hexKey);
+            if(nostrPic) localStorage.setItem('temp_nostr_avatar', nostrPic);
+            setView('nostr_setup');
+          }
+        } catch (e) {
+          console.error("Amber Auth Error", e);
+          setLoginError("Amber Login fehlgeschlagen.");
+        } finally {
+          setIsLoginLoading(false);
+        }
+      };
+      
+      tryAmberAuth();
+    }
+  }, []);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -501,6 +547,23 @@ const handleExtensionLogin = async () => {
         setView('nostr_setup'); 
       } 
     } catch (e) { console.error(e); } 
+  };
+
+const handleAmberLogin = () => {
+    // Wir bauen die URL, zu der Amber zurückkehren soll (unsere aktuelle Seite)
+    const callbackUrl = `${window.location.origin}${window.location.pathname}`;
+    
+    // Das ist der magische Link für Android (NIP-55)
+    // Wir fragen nach "get_public_key"
+    const amberUrl = `nostrsigner:?compressionType=none&returnType=signature&type=get_public_key&callbackUrl=${encodeURIComponent(callbackUrl)}`;
+    
+    // Versuch, die App zu öffnen
+    window.location.href = amberUrl;
+    
+    // Hinweis, falls nichts passiert (User hat kein Amber)
+    setTimeout(() => {
+       setLoginError("Falls Amber nicht öffnet: Installiere 'Amber for Nostr' oder nutze die Extension.");
+    }, 2500);
   };
 
   const completeNostrRegistration = async (e) => {
@@ -855,7 +918,7 @@ const handleAnswer = (displayIndex) => {
     );
   }
 
-  if (view === 'login') {
+if (view === 'login') {
     return (
       <Background>
         <div className="w-full max-w-sm flex flex-col gap-6 text-center px-4">
@@ -863,14 +926,27 @@ const handleAnswer = (displayIndex) => {
              <div className="relative mb-4"><div className="absolute inset-0 bg-orange-500 blur-[50px] opacity-20 rounded-full"></div><img src="/logo.png" alt="Satoshi Duell" className="relative w-48 h-48 object-contain drop-shadow-2xl mx-auto" /></div>
              <h1 className="text-5xl font-black text-white tracking-tighter italic uppercase drop-shadow-md">SATOSHI<span className="text-orange-500">DUELL</span></h1>
           </div>
+          
           <form onSubmit={handleSmartLogin} className="flex flex-col gap-4 mt-2">
             <input type="text" placeholder={txt('login_placeholder')} value={loginInput} onChange={(e) => setLoginInput(e.target.value)} className="w-full p-4 rounded-xl bg-[#0a0a0a] border border-white/10 text-white outline-none focus:border-orange-500 focus:bg-black transition-all font-bold uppercase text-center shadow-lg placeholder:text-neutral-600"/>
             <input type="password" placeholder={txt('pin_placeholder')} value={loginPin} onChange={(e) => setLoginPin(e.target.value)} className="w-full p-4 rounded-xl bg-[#0a0a0a] border border-white/10 text-white outline-none focus:border-orange-500 focus:bg-black transition-all font-bold text-center shadow-lg placeholder:text-neutral-600"/>
             {loginError && <p className="text-red-500 text-xs font-bold">{loginError}</p>}
             <Button variant="primary" onClick={handleSmartLogin} disabled={isLoginLoading}>{isLoginLoading ? <Loader2 className="animate-spin mx-auto"/> : txt('login_btn')}</Button>
           </form>
-          <div className="relative py-2 text-center"><span className="relative bg-[#1a1a1a] px-3 text-[10px] uppercase font-bold text-neutral-600 rounded">Option</span></div>
-          <Button variant="secondary" onClick={handleExtensionLogin}><Fingerprint size={18}/> {txt('btn_nostr_ext')}</Button>
+          
+          <div className="relative py-2 text-center"><span className="relative bg-[#1a1a1a] px-3 text-[10px] uppercase font-bold text-neutral-600 rounded">Optionen</span></div>
+          
+          {/* NEU: GRID FÜR BEIDE BUTTONS */}
+          <div className="grid grid-cols-2 gap-2">
+            <Button variant="secondary" onClick={handleExtensionLogin} className="text-[10px] py-3 flex items-center justify-center gap-2">
+              <Fingerprint size={16}/> Extension
+            </Button>
+            
+            <Button variant="secondary" onClick={handleAmberLogin} className="text-[10px] py-3 bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 border border-purple-500/20 flex items-center justify-center gap-2">
+              <Smartphone size={16}/> Amber App
+            </Button>
+          </div>
+          
           <button onClick={() => setView('language_select')} className="text-neutral-500 text-xs uppercase font-bold mt-4 hover:text-white">Back / Zurück 🌐</button>
         </div>
       </Background>
