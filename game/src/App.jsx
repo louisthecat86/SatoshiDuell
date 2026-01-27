@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import {
   Zap, Trophy, Clock, User, Plus, Swords, RefreshCw, Copy, Check,
@@ -103,6 +103,7 @@ const playSound = (type, muted = false) => {
 
 export default function App() {
   // --- STATE MANAGEMENT ---
+  const tickRef = useRef(null); // Speichert den Sound-Player
   
   const [view, setView] = useState('loading_data'); 
   const [dashboardView, setDashboardView] = useState('home'); 
@@ -210,6 +211,28 @@ export default function App() {
   };
 
   // --- INITIALISIERUNG & DEEP LINK ---
+// --- NEUER SOUND PLAYER (Endlos-Schleife) ---
+  useEffect(() => {
+    // Startet das Ticken NUR im Spiel, wenn noch keine Antwort gewählt ist
+    if (view === 'game' && selectedAnswer === null && !isMuted) {
+      if (!tickRef.current) {
+         tickRef.current = new Audio('/tick.mp3'); 
+         tickRef.current.loop = true;  // Wichtig: Endlos abspielen
+         tickRef.current.volume = 0.4; // Lautstärke anpassen
+      }
+      tickRef.current.play().catch(e => { /* Autoplay Blocked abfangen */ });
+    } else {
+      // Stoppt sofort bei Antwort oder View-Wechsel
+      if (tickRef.current) {
+        tickRef.current.pause();
+        tickRef.current.currentTime = 0; // Zurückspulen
+      }
+    }
+    // Aufräumen beim Verlassen der Komponente
+    return () => {
+      if (tickRef.current) tickRef.current.pause();
+    };
+  }, [view, selectedAnswer, isMuted]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -354,24 +377,21 @@ export default function App() {
     }
   }, [view, user]);
 
- // --- TIMER LOGIK (TICKEN) ---
+ // --- TIMER LOGIK (NUR NOCH ZEIT ZÄHLEN) ---
   useEffect(() => {
     let timer;
-    // Wir ändern das Intervall auf 1000ms (1 Sekunde) für das Ticken
     if (view === 'game' && timeLeft > 0 && selectedAnswer === null) {
       timer = setInterval(() => {
         setTimeLeft(t => {
-          const newTime = Math.max(0, t - 1);
-          // HIER: Das Ticken abspielen
-          playSound('tick', isMuted);
-          return newTime;
+          // HIER KEIN playSound MEHR! Nur Mathe:
+          return Math.max(0, t - 1); 
         });
-      }, 1000); // <--- Jetzt jede Sekunde (1000ms)
+      }, 1000); // Jede Sekunde
     } else if (view === 'game' && timeLeft <= 0 && selectedAnswer === null) {
       handleAnswer(-1); 
     }
     return () => clearInterval(timer);
-  }, [view, timeLeft, selectedAnswer, isMuted]);
+  }, [view, timeLeft, selectedAnswer]);
 
   useEffect(() => {
     let interval;
