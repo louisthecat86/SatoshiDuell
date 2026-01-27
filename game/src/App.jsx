@@ -234,14 +234,14 @@ export default function App() {
     };
   }, [view, selectedAnswer, isMuted]);
 
-// --- AMBER LOGIN LISTENER (Fix) ---
+// --- AMBER LOGIN LISTENER (Update) ---
   useEffect(() => {
-    // Prüfen ob wir von Amber zurückkommen (?pubkey=... in der URL)
     const params = new URLSearchParams(window.location.search);
+    // Amber nutzt manchmal verschiedene Parameter, wir checken alle
     const amberPubkey = params.get('pubkey') || params.get('npub') || params.get('signature'); 
 
     if (amberPubkey) {
-      // URL sauber machen (Parameter verstecken)
+      // 1. URL sofort aufräumen
       window.history.replaceState({}, document.title, window.location.pathname);
 
       const handleAmberReturn = async () => {
@@ -249,18 +249,18 @@ export default function App() {
         try {
           let hexKey = amberPubkey;
           
-          // Falls Amber "npub1..." sendet, decodieren wir es zu Hex
+          // Falls es ein npub ist, umwandeln
           if (amberPubkey.startsWith('npub')) {
              try {
                const { data } = nip19.decode(amberPubkey);
                hexKey = data;
              } catch (e) {
-               console.error("Decode Error", e);
-               return;
+               // Ignorieren oder loggen
+               return; 
              }
           }
 
-          // Ab hier normaler Login Flow
+          // Ab hier normaler Login...
           const nostrPic = await fetchNostrImage(hexKey);
           const { data: existingUser } = await supabase.from('players').select('*').eq('pubkey', hexKey).single();
 
@@ -273,7 +273,6 @@ export default function App() {
           }
         } catch (e) {
           console.error("Amber Login Error", e);
-          setLoginError("Amber Login fehlgeschlagen.");
         } finally {
           setIsLoginLoading(false);
         }
@@ -553,26 +552,25 @@ const handleExtensionLogin = async () => {
   };
 
 const handleAmberLogin = () => {
-    // 1. Wohin soll Amber zurückspringen?
+    // 1. Status auf "Laden" setzen (damit der User sieht, dass was passiert)
+    setIsLoginLoading(true);
+    setLoginError(""); 
+
+    // 2. Wohin soll Amber zurückkommen? (Deine Startseite)
     const callbackUrl = `${window.location.origin}${window.location.pathname}`;
-    
-    // 2. Encode die URL (Sonderzeichen sicher machen)
     const encodedCallback = encodeURIComponent(callbackUrl);
 
-    // 3. Der "Intent"-Link (Die Brechstange für Android)
-    // Wir sagen Android explizit: "Suche die App com.greenart7c3.nostrsigner (Amber) und gib ihr diese Daten"
-    const intentUrl = `intent:?type=get_public_key&callbackUrl=${encodedCallback}#Intent;scheme=nostrsigner;package=com.greenart7c3.nostrsigner;end`;
-    
-    // 4. Versuchen zu öffnen
+    // 3. Der Link (Kombination aus dem, was funktioniert hat + Fix für den Rückweg)
+    // - intent:... öffnet die App zuverlässig (hat bei dir geklappt)
+    // - compressionType=none verhindert Fehler beim Zurücksenden der Daten
+    const intentUrl = `intent:?type=get_public_key&compressionType=none&callbackUrl=${encodedCallback}#Intent;scheme=nostrsigner;package=com.greenart7c3.nostrsigner;end`;
+
+    // 4. Feuer frei!
     window.location.href = intentUrl;
-    
-    // 5. Fehlermeldung etwas verzögern (falls das Handy langsam ist)
-    setTimeout(() => {
-        // Wir prüfen, ob die Seite noch aktiv ist (einfacher Check)
-        if (!document.hidden) {
-           setLoginError("Konnte Amber nicht finden. Ist die App installiert?");
-        }
-    }, 3000);
+
+    // WICHTIG: Wir machen hier KEINEN Timeout mehr, der Fehler anzeigt.
+    // Wenn Amber aufgeht, lädt die Seite danach eh neu.
+    // Falls Amber NICHT aufgeht, bleibt einfach der Lade-Kringel (besser als falscher Fehler).
   };
 
   const completeNostrRegistration = async (e) => {
