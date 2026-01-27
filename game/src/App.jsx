@@ -691,28 +691,32 @@ const handleExtensionLogin = async () => {
 const handleAnswer = (displayIndex) => {
     if (selectedAnswer !== null) return; 
     
-    // --- SOUND LOGIK START ---
-    // Wir prüfen sofort, ob es richtig ist, um den Sound zu spielen
+    // --- SAFE GUARD START: Existiert die Frage überhaupt? ---
     const roundConfig = gameData[currentQ];
-    // Sicherheitscheck
-    if (!allQuestions[roundConfig.id]) return;
+    // Falls Frage fehlt: Nicht crashen, sondern abbrechen
+    if (!allQuestions[roundConfig.id]) {
+        console.error("Frage fehlt in DB!");
+        return;
+    }
+    // --- SAFE GUARD ENDE ---
 
+    // --- SOUND LOGIK START ---
     const originalIndex = roundConfig.order[displayIndex];
     const correctIndex = allQuestions[roundConfig.id].correct;
     const isCorrectCheck = (originalIndex === correctIndex);
 
     if (isCorrectCheck) {
-        playSound('correct', isMuted); // PING!
+       playSound('correct', isMuted); // PING!
     } else {
-        playSound('wrong', isMuted);   // BUZZ!
+       playSound('wrong', isMuted);   // BUZZ!
     }
-    // --------------------------
+    // --- SOUND LOGIK ENDE ---
 
     setSelectedAnswer(displayIndex);
     setTotalTime(prev => prev + (15.0 - timeLeft)); 
     
     if (isCorrectCheck) setScore(s => s + 1);
-    
+
     setTimeout(() => {
       if (currentQ < 4) { setCurrentQ(p => p + 1); setTimeLeft(15.0); setSelectedAnswer(null); } 
       else { 
@@ -720,27 +724,6 @@ const handleAnswer = (displayIndex) => {
           if ((isCorrectCheck ? score + 1 : score) >= 3) playSound('correct', isMuted);
           finishGameLogic(isCorrectCheck ? score + 1 : score); 
       }
-    }, 2000); 
-  };
-    
-    // SAFE GUARD: Existiert die Frage überhaupt?
-    const roundConfig = gameData[currentQ];
-    if (!allQuestions[roundConfig.id]) {
-       // Wenn Frage fehlt: Nicht crashen, sondern als "falsch" werten und weitermachen
-       setTimeout(() => {
-         if (currentQ < 4) { setCurrentQ(p => p + 1); setTimeLeft(15.0); setSelectedAnswer(null); } 
-         else { finishGameLogic(score); }
-       }, 500);
-       return;
-    }
-
-    const originalIndex = roundConfig.order[displayIndex];
-    const correctIndex = allQuestions[roundConfig.id].correct;
-    const isCorrect = (originalIndex === correctIndex);
-    if (isCorrect) setScore(s => s + 1);
-    setTimeout(() => {
-      if (currentQ < 4) { setCurrentQ(p => p + 1); setTimeLeft(15.0); setSelectedAnswer(null); } 
-      else { finishGameLogic(isCorrect ? score + 1 : score); }
     }, 2000);
   };
 
