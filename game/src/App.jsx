@@ -1539,6 +1539,7 @@ if (dashboardView === 'home') {
             )}
          </div>
       </Background>
-    ); 
-  }
-}
+    ); // Ende vom return
+  } // Ende von if result_final
+  //FIX VERCEL BUILD
+} // Ende von App
