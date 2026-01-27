@@ -552,30 +552,23 @@ const handleExtensionLogin = async () => {
   };
 
 const handleAmberLogin = () => {
-    // 1. Ladezustand anzeigen
-    setIsLoginLoading(true);
-    setLoginError(""); 
-
-    // 2. Callback URL vorbereiten
-    const callbackUrl = `${window.location.origin}${window.location.pathname}`;
-    const encodedCallback = encodeURIComponent(callbackUrl);
-
-    // 3. Der "Panzer"-Link für Android
-    // Wir setzen compressionType=none an ZWEI Stellen, um den Absturz zu verhindern.
-    // Wir entfernen 'package', damit Android selbst die beste App (Amber) sucht.
-    const intentUrl = `intent:?type=get_public_key&compressionType=none&callbackUrl=${encodedCallback}#Intent;scheme=nostrsigner;S.type=get_public_key;S.compressionType=none;S.callbackUrl=${encodedCallback};end`;
-
-    // 4. Öffnen
+    // 1. Wir löschen eventuelle alte Fehler
+    setLoginError("");
+    
+    // 2. Wir nutzen den "Clipboard"-Modus von Amber (ohne CallbackUrl)
+    // Wenn man keine CallbackUrl angibt, kopiert Amber das Ergebnis (den npub)
+    // automatisch in die Zwischenablage!
+    const intentUrl = "intent:#Intent;scheme=nostrsigner;package=com.greenart7c3.nostrsigner;S.type=get_public_key;end";
+    
+    // 3. Öffnen
     window.location.href = intentUrl;
     
-    // 5. Sicherheits-Fallback, falls Amber gar nicht reagiert
+    // 4. Hilfestellung anzeigen
     setTimeout(() => {
-        // Wenn der Browser nach 3 Sek noch da ist, Ladezustand beenden
-        if (!document.hidden) {
-           setIsLoginLoading(false);
-           setLoginError("Keine Rückmeldung von Amber. Bitte versuche es erneut oder kopiere deinen Key manuell.");
-        }
-    }, 4000);
+       // Wir füllen das Input-Feld schon mal optisch, damit der User weiß, wo es hin muss
+       setLoginInput(""); 
+       setLoginError("1. In Amber 'Genehmigen' drücken. 2. Dein Key ist dann in der Zwischenablage. 3. Füge ihn oben bei 'Nutzername' ein!");
+    }, 1000);
   };
 
   const completeNostrRegistration = async (e) => {
