@@ -553,22 +553,26 @@ const handleExtensionLogin = async () => {
   };
 
 const handleAmberLogin = () => {
-    // 1. Die URL, zu der Amber zurückkommen soll (deine Webseite)
-    // Wir nehmen nur Origin + Path (ohne ?Parameter), damit es sauber ist
+    // 1. Wohin soll Amber zurückspringen?
     const callbackUrl = `${window.location.origin}${window.location.pathname}`;
     
-    // 2. Der Link für Amber (NIP-55)
-    // Wir fragen NUR nach "get_public_key" und geben deinen App-Namen mit.
-    // Keine compression, keine signature types -> Das verhindert den Crash.
-    const amberUrl = `nostrsigner:?type=get_public_key&name=SatoshiDuell&callbackUrl=${encodeURIComponent(callbackUrl)}`;
+    // 2. Encode die URL (Sonderzeichen sicher machen)
+    const encodedCallback = encodeURIComponent(callbackUrl);
+
+    // 3. Der "Intent"-Link (Die Brechstange für Android)
+    // Wir sagen Android explizit: "Suche die App com.greenart7c3.nostrsigner (Amber) und gib ihr diese Daten"
+    const intentUrl = `intent:?type=get_public_key&callbackUrl=${encodedCallback}#Intent;scheme=nostrsigner;package=com.greenart7c3.nostrsigner;end`;
     
-    // 3. Öffnen
-    window.location.href = amberUrl;
+    // 4. Versuchen zu öffnen
+    window.location.href = intentUrl;
     
-    // 4. Fallback, falls Amber nicht installiert ist
+    // 5. Fehlermeldung etwas verzögern (falls das Handy langsam ist)
     setTimeout(() => {
-       setLoginError("Verbindung fehlgeschlagen. Ist Amber installiert?");
-    }, 4000);
+        // Wir prüfen, ob die Seite noch aktiv ist (einfacher Check)
+        if (!document.hidden) {
+           setLoginError("Konnte Amber nicht finden. Ist die App installiert?");
+        }
+    }, 3000);
   };
 
   const completeNostrRegistration = async (e) => {
