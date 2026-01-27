@@ -552,25 +552,23 @@ const handleExtensionLogin = async () => {
   };
 
 const handleAmberLogin = () => {
-    // 1. Status auf "Laden" setzen (damit der User sieht, dass was passiert)
-    setIsLoginLoading(true);
+    // 1. KEIN Ladekringel setzen. 
+    // Grund: Wenn Amber zurückkommt, lädt die Seite eh neu. 
+    // Wenn nicht, sollst du nicht blockiert sein.
     setLoginError(""); 
 
-    // 2. Wohin soll Amber zurückkommen? (Deine Startseite)
+    // 2. Wohin soll Amber zurückkommen?
     const callbackUrl = `${window.location.origin}${window.location.pathname}`;
     const encodedCallback = encodeURIComponent(callbackUrl);
 
-    // 3. Der Link (Kombination aus dem, was funktioniert hat + Fix für den Rückweg)
-    // - intent:... öffnet die App zuverlässig (hat bei dir geklappt)
-    // - compressionType=none verhindert Fehler beim Zurücksenden der Daten
-    const intentUrl = `intent:?type=get_public_key&compressionType=none&callbackUrl=${encodedCallback}#Intent;scheme=nostrsigner;package=com.greenart7c3.nostrsigner;end`;
+    // 3. Die "Android Muttersprache" (Intent mit S. Parametern)
+    // S.type = String Parameter "type"
+    // S.callbackUrl = String Parameter "callbackUrl"
+    // S.name = Damit "SatoshiDuell" statt "null" steht
+    const intentUrl = `intent:#Intent;scheme=nostrsigner;package=com.greenart7c3.nostrsigner;S.type=get_public_key;S.name=SatoshiDuell;S.callbackUrl=${encodedCallback};end`;
 
-    // 4. Feuer frei!
+    // 4. Öffnen
     window.location.href = intentUrl;
-
-    // WICHTIG: Wir machen hier KEINEN Timeout mehr, der Fehler anzeigt.
-    // Wenn Amber aufgeht, lädt die Seite danach eh neu.
-    // Falls Amber NICHT aufgeht, bleibt einfach der Lade-Kringel (besser als falscher Fehler).
   };
 
   const completeNostrRegistration = async (e) => {
