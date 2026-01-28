@@ -6,11 +6,11 @@ import {
   History, Coins, Lock, Medal, Share2, Globe, Settings, Save, Heart,
   Github, CheckCircle, RefreshCcw, Rocket, ArrowLeft, Users, AlertCircle,
   Bell, Shield, Search, Link as LinkIcon, PlayCircle, Edit2, 
-  Volume2, VolumeX, Smartphone, Upload // <--- WICHTIG: Smartphone Icon ist hier
+  Volume2, VolumeX, Smartphone, Upload
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { QRCodeCanvas } from 'qrcode.react';
-import { nip19 } from 'nostr-tools'; // <--- WICHTIG: nip19 für Key-Erkennung
+import { nip19 } from 'nostr-tools';
 
 // --- EIGENE IMPORTS ---
 import { TRANSLATIONS } from './translations'; 
@@ -45,7 +45,6 @@ async function hashPin(pin) {
   return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
-// Formatiert Namen
 const formatName = (name) => {
   if (!name) return '';
   if (name.length <= 14) return name.toUpperCase();
@@ -142,7 +141,7 @@ export default function App() {
   
   const [publicDuels, setPublicDuels] = useState([]);      
   const [targetedDuels, setTargetedDuels] = useState([]); 
-  const [myDuels, setMyDuels] = useState([]);              
+  const [myDuels, setMyDuels] = useState([]);             
   
   const [activeDuel, setActiveDuel] = useState(null);
   const [role, setRole] = useState(null); 
@@ -471,7 +470,6 @@ export default function App() {
 
     // 1. Input putzen
     let input = loginInput.trim();
-    // Falls jemand versehentlich "nostr:npub..." oder "nostr:hex..." eingibt
     if (input.startsWith('nostr:')) {
         input = input.replace('nostr:', '');
     }
@@ -485,7 +483,7 @@ export default function App() {
         return; 
     }
 
-    // --- SCHLÜSSEL ERKENNUNG (JETZT VERBESSERT) ---
+    // --- SCHLÜSSEL ERKENNUNG ---
     
     // A) Ist es ein Bech32 Code (npub1...)?
     if (input.startsWith('npub1')) {
@@ -498,15 +496,13 @@ export default function App() {
           return; 
       }
     } 
-    // B) NEU: Ist es ein Hex-Key? (64 Zeichen, 0-9, a-f)
-    // Das fängt deinen "fa..." String ab!
+    // B) Ist es ein Hex-Key?
     else if (/^[0-9a-fA-F]{64}$/.test(input)) {
         pubkeyFromInput = input.toLowerCase();
     }
-    // C) Wenn weder noch -> Dann ist es ein normaler Username
+    // C) Normaler Username
     else {
       nameFromInput = input.toLowerCase();
-      // Validierung: Namen müssen min. 3 Zeichen haben
       if (nameFromInput.length < 3) { 
           setLoginError(txt('login_error_name')); 
           setIsLoginLoading(false); 
@@ -514,7 +510,6 @@ export default function App() {
       }
     }
 
-    // --- AB HIER BLEIBT ALLES GLEICH ---
     try {
       const hashedPin = await hashPin(loginPin);
       
@@ -528,7 +523,6 @@ export default function App() {
       const { data: existingUser } = await query.single();
 
       if (existingUser) {
-        // User existiert schon
         if (nameFromInput && existingUser.pubkey) { 
             setLoginError("Dieser Name gehört zu einem Nostr-Account. Bitte Key nutzen."); 
             setIsLoginLoading(false); 
@@ -545,7 +539,6 @@ export default function App() {
       } else {
         // User ist NEU
         if (pubkeyFromInput) { 
-            // -> Wir leiten weiter zum Setup
             localStorage.setItem('temp_nostr_pin', hashedPin); 
             
             const nostrPic = await fetchNostrImage(pubkeyFromInput);
@@ -555,7 +548,6 @@ export default function App() {
             setIsLoginLoading(false); 
             setView('nostr_setup'); 
         } else {
-             // -> Wir registrieren den normalen Namen
              const { data: nameTaken } = await supabase.from('players').select('*').eq('name', nameFromInput).single();
              if(nameTaken) { 
                  setLoginError(txt('login_error_taken')); 
@@ -604,12 +596,10 @@ export default function App() {
     } catch (e) { console.error(e); } 
   };
 
-  // --- AMBER LOGIN (COPY MODE - SICHER) ---
   const handleAmberLogin = () => {
     setLoginError("");
     setLoginInput(""); 
 
-    // Wir nutzen Intent ohne Callback -> Zwingt Amber zum Kopieren
     const intentUrl = "intent:#Intent;scheme=nostrsigner;package=com.greenart7c3.nostrsigner;S.type=get_public_key;end";
     
     window.location.href = intentUrl;
@@ -755,7 +745,7 @@ export default function App() {
     } catch(e) {} 
   };
 
-const checkWithdrawStatus = async () => { 
+  const checkWithdrawStatus = async () => { 
     if (!withdrawId) return; 
     
     try { 
@@ -765,7 +755,6 @@ const checkWithdrawStatus = async () => {
       
       // Wenn 'used' >= 1 ist (oder spent=true), wurde das Geld erfolgreich ausgezahlt
       if (data.used >= 1 || data.spent === true) { 
-        // 1. Konfetti zur Feier
         confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } }); 
         
         // 2. WICHTIG: In der Datenbank markieren, dass es erledigt ist!
@@ -777,7 +766,7 @@ const checkWithdrawStatus = async () => {
 
         // 3. Nach 3 Sekunden aufräumen und zurück zur Lobby
         setTimeout(() => { 
-           setWithdrawLink(''); // Link löschen
+           setWithdrawLink(''); 
            setWithdrawId(''); 
            setView('dashboard'); 
            resetGameState(); 
@@ -830,7 +819,7 @@ const checkWithdrawStatus = async () => {
     setGameData(safeGameData); setRole('challenger'); await fetchInvoice(duel.amount); 
   };
 
- const handleRefund = async (duel) => {
+  const handleRefund = async (duel) => {
     if (!confirm("Einsatz wirklich zurückfordern?")) return;
     try {
       const res = await fetch('/api/refund', {
@@ -844,13 +833,11 @@ const checkWithdrawStatus = async () => {
         setWithdrawLink(data.lnurl);
         setWithdrawId(data.id);
         
-        // WICHTIG: Wir speichern den Link jetzt in der DB!
         await supabase.from('duels').update({ 
-            status: 'refunded',
-            withdraw_link: data.lnurl  // <--- NEU
+             status: 'refunded',
+             withdraw_link: data.lnurl
         }).eq('id', duel.id);
         
-        // Wir aktualisieren auch das lokale Objekt, damit es sofort sichtbar ist
         setActiveDuel({...duel, status: 'refunded', withdraw_link: data.lnurl});
         
         setView('result_final');
@@ -869,29 +856,24 @@ const checkWithdrawStatus = async () => {
 
   const startGame = () => { setCurrentQ(0); setScore(0); setTotalTime(0); setTimeLeft(15.0); setSelectedAnswer(null); setIsProcessingGame(false); setView('game'); };
 
-const handleAnswer = (displayIndex) => {
+  const handleAnswer = (displayIndex) => {
     if (selectedAnswer !== null) return; 
     
-    // --- SAFE GUARD START: Existiert die Frage überhaupt? ---
     const roundConfig = gameData[currentQ];
-    // Falls Frage fehlt: Nicht crashen, sondern abbrechen
     if (!allQuestions[roundConfig.id]) {
         console.error("Frage fehlt in DB!");
         return;
     }
-    // --- SAFE GUARD ENDE ---
 
-    // --- SOUND LOGIK START (Nur Effekte, kein Ticken hier) ---
     const originalIndex = roundConfig.order[displayIndex];
     const correctIndex = allQuestions[roundConfig.id].correct;
     const isCorrectCheck = (originalIndex === correctIndex);
 
     if (isCorrectCheck) {
-       playSound('correct', isMuted); // PING!
+       playSound('correct', isMuted); 
     } else {
-       playSound('wrong', isMuted);   // BUZZ!
+       playSound('wrong', isMuted);  
     }
-    // --- SOUND LOGIK ENDE ---
 
     setSelectedAnswer(displayIndex);
     setTotalTime(prev => prev + (15.0 - timeLeft)); 
@@ -901,7 +883,6 @@ const handleAnswer = (displayIndex) => {
     setTimeout(() => {
       if (currentQ < 4) { setCurrentQ(p => p + 1); setTimeLeft(15.0); setSelectedAnswer(null); } 
       else { 
-          // Sieg-Sound am Ende (optional)
           if ((isCorrectCheck ? score + 1 : score) >= 3) playSound('correct', isMuted);
           finishGameLogic(isCorrectCheck ? score + 1 : score); 
       }
@@ -912,7 +893,6 @@ const handleAnswer = (displayIndex) => {
     if (isProcessingGame) return; 
     setIsProcessingGame(true);
 
-    // FIX: Runden auf 1 Nachkommastelle, damit DB nicht meckert (Integer Error)
     const cleanTime = parseFloat((totalTime || 0).toFixed(1));
 
     try {
@@ -959,7 +939,6 @@ const handleAnswer = (displayIndex) => {
     setView('result_final'); 
   };
   
-  // WICHTIG: Hier fangen wir den Fehler von api/claim.js ab und zeigen ihn an!
   const handleClaimReward = async () => {
     if (isClaiming) return;
     setIsClaiming(true);
@@ -997,34 +976,27 @@ const handleAnswer = (displayIndex) => {
       const file = event.target.files[0];
       if (!file) return;
 
-      // 1. Sicherheits-Check: Ist das Bild zu groß? (> 2MB)
       if (file.size > 2 * 1024 * 1024) {
         alert("Das Bild ist zu groß! Bitte maximal 2MB.");
         return;
       }
 
-      // Lade-Indikator an (wir nutzen kurz den Login-Loader)
       setIsLoginLoading(true); 
 
-      // 2. Dateiname generieren (Name + Zeitstempel, damit es eindeutig ist)
-      // Wir entfernen Sonderzeichen aus dem Namen sicherheitshalber
       const cleanName = user.name.replace(/[^a-zA-Z0-9]/g, '');
       const fileExt = file.name.split('.').pop();
       const fileName = `${cleanName}_${Date.now()}.${fileExt}`;
 
-      // 3. Hochladen in den 'avatars' Bucket
       const { error: uploadError } = await supabase.storage
         .from('avatars')
         .upload(fileName, file);
 
       if (uploadError) throw uploadError;
 
-      // 4. Die öffentliche URL abrufen
       const { data: { publicUrl } } = supabase.storage
         .from('avatars')
         .getPublicUrl(fileName);
 
-      // 5. URL in der Datenbank beim Spieler speichern
       const { error: dbError } = await supabase
         .from('players')
         .update({ avatar: publicUrl })
@@ -1032,7 +1004,6 @@ const handleAnswer = (displayIndex) => {
 
       if (dbError) throw dbError;
 
-      // 6. Lokalen User sofort aktualisieren (damit man es gleich sieht)
       const updatedUser = { ...user, avatar: publicUrl };
       setUser(updatedUser);
       localStorage.setItem('satoshi_user', JSON.stringify(updatedUser));
@@ -1090,7 +1061,6 @@ const handleAnswer = (displayIndex) => {
           
           <div className="relative py-2 text-center"><span className="relative bg-[#1a1a1a] px-3 text-[10px] uppercase font-bold text-neutral-600 rounded">Optionen</span></div>
           
-          {/* NEU: GRID FÜR BEIDE BUTTONS */}
           <div className="grid grid-cols-2 gap-2">
             <Button variant="secondary" onClick={handleExtensionLogin} className="text-[10px] py-3 flex items-center justify-center gap-2">
               <Fingerprint size={16}/> Extension
@@ -1172,10 +1142,9 @@ const handleAnswer = (displayIndex) => {
       <Background>
         <div className="w-full max-w-md flex flex-col h-[95vh] px-4">
           
-          {/* --- NEUER HEADER MIT AVATAR (HIER EINFÜGEN) --- */}
+          {/* --- NEUER HEADER MIT AVATAR --- */}
           <header className="flex justify-between items-center py-4 mb-2">
             <div className="flex items-center gap-3">
-               {/* Dein Avatar Bild (Neu) */}
                <div className="w-12 h-12 rounded-full border-2 border-orange-500 overflow-hidden shadow-lg shadow-orange-500/20">
                   <img 
                     src={user.avatar || getRobotAvatar(user.name)} 
@@ -1190,21 +1159,17 @@ const handleAnswer = (displayIndex) => {
             </div>
             
             <div className="flex items-center gap-3">
-               {/* Sats Anzeige */}
                <div className="bg-orange-500/10 border border-orange-500/50 px-3 py-1 rounded-full flex items-center gap-2">
                   <Zap size={14} className="text-orange-500 fill-orange-500 animate-pulse"/>
                   <span className="text-orange-500 font-mono font-bold text-sm">{stats.total_sats.toLocaleString()}</span>
                </div>
-               {/* Sprachwahl */}
                <button onClick={() => setView('language_select')} className="text-2xl hover:scale-110 transition-transform">{lang === 'de' ? '🇩🇪' : lang === 'en' ? '🇺🇸' : '🇪🇸'}</button>
             </div>
           </header>
-          {/* ----------------------------------------------- */}
-
-          {/* Ab hier kommen deine Kacheln (Das Grid) - Das bleibt wie vorher */}
+          
+          {/* --- GRID --- */}
           <div className="grid grid-cols-2 gap-3 overflow-y-auto custom-scrollbar pb-20">
             
-            {/* CLAIM BUTTON (falls Gewinn offen) */}
             {unclaimedWin && (
                <button onClick={() => { setActiveDuel(unclaimedWin); setView('result_final'); }} className="col-span-2 bg-green-500 text-black font-black p-4 rounded-2xl animate-pulse shadow-lg shadow-green-500/20 flex items-center justify-between">
                  <div className="flex items-center gap-2"><Trophy className="animate-bounce"/><span className="uppercase tracking-widest">Gewinn abholen!</span></div>
@@ -1212,24 +1177,21 @@ const handleAnswer = (displayIndex) => {
                </button>
             )}
 
-            {/* ARENA TILE (Falls wir das schon eingebaut haben) */}
             <button 
-                onClick={() => { fetchArena(); setView('arena_intro'); }} 
+                onClick={() => { alert("Coming Soon!"); }} 
                 className="col-span-2 bg-gradient-to-r from-red-900/80 to-purple-900/80 border border-yellow-500/50 p-4 rounded-2xl flex items-center justify-between relative overflow-hidden group shadow-[0_0_20px_rgba(234,179,8,0.2)]"
               >
-                <div className="absolute inset-0 bg-[url('/noise.png')] opacity-10"></div>
                 <div className="absolute -right-10 -top-10 bg-yellow-500 blur-[60px] w-32 h-32 opacity-20 group-hover:opacity-40 transition-opacity"></div>
                 <div className="flex flex-col items-start z-10">
                    <div className="flex items-center gap-2 mb-1"><Trophy size={18} className="text-yellow-400 animate-pulse"/><span className="text-sm font-black text-yellow-500 uppercase tracking-widest">SATOSHI ARENA</span></div>
                    <span className="text-[10px] text-neutral-300 font-bold uppercase">Weekly Battle Royale</span>
                 </div>
                 <div className="flex flex-col items-end z-10">
-                   <span className="text-2xl font-black text-white font-mono drop-shadow-md">{arenaData ? arenaData.pot.toLocaleString() : '???'} <span className="text-sm text-yellow-500">SATS</span></span>
+                   <span className="text-2xl font-black text-white font-mono drop-shadow-md">??? <span className="text-sm text-yellow-500">SATS</span></span>
                    <span className="text-[9px] text-red-300 uppercase font-bold bg-red-900/50 px-2 py-0.5 rounded border border-red-500/30">Jackpot</span>
                 </div>
             </button>
 
-            {/* DEINE ANDEREN KACHELN (LOBBY, NEW GAME, ETC.) */}
             <DashboardTile 
                title={txt('tile_lobby')} 
                icon={<Globe size={24}/>} 
@@ -1260,7 +1222,7 @@ const handleAnswer = (displayIndex) => {
                icon={<Zap size={24}/>} 
                color="green" 
                count={myDuels.filter(d => d.status === 'open' || d.status === 'active').length} 
-               onClick={() => setDashboardView('active')} 
+               onClick={() => setDashboardView('active_games')} 
             />
 
             <DashboardTile 
@@ -1290,211 +1252,40 @@ const handleAnswer = (displayIndex) => {
     );
   }
 
-  // ==========================================
-// HIER IST DER FEHLENDE BAUPLAN FÜR DIE KACHELN
-// Füge das GANZ UNTEN in deine Datei ein (außerhalb der App Funktion)
-// ==========================================
+  // --- DASHBOARD SUB-VIEWS ---
 
-const DashboardTile = ({ title, icon, color, count, onClick }) => {
-  const colorClasses = {
-    blue: 'border-blue-500/50 hover:bg-blue-500/10 text-blue-500',
-    orange: 'border-orange-500/50 hover:bg-orange-500/10 text-orange-500',
-    red: 'border-red-500/50 hover:bg-red-500/10 text-red-500',
-    green: 'border-green-500/50 hover:bg-green-500/10 text-green-500',
-    neutral: 'border-white/10 hover:bg-white/5 text-neutral-400',
-    yellow: 'border-yellow-500/50 hover:bg-yellow-500/10 text-yellow-500',
-    purple: 'border-purple-500/50 hover:bg-purple-500/10 text-purple-500',
-  };
-
-  const activeClass = colorClasses[color] || colorClasses.neutral;
-
-  return (
-    <button 
-      onClick={onClick} 
-      className={`relative p-4 rounded-2xl border flex flex-col items-center justify-center gap-3 transition-all active:scale-95 bg-neutral-900/60 aspect-[4/3] group ${activeClass}`}
-    >
-      <div className="group-hover:scale-110 transition-transform duration-300">
-        {icon}
-      </div>
-      <span className="text-xs font-black uppercase tracking-widest text-center shadow-black drop-shadow-md">{title}</span>
-      
-      {count > 0 && (
-        <div className={`absolute top-2 right-2 text-[10px] font-black w-6 h-6 rounded-full flex items-center justify-center border border-white/20 shadow-lg ${color === 'neutral' ? 'bg-white text-black' : 'bg-current text-black'}`}>
-          <span className="text-white mix-blend-difference">{count}</span>
-        </div>
-      )}
-    </button>
-  );
-};
-
-if (dashboardView === 'home') {
-      return (
-        <Background>
-          <div className="w-full max-w-md flex flex-col h-[95vh] gap-4 px-2 relative">
-            
-            {/* 1. WASSERZEICHEN (Hintergrund) */}
-            <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-0">
-               <img src="/logo.png" className="w-[90%] opacity-15" alt="Background" />
-            </div>
-
-            {/* 2. USER CARD (Avatar, Name, Mute, Logout) */}
-            <Card className="flex justify-between items-center py-3 border-orange-500/20 bg-black/40 backdrop-blur-md relative z-10">
-              {/* LINKE SEITE: Avatar & Name */}
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-xl overflow-hidden border-2 border-orange-500/50 shadow-[0_0_15px_rgba(249,115,22,0.3)] bg-black">
-                   <img 
-                     src={user.avatar || getRobotAvatar(user.name)} 
-                     alt="Avatar" 
-                     className="w-full h-full object-cover"
-                   />
-                </div>
-                <div className="text-left">
-                  <p className="font-black text-white text-xl uppercase tracking-wider">{formatName(user.name)}</p>
-                  <p className="text-[10px] text-orange-400 font-mono">{stats.satsWon.toLocaleString()} {txt('sats_won')}</p>
-                </div>
-              </div>
-
-              {/* RECHTE SEITE: Buttons */}
-              <div className="flex gap-2">
-                {/* MUTE BUTTON */}
-                <button onClick={toggleMute} className="p-2 text-neutral-500 hover:text-white transition-colors">
-                  {isMuted ? <VolumeX size={18}/> : <Volume2 size={18}/>}
-                </button>
-                
-                {/* LOGOUT BUTTON */}
-                <button onClick={handleLogout} className="p-2 text-neutral-500 hover:text-white"><LogOut size={18}/></button>
-              </div>
-            </Card>
-
-            {/* Unclaimed Win Button (Falls vorhanden) */}
-            {unclaimedWin && (
-              <button onClick={() => openPastDuel(unclaimedWin)} className="w-full bg-green-500 text-black p-4 rounded-2xl flex items-center justify-between font-black uppercase animate-bounce shadow-[0_0_20px_rgba(34,197,94,0.6)] relative z-10">
-                 <div className="flex items-center gap-3"><Trophy size={24}/> <div className="text-left"><p className="text-sm leading-none">{txt('dash_unclaimed_title')}</p><p className="text-[10px] opacity-75 font-normal normal-case">{txt('dash_unclaimed_text')}</p></div></div>
-                 <div className="bg-black/20 p-2 rounded-lg"><ArrowLeft className="rotate-180" size={16}/></div>
-              </button>
-            )}
-
-            {/* NEW DUEL BUTTON */}
-            <Button onClick={() => { playSound('click', isMuted); openCreateSetup(); }} className="py-5 text-lg animate-neon shadow-lg mb-2 relative z-10">
-              <Plus size={24}/> {txt('dashboard_new_duel')}
-            </Button>
-            
-            {/* 3. DAS GRID MIT DEN NEUEN KACHELN (Farbiger Text, Große Schrift) */}
-            <div className="grid grid-cols-2 gap-2 flex-1 overflow-y-auto pb-4 relative z-10 custom-scrollbar">
-              
-              {/* LOBBY (Orange) */}
-              <button onClick={() => setDashboardView('lobby')} className="bg-neutral-900/60 border border-white/5 hover:border-orange-500/50 hover:bg-neutral-800 p-4 rounded-2xl flex flex-col items-center justify-center gap-3 aspect-[4/3] relative group">
-                <Users size={32} className="text-orange-500 group-hover:scale-110 transition-transform"/>
-                <span className="text-sm font-black text-orange-500 uppercase tracking-widest shadow-black drop-shadow-md">{txt('tile_lobby')}</span>
-                {publicCount > 0 && <span className="absolute top-2 right-2 bg-orange-500 text-black text-[10px] font-black w-6 h-6 rounded-full flex items-center justify-center shadow-lg border border-white/20">{publicCount}</span>}
-              </button>
-
-              {/* CHALLENGES (Purple) */}
-              <button onClick={() => setDashboardView('challenges')} className="bg-neutral-900/60 border border-white/5 hover:border-purple-500/50 hover:bg-neutral-800 p-4 rounded-2xl flex flex-col items-center justify-center gap-3 aspect-[4/3] relative group">
-                <Swords size={32} className="text-purple-500 group-hover:scale-110 transition-transform"/>
-                <span className="text-sm font-black text-purple-500 uppercase tracking-widest shadow-black drop-shadow-md">{txt('tile_challenges')}</span>
-                {challengeCount > 0 && <span className="absolute top-2 right-2 bg-purple-500 text-white text-[10px] font-black w-6 h-6 rounded-full flex items-center justify-center shadow-lg border border-white/20">{challengeCount}</span>}
-              </button>
-
-              {/* ACTIVE GAMES (Green) */}
-              <button onClick={() => setDashboardView('active_games')} className="bg-neutral-900/60 border border-white/5 hover:border-green-500/50 hover:bg-neutral-800 p-4 rounded-2xl flex flex-col items-center justify-center gap-3 aspect-[4/3] relative group">
-                <PlayCircle size={32} className="text-green-500 group-hover:scale-110 transition-transform"/>
-                <span className="text-sm font-black text-green-500 uppercase tracking-widest shadow-black drop-shadow-md">{txt('tile_active_games')}</span>
-                {myOpenDuels.length > 0 && <span className="absolute top-2 right-2 bg-green-500 text-black text-[10px] font-black w-6 h-6 rounded-full flex items-center justify-center shadow-lg border border-white/20">{myOpenDuels.length}</span>}
-              </button>
-
-              {/* HISTORY (Blue) */}
-              <button onClick={() => setDashboardView('history')} className="bg-neutral-900/60 border border-white/5 hover:border-blue-500/50 hover:bg-neutral-800 p-4 rounded-2xl flex flex-col items-center justify-center gap-3 aspect-[4/3] transition-all group">
-                <History size={32} className="text-blue-500 group-hover:scale-110 transition-transform"/>
-                <span className="text-sm font-black text-blue-500 uppercase tracking-widest shadow-black drop-shadow-md">{txt('tile_history')}</span>
-              </button>
-              
-              {/* LEADERBOARD (Top 3 Liste) */}
-              <button onClick={() => setDashboardView('leaderboard')} className="bg-neutral-900/60 border border-white/5 hover:border-yellow-500/50 hover:bg-neutral-800 p-3 rounded-2xl flex flex-col items-center justify-start gap-1 aspect-[4/3] relative overflow-hidden group">
-                
-                {/* HEADER: Titel Oben */}
-                <div className="flex items-center gap-2 mb-1 z-10">
-                  <Trophy size={14} className="text-yellow-500" />
-                  <span className="text-xs font-black text-yellow-500 uppercase tracking-widest shadow-black drop-shadow-md">{txt('tile_leaderboard')}</span>
-                </div>
-
-                {/* BODY: Top 3 Liste */}
-                <div className="w-full flex flex-col gap-1 z-10">
-                   {leaderboard.length > 0 ? (
-                      leaderboard.slice(0, 3).map((p, i) => {
-                         const rankColor = i === 0 ? "text-yellow-400" : i === 1 ? "text-gray-300" : "text-orange-600";
-                         const rowBg = i === 0 ? "bg-yellow-500/10 border border-yellow-500/20" : "bg-black/20";
-                         
-                         return (
-                           <div key={i} className={`flex justify-between items-center w-full px-2 py-1 rounded ${rowBg}`}>
-                              <div className="flex items-center gap-1.5 overflow-hidden">
-                                 <span className={`text-[10px] font-black ${rankColor}`}>{i+1}.</span>
-                                 <span className="text-[10px] font-bold text-white truncate max-w-[65px]">{formatName(p.name)}</span>
-                              </div>
-                              <span className={`text-[9px] font-mono ${rankColor}`}>{p.satsWon}</span>
-                           </div>
-                         )
-                      })
-                   ) : (
-                      <span className="text-[10px] text-neutral-500 text-center mt-4">Lade...</span>
-                   )}
-                </div>
-              </button>
-
-              {/* SETTINGS (Neutral) */}
-              <button onClick={() => setDashboardView('settings')} className="bg-neutral-900/60 border border-white/5 hover:border-neutral-500 hover:bg-neutral-800 p-4 rounded-2xl flex flex-col items-center justify-center gap-3 aspect-[4/3] transition-all group">
-                <Settings size={32} className="text-neutral-400 group-hover:rotate-45 transition-transform"/>
-                <span className="text-sm font-black text-neutral-400 uppercase tracking-widest shadow-black drop-shadow-md">{txt('tile_settings')}</span>
-              </button>
-            </div>
-
-            {/* 4. SPENDEN BUTTON (Neu, Orange Herzen, größer) */}
-            <button 
-              onClick={openDonation} 
-              className="w-full py-3 mt-2 mb-2 bg-neutral-900 border border-white/10 hover:border-orange-500/50 rounded-xl text-white text-xs font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all group shadow-lg relative z-10"
-            >
-              <Heart size={16} className="text-orange-500 fill-orange-500 group-hover:scale-110 transition-transform"/> 
-              {txt('dashboard_donate')}
-            </button>
-          </div>
-        </Background>
-      );
-    }
-
-    // --- NEUE VIEW: ACTIVE GAMES LIST ---
-    if (dashboardView === 'active_games') {
+  if (dashboardView === 'active_games') {
       return (
         <Background>
           <div className="w-full max-w-md flex flex-col h-[95vh] gap-4 px-2">
-            <div className="flex items-center gap-4 py-4"><button onClick={() => setDashboardView('home')} className="bg-white/10 p-2 rounded-xl hover:bg-white/20 transition-colors"><ArrowLeft className="text-white"/></button><h2 className="text-xl font-black text-green-500 uppercase tracking-widest">{txt('active_games_title')}</h2></div>
+            <div className="flex items-center gap-4 py-4"><button onClick={() => setDashboardView('home')} className="bg-white/10 p-2 rounded-xl hover:bg-white/20 transition-colors"><ArrowLeft className="text-white"/></button><h2 className="text-xl font-black text-green-500 uppercase tracking-widest">{txt('tile_active')}</h2></div>
             
             <div className="flex-1 overflow-y-auto space-y-2 custom-scrollbar">
               {myOpenDuels.length === 0 && <div className="text-center py-20 text-neutral-600 italic">Keine offenen Spiele.</div>}
               {myOpenDuels.map(d => {
-                 const created = new Date(d.created_at).getTime();
-                 const canRefund = (Date.now() - created > REFUND_TIMEOUT_MS);
-                 return (
-                    <div key={d.id} className="bg-neutral-900/80 border border-green-500/30 p-4 rounded-xl flex flex-col gap-3 shadow-lg">
-                       <div className="flex justify-between items-center">
-                          <div className="flex flex-col">
-                             <span className="text-green-500 font-black font-mono text-lg">{d.amount} Sats</span>
-                             <span className="text-neutral-500 text-[10px] uppercase font-bold tracking-wider">{d.target_player ? `${txt('challenge_sent')} ${formatName(d.target_player)}` : txt('lobby_wait')}</span>
-                          </div>
-                          {canRefund ? (
-                             <button onClick={() => handleRefund(d)} className="bg-red-500/20 text-red-500 border border-red-500/50 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase hover:bg-red-500 hover:text-white transition-all flex items-center gap-1"><RefreshCcw size={10}/> {txt('btn_refund')}</button>
-                          ) : (
-                             <span className="animate-pulse text-green-500/50 uppercase font-black text-[10px]">AKTIV</span>
-                          )}
-                       </div>
-                       
-                       {/* SHARE BUTTON */}
-                       {!canRefund && (
-                          <button onClick={(e) => {e.stopPropagation(); shareDuel(d);}} className="w-full bg-green-500/10 hover:bg-green-500/20 border border-green-500/50 text-green-500 py-3 rounded-lg transition-all flex items-center justify-center gap-2 group">
-                             <LinkIcon size={16} className="group-hover:animate-pulse"/> <span className="text-xs font-black uppercase tracking-widest">{txt('btn_share')}</span>
-                          </button>
-                       )}
-                    </div>
-                 );
+                  const created = new Date(d.created_at).getTime();
+                  const canRefund = (Date.now() - created > REFUND_TIMEOUT_MS);
+                  return (
+                     <div key={d.id} className="bg-neutral-900/80 border border-green-500/30 p-4 rounded-xl flex flex-col gap-3 shadow-lg">
+                        <div className="flex justify-between items-center">
+                           <div className="flex flex-col">
+                              <span className="text-green-500 font-black font-mono text-lg">{d.amount} Sats</span>
+                              <span className="text-neutral-500 text-[10px] uppercase font-bold tracking-wider">{d.target_player ? `${txt('challenge_sent')} ${formatName(d.target_player)}` : txt('lobby_wait')}</span>
+                           </div>
+                           {canRefund ? (
+                              <button onClick={() => handleRefund(d)} className="bg-red-500/20 text-red-500 border border-red-500/50 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase hover:bg-red-500 hover:text-white transition-all flex items-center gap-1"><RefreshCcw size={10}/> {txt('btn_refund')}</button>
+                           ) : (
+                              <span className="animate-pulse text-green-500/50 uppercase font-black text-[10px]">AKTIV</span>
+                           )}
+                        </div>
+                        
+                        {!canRefund && (
+                           <button onClick={(e) => {e.stopPropagation(); shareDuel(d);}} className="w-full bg-green-500/10 hover:bg-green-500/20 border border-green-500/50 text-green-500 py-3 rounded-lg transition-all flex items-center justify-center gap-2 group">
+                              <LinkIcon size={16} className="group-hover:animate-pulse"/> <span className="text-xs font-black uppercase tracking-widest">{txt('btn_share')}</span>
+                           </button>
+                        )}
+                     </div>
+                  );
               })}
             </div>
           </div>
@@ -1522,42 +1313,31 @@ if (dashboardView === 'home') {
       );
     }
 
-if (dashboardView === 'history') {
-      // Wir sortieren: Neueste zuerst
+    if (dashboardView === 'history') {
       const historyList = myDuels.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-
       return (
         <Background>
           <div className="w-full max-w-md flex flex-col h-[95vh] gap-4 px-2">
-            
-            {/* Header */}
             <div className="flex items-center gap-4 py-4">
-               <button onClick={() => setDashboardView('home')} className="bg-white/10 p-2 rounded-xl hover:bg-white/20 transition-colors">
-                  <ArrowLeft className="text-white"/>
-               </button>
+               <button onClick={() => setDashboardView('home')} className="bg-white/10 p-2 rounded-xl hover:bg-white/20 transition-colors"><ArrowLeft className="text-white"/></button>
                <h2 className="text-xl font-black text-blue-500 uppercase tracking-widest">{txt('tile_history')}</h2>
             </div>
             
-            {/* Liste */}
             <div className="flex-1 overflow-y-auto space-y-2 custom-scrollbar">
               {historyList.length === 0 && (
                  <div className="text-center py-20 text-neutral-600 italic">Noch keine Spiele gespielt.</div>
               )}
-              
               {historyList.map(d => {
-                 // Logik: Wer war ich? Wer war der Gegner?
                  const isCreator = d.creator === user.name;
                  const myScore = isCreator ? d.creator_score : d.challenger_score;
                  const opScore = isCreator ? d.challenger_score : d.creator_score;
                  const opponent = isCreator ? (d.challenger || '?') : d.creator;
                  
-                 // Ergebnis Berechnung
                  let resultStatus = 'RUNNING'; 
                  let resultColor = 'bg-neutral-600 text-white';
                  let borderColor = 'border-white/5';
                  
                  if (d.status === 'finished') {
-                    // Win Condition
                     const iWon = myScore > opScore || (myScore === opScore && (isCreator ? d.creator_time < d.challenger_time : d.challenger_time < d.creator_time));
                     resultStatus = iWon ? 'WON' : 'LOST';
                     resultColor = iWon ? 'bg-green-500 text-black' : 'bg-red-600 text-white';
@@ -1570,39 +1350,22 @@ if (dashboardView === 'history') {
 
                  return (
                    <button key={d.id} onClick={() => openPastDuel(d)} className={`w-full bg-neutral-900/80 border ${borderColor} p-3 rounded-xl flex items-center justify-between gap-3 hover:bg-neutral-800 transition-all group`}>
-                      
-                      {/* Linke Seite: Avatar + Name */}
                       <div className="flex items-center gap-3">
-                         {/* Avatar Container */}
                          <div className="relative">
                             <div className="w-12 h-12 rounded-full overflow-hidden border border-white/10 bg-black">
-                               <img 
-                                  src={getRobotAvatar(opponent)} 
-                                  alt={opponent} 
-                                  className="w-full h-full object-cover group-hover:scale-110 transition-transform"
-                               />
+                               <img src={getRobotAvatar(opponent)} alt={opponent} className="w-full h-full object-cover group-hover:scale-110 transition-transform"/>
                             </div>
-                            {/* Kleines Status Badge am Avatar */}
-                            <div className={`absolute -bottom-1 -right-1 text-[8px] font-black px-1.5 py-0.5 rounded shadow-sm ${resultColor}`}>
-                               {resultStatus}
-                            </div>
+                            <div className={`absolute -bottom-1 -right-1 text-[8px] font-black px-1.5 py-0.5 rounded shadow-sm ${resultColor}`}>{resultStatus}</div>
                          </div>
-
-                         {/* Infos */}
                          <div className="flex flex-col items-start">
                             <span className="text-white font-bold text-sm uppercase">vs {formatName(opponent)}</span>
                             <span className="text-neutral-500 text-[10px]">{new Date(d.created_at).toLocaleDateString()}</span>
                          </div>
                       </div>
-
-                      {/* Rechte Seite: Stats */}
                       <div className="flex flex-col items-end">
                          <span className="font-mono font-bold text-white text-sm">{d.amount} sats</span>
-                         <span className="text-[10px] text-neutral-400 bg-white/5 px-2 py-0.5 rounded-lg mt-1">
-                            {myScore ?? '-'} : {opScore ?? '-'}
-                         </span>
+                         <span className="text-[10px] text-neutral-400 bg-white/5 px-2 py-0.5 rounded-lg mt-1">{myScore ?? '-'} : {opScore ?? '-'}</span>
                       </div>
-
                    </button>
                  );
               })}
@@ -1631,65 +1394,31 @@ if (dashboardView === 'history') {
       );
     }
 
-if (dashboardView === 'leaderboard') {
+    if (dashboardView === 'leaderboard') {
       return (
         <Background>
           <div className="w-full max-w-md flex flex-col h-[95vh] gap-4 px-2">
-            
-            {/* Header */}
             <div className="flex items-center gap-4 py-4">
-                <button onClick={() => setDashboardView('home')} className="bg-white/10 p-2 rounded-xl hover:bg-white/20 transition-colors">
-                    <ArrowLeft className="text-white"/>
-                </button>
+                <button onClick={() => setDashboardView('home')} className="bg-white/10 p-2 rounded-xl hover:bg-white/20 transition-colors"><ArrowLeft className="text-white"/></button>
                 <h2 className="text-xl font-black text-white uppercase tracking-widest text-yellow-500">{txt('tile_leaderboard')}</h2>
             </div>
-            
-            {/* Liste der Spieler */}
             <div className="flex-1 overflow-y-auto space-y-2 custom-scrollbar">
               {leaderboard.map((p, i) => (
-                <div 
-                    key={p.name} 
-                    className={`flex justify-between items-center p-3 rounded-xl border transition-all ${p.name === user.name ? 'bg-orange-500/20 border-orange-500/50' : 'bg-neutral-900/60 border-white/5 hover:bg-neutral-800'}`}
-                >
+                <div key={p.name} className={`flex justify-between items-center p-3 rounded-xl border transition-all ${p.name === user.name ? 'bg-orange-500/20 border-orange-500/50' : 'bg-neutral-900/60 border-white/5 hover:bg-neutral-800'}`}>
                   <div className="flex items-center gap-3">
-                    
-                    {/* Rang # */}
-                    <span className={`font-black font-mono w-6 text-center ${i===0?'text-yellow-400 text-lg drop-shadow-lg':i===1?'text-neutral-300':i===2?'text-amber-700':'text-neutral-600'}`}>
-                        {i + 1}
-                    </span>
-                    
-                    {/* AVATAR BILD (NEU) */}
+                    <span className={`font-black font-mono w-6 text-center ${i===0?'text-yellow-400 text-lg drop-shadow-lg':i===1?'text-neutral-300':i===2?'text-amber-700':'text-neutral-600'}`}>{i + 1}</span>
                     <div className={`w-10 h-10 rounded-full overflow-hidden border bg-black ${i===0 ? 'border-yellow-400 shadow-[0_0_10px_rgba(250,204,21,0.3)]' : 'border-white/10'}`}>
-                        <img 
-                            src={p.avatar || getRobotAvatar(p.name)} 
-                            alt={p.name} 
-                            className="w-full h-full object-cover"
-                        />
+                        <img src={p.avatar || getRobotAvatar(p.name)} alt={p.name} className="w-full h-full object-cover"/>
                     </div>
-
-                    {/* Name & Stats */}
                     <div className="flex flex-col">
-                        <span className={`font-bold uppercase text-sm flex items-center gap-1 ${p.name === user.name ? 'text-orange-400' : 'text-white'}`}>
-                            {formatName(p.name)} 
-                            {p.isAdmin && <Shield size={10} className="text-red-500"/>}
-                        </span>
-                        <span className="text-neutral-500 text-[10px]">
-                            {p.wins || 0} Wins • {p.games_played || 0} Games
-                        </span>
+                        <span className={`font-bold uppercase text-sm flex items-center gap-1 ${p.name === user.name ? 'text-orange-400' : 'text-white'}`}>{formatName(p.name)} {p.isAdmin && <Shield size={10} className="text-red-500"/>}</span>
+                        <span className="text-neutral-500 text-[10px]">{p.wins || 0} Wins • {p.games_played || 0} Games</span>
                     </div>
                   </div>
-                  
-                  {/* Rechte Seite: Sats & Button */}
                   <div className="flex items-center gap-3">
-                      <span className="text-orange-400 font-mono font-bold text-xs">
-                        {(p.total_sats || p.satsWon || 0).toLocaleString()} <span className="text-[9px]">sats</span>
-                      </span>
-
-                      {/* Challenge Button (nur bei anderen) */}
+                      <span className="text-orange-400 font-mono font-bold text-xs">{(p.total_sats || p.satsWon || 0).toLocaleString()} <span className="text-[9px]">sats</span></span>
                       {p.name !== user.name && (
-                        <button onClick={() => startChallenge(p.name)} className="text-neutral-500 hover:text-white hover:bg-white/10 p-2 rounded-full transition-all" title="Herausfordern">
-                            <Swords size={18}/>
-                        </button>
+                        <button onClick={() => startChallenge(p.name)} className="text-neutral-500 hover:text-white hover:bg-white/10 p-2 rounded-full transition-all" title="Herausfordern"><Swords size={18}/></button>
                       )}
                   </div>
                 </div>
@@ -1700,54 +1429,34 @@ if (dashboardView === 'leaderboard') {
       );
     }
 
-if (dashboardView === 'settings') {
+    if (dashboardView === 'settings') {
       return (
         <Background>
           <div className="w-full max-w-md flex flex-col h-[95vh] gap-4 px-2">
-            
-            {/* Header */}
             <div className="flex items-center gap-4 py-4">
-                <button onClick={() => setDashboardView('home')} className="bg-white/10 p-2 rounded-xl hover:bg-white/20 transition-colors">
-                    <ArrowLeft className="text-white"/>
-                </button>
+                <button onClick={() => setDashboardView('home')} className="bg-white/10 p-2 rounded-xl hover:bg-white/20 transition-colors"><ArrowLeft className="text-white"/></button>
                 <h2 className="text-xl font-black text-white uppercase tracking-widest text-neutral-400">{txt('tile_settings')}</h2>
             </div>
             
             <div className="flex-1 overflow-y-auto space-y-4 px-2 custom-scrollbar">
-               
-               {/* --- NEU: AVATAR UPLOAD --- */}
                <div className="bg-white/5 p-4 rounded-2xl border border-white/5">
                   <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3">
-                          {/* Vorschau des aktuellen Bildes */}
                           <div className="w-12 h-12 rounded-full overflow-hidden border-2 border-orange-500/50 shadow-[0_0_10px_rgba(249,115,22,0.2)]">
-                              <img 
-                                src={user.avatar || getRobotAvatar(user.name)} 
-                                alt="Avatar" 
-                                className="w-full h-full object-cover" 
-                              />
+                              <img src={user.avatar || getRobotAvatar(user.name)} alt="Avatar" className="w-full h-full object-cover" />
                           </div>
                           <div className="flex flex-col">
                               <span className="text-sm font-bold text-white uppercase">Profilbild</span>
                               <span className="text-[10px] text-neutral-500">Max. 2MB (JPG/PNG)</span>
                           </div>
                       </div>
-                      
-                      {/* Der Upload Button (verstecktes Input Feld) */}
                       <label className="bg-neutral-800 hover:bg-orange-500/20 text-white hover:text-orange-500 p-3 rounded-xl cursor-pointer transition-all border border-white/10 hover:border-orange-500 flex items-center justify-center">
                           {isLoginLoading ? <Loader2 size={18} className="animate-spin text-orange-500"/> : <Upload size={18} />}
-                          <input 
-                              type="file" 
-                              accept="image/*" 
-                              onChange={handleAvatarUpload} 
-                              disabled={isLoginLoading}
-                              className="hidden" 
-                          />
+                          <input type="file" accept="image/*" onChange={handleAvatarUpload} disabled={isLoginLoading} className="hidden" />
                       </label>
                   </div>
                </div>
 
-               {/* --- BENACHRICHTIGUNGEN --- */}
                <div className="bg-white/5 p-4 rounded-2xl border border-white/5">
                   <div className="flex items-center gap-3 mb-4 text-orange-500"><Bell size={20}/><span className="text-sm font-bold uppercase">{txt('settings_notifications')}</span></div>
                   <div className="flex justify-between items-center">
@@ -1759,7 +1468,6 @@ if (dashboardView === 'settings') {
                   {!notificationsEnabled && <p className="text-[10px] text-neutral-600 mt-2 italic">{txt('perm_request')}</p>}
                </div>
 
-               {/* --- SICHERHEIT (PIN) --- */}
                <div className="bg-white/5 p-4 rounded-2xl border border-white/5">
                   <div className="flex items-center gap-3 mb-4 text-blue-500"><Shield size={20}/><span className="text-sm font-bold uppercase">{txt('settings_security')}</span></div>
                   <p className="text-neutral-400 text-xs mb-3">{txt('settings_change_pin')}</p>
@@ -1770,37 +1478,28 @@ if (dashboardView === 'settings') {
                   {settingsMsg && <p className={`text-xs font-bold mt-2 ${settingsMsg.includes('!') ? 'text-green-500' : 'text-red-500'}`}>{settingsMsg}</p>}
                </div>
 
-               {/* BUTTON FÜR FRAGE EINREICHEN */}
                <button onClick={() => setView('submit_question')} className="w-full bg-purple-900/50 border border-purple-500/50 p-4 rounded-2xl flex items-center justify-center gap-2 text-purple-300 font-bold uppercase text-xs hover:bg-purple-900 hover:text-white transition-all">
                  <Plus size={16}/> Eigene Frage einreichen
                </button>
 
-               {/* ADMIN BUTTON */}
                {user.isAdmin && (
                  <button onClick={() => { fetchAdminData(); setDashboardView('admin'); }} className="w-full bg-red-900/50 border border-red-500/50 p-4 rounded-2xl flex items-center justify-center gap-2 text-red-300 font-bold uppercase text-xs hover:bg-red-900 hover:text-white transition-all mt-4">
                    <Shield size={16}/> {txt('admin_title')}
                  </button>
                )}
-
             </div>
           </div>
         </Background>
       );
     }
 
-    // --- NEU: ADMIN VIEW MIT FILTER & SUCHE ---
     if (dashboardView === 'admin') {
       const totalGames = adminDuels.length;
       const openGames = adminDuels.filter(d => d.status === 'open').length;
       const totalVolume = adminDuels.reduce((acc, d) => acc + (d.status !== 'refunded' ? d.amount : 0), 0);
-
       const filteredDuels = adminDuels.filter(d => {
-         const matchesSearch = d.creator.toLowerCase().includes(adminSearch.toLowerCase()) || 
-                               (d.challenger && d.challenger.toLowerCase().includes(adminSearch.toLowerCase())) ||
-                               d.id.toString().includes(adminSearch);
-         
+         const matchesSearch = d.creator.toLowerCase().includes(adminSearch.toLowerCase()) || (d.challenger && d.challenger.toLowerCase().includes(adminSearch.toLowerCase())) || d.id.toString().includes(adminSearch);
          if (!matchesSearch) return false;
-         
          if (adminFilter === 'open') return d.status === 'open';
          if (adminFilter === 'finished') return d.status === 'finished' || d.status === 'refunded';
          return true;
@@ -1809,75 +1508,40 @@ if (dashboardView === 'settings') {
       return (
         <Background>
           <div className="w-full max-w-md flex flex-col h-[95vh] gap-4 px-2">
-            
-            {/* Header */}
             <div className="flex items-center gap-4 py-4"><button onClick={() => setDashboardView('settings')} className="bg-white/10 p-2 rounded-xl hover:bg-white/20 transition-colors"><ArrowLeft className="text-white"/></button><h2 className="text-xl font-black text-red-500 uppercase tracking-widest">{txt('admin_title')}</h2></div>
-            
-            {/* Stats Dashboard */}
             <div className="grid grid-cols-3 gap-2 mb-2">
                <div className="bg-white/5 p-2 rounded-xl text-center border border-white/5"><div className="text-neutral-500 text-[8px] uppercase font-bold mb-1">{txt('admin_stats_total')}</div><div className="text-white font-mono font-bold text-lg">{totalGames}</div></div>
                <div className="bg-white/5 p-2 rounded-xl text-center border border-white/5"><div className="text-neutral-500 text-[8px] uppercase font-bold mb-1">{txt('admin_stats_open')}</div><div className="text-orange-500 font-mono font-bold text-lg">{openGames}</div></div>
                <div className="bg-white/5 p-2 rounded-xl text-center border border-white/5"><div className="text-neutral-500 text-[8px] uppercase font-bold mb-1">{txt('admin_stats_volume')}</div><div className="text-green-500 font-mono font-bold text-xs mt-1">{totalVolume.toLocaleString()}</div></div>
             </div>
-
-            {/* BUTTON ZUM FRAGEN MANAGER */}
-            <div className="mb-2">
-              <button 
-                onClick={() => setView('admin_questions')}
-                className="w-full bg-orange-500/10 border border-orange-500/50 p-3 rounded-xl flex items-center justify-center gap-2 text-orange-500 font-bold uppercase text-xs hover:bg-orange-500 hover:text-black transition-all"
-              >
-                <Edit2 size={16}/> Fragen bearbeiten / hinzufügen
-              </button>
-            </div>
-
-            {/* Suche & Filter */}
+            <div className="mb-2"><button onClick={() => setView('admin_questions')} className="w-full bg-orange-500/10 border border-orange-500/50 p-3 rounded-xl flex items-center justify-center gap-2 text-orange-500 font-bold uppercase text-xs hover:bg-orange-500 hover:text-black transition-all"><Edit2 size={16}/> Fragen bearbeiten / hinzufügen</button></div>
             <div className="flex gap-2 mb-2">
-               <div className="relative flex-1">
-                  <Search size={14} className="absolute left-3 top-3 text-neutral-500"/>
-                  <input type="text" placeholder={txt('admin_search_placeholder')} value={adminSearch} onChange={(e) => setAdminSearch(e.target.value)} className="w-full pl-9 pr-3 py-2 bg-black/40 border border-white/10 rounded-xl text-xs text-white outline-none focus:border-red-500"/>
-               </div>
+               <div className="relative flex-1"><Search size={14} className="absolute left-3 top-3 text-neutral-500"/><input type="text" placeholder={txt('admin_search_placeholder')} value={adminSearch} onChange={(e) => setAdminSearch(e.target.value)} className="w-full pl-9 pr-3 py-2 bg-black/40 border border-white/10 rounded-xl text-xs text-white outline-none focus:border-red-500"/></div>
                <div className="flex bg-black/40 rounded-xl p-1 border border-white/10">
                   <button onClick={() => setAdminFilter('all')} className={`px-3 py-1 rounded-lg text-[10px] font-bold transition-all ${adminFilter === 'all' ? 'bg-white/20 text-white' : 'text-neutral-500'}`}>{txt('admin_filter_all')}</button>
                   <button onClick={() => setAdminFilter('open')} className={`px-3 py-1 rounded-lg text-[10px] font-bold transition-all ${adminFilter === 'open' ? 'bg-white/20 text-white' : 'text-neutral-500'}`}>{txt('admin_filter_open')}</button>
                   <button onClick={() => setAdminFilter('finished')} className={`px-3 py-1 rounded-lg text-[10px] font-bold transition-all ${adminFilter === 'finished' ? 'bg-white/20 text-white' : 'text-neutral-500'}`}>{txt('admin_filter_finished')}</button>
                </div>
             </div>
-
-            {/* Liste */}
             <div className="flex-1 overflow-y-auto space-y-2 custom-scrollbar pr-1">
               {filteredDuels.length === 0 && <p className="text-center text-neutral-600 text-xs italic py-10">Keine Ergebnisse</p>}
-              {filteredDuels.map(d => {
-                 return (
+              {filteredDuels.map(d => (
                    <div key={d.id} className="bg-neutral-900/80 border border-white/5 p-3 rounded-xl flex flex-col gap-2">
                       <div className="flex justify-between items-center border-b border-white/5 pb-2">
                          <span className="font-mono text-[10px] text-neutral-500">ID: {d.id}</span>
                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${d.status === 'open' ? 'bg-orange-500/20 text-orange-500' : d.status === 'finished' ? 'bg-green-500/20 text-green-500' : 'bg-red-500/20 text-red-500'}`}>{d.status.toUpperCase()}</span>
                       </div>
                       <div className="flex justify-between items-center">
-                         <div className="flex flex-col">
-                            <div className="text-xs font-bold text-white flex items-center gap-2">
-                               {d.creator} <span className="text-neutral-600 text-[10px] font-normal">vs</span> {d.challenger || '?'}
-                            </div>
-                            <div className="text-[10px] text-neutral-400 mt-1">
-                               Score: <span className="font-mono text-white">{d.creator_score ?? '-'}</span> : <span className="font-mono text-white">{d.challenger_score ?? '-'}</span>
-                            </div>
-                         </div>
-                         <div className="flex flex-col items-end">
-                            <span className="font-mono text-xs text-white font-bold">{d.amount} sats</span>
-                            {d.status === 'finished' && (
-                               d.claimed ? <span className="text-[8px] text-yellow-500 font-bold mt-1">PAID OUT</span> : <span className="text-[8px] text-neutral-500 mt-1">UNCLAIMED</span>
-                            )}
-                         </div>
+                         <div className="flex flex-col"><div className="text-xs font-bold text-white flex items-center gap-2">{d.creator} <span className="text-neutral-600 text-[10px] font-normal">vs</span> {d.challenger || '?'}</div><div className="text-[10px] text-neutral-400 mt-1">Score: <span className="font-mono text-white">{d.creator_score ?? '-'}</span> : <span className="font-mono text-white">{d.challenger_score ?? '-'}</span></div></div>
+                         <div className="flex flex-col items-end"><span className="font-mono text-xs text-white font-bold">{d.amount} sats</span>{d.status === 'finished' && (d.claimed ? <span className="text-[8px] text-yellow-500 font-bold mt-1">PAID OUT</span> : <span className="text-[8px] text-neutral-500 mt-1">UNCLAIMED</span>)}</div>
                       </div>
                    </div>
-                 );
-              })}
+              ))}
             </div>
           </div>
         </Background>
       );
     }
-  }
 
   // --- ADMIN QUESTIONS MANAGER VIEW ---
   if (view === 'admin_questions') {
@@ -1903,25 +1567,23 @@ if (dashboardView === 'settings') {
 
   // --- PRE_GAME VIEW ---
   if (view === 'pre_game') {
-     if (!checkingPayment) { confetti({ particleCount: 150, spread: 100, origin: { y: 0.6 } }); }
-     return (
-       <Background>
+      if (!checkingPayment) { confetti({ particleCount: 150, spread: 100, origin: { y: 0.6 } }); }
+      return (
+        <Background>
           <div className="w-full max-w-sm flex flex-col gap-6 text-center px-4 items-center justify-center min-h-[60vh]">
              <div className="relative"><div className="absolute inset-0 bg-green-500 blur-[50px] opacity-40 rounded-full animate-pulse"></div><CheckCircle size={100} className="text-green-500 relative animate-bounce" /></div>
              <div className="space-y-2"><h2 className="text-3xl font-black text-white uppercase drop-shadow-lg">{txt('pre_game_title')}</h2><p className="text-neutral-400 text-sm font-bold uppercase tracking-widest">{txt('pre_game_text')}</p></div>
              <Button variant="primary" onClick={startGame} className="animate-neon mt-8"><Rocket size={20} className="mr-2" />{txt('btn_ready')}</Button>
           </div>
-       </Background>
-     );
+        </Background>
+      );
   }
 
   if (view === 'create_setup') {
     return (
       <Background>
         <Card className="w-full max-w-sm text-center">
-          <h2 className="text-xl font-black text-white mb-4 uppercase italic tracking-widest">
-            {challengePlayer ? `${txt('setup_target')} ${challengePlayer.toUpperCase()}` : txt('setup_title')}
-          </h2>
+          <h2 className="text-xl font-black text-white mb-4 uppercase italic tracking-widest">{challengePlayer ? `${txt('setup_target')} ${challengePlayer.toUpperCase()}` : txt('setup_title')}</h2>
           <p className="text-neutral-400 text-xs font-bold uppercase tracking-widest mb-2">{txt('setup_wager_label')}</p>
           <input type="number" max="9999" value={wager} onChange={(e) => setWager(e.target.value)} placeholder="0" className="text-6xl font-black text-orange-500 font-mono text-center bg-transparent w-full outline-none mb-10 placeholder:text-neutral-800"/>
           <p className="text-[10px] text-neutral-500 mb-8 italic">{txt('setup_refund_info')}</p>
@@ -1939,9 +1601,7 @@ if (dashboardView === 'settings') {
           <h2 className="text-2xl font-black text-white mb-8 uppercase">{txt('pay_title')}</h2>
           <div className="bg-white p-4 rounded-3xl mx-auto mb-8 flex justify-center shadow-2xl">{invoice.req && <QRCodeCanvas value={`lightning:${invoice.req.toUpperCase()}`} size={220} includeMargin={true}/>}</div>
           <div className="my-4 flex justify-center">
-             <button onClick={() => { navigator.clipboard.writeText(invoice.req); setInvoiceCopied(true); setTimeout(() => setInvoiceCopied(false), 2000); }} className="flex items-center gap-2 bg-neutral-800 hover:bg-neutral-700 text-neutral-400 hover:text-white px-4 py-2 rounded-full text-xs font-bold transition-all border border-white/5">
-               {invoiceCopied ? <Check size={14} className="text-green-500"/> : <Copy size={14}/>} {txt('btn_copy_invoice')}
-             </button>
+             <button onClick={() => { navigator.clipboard.writeText(invoice.req); setInvoiceCopied(true); setTimeout(() => setInvoiceCopied(false), 2000); }} className="flex items-center gap-2 bg-neutral-800 hover:bg-neutral-700 text-neutral-400 hover:text-white px-4 py-2 rounded-full text-xs font-bold transition-all border border-white/5">{invoiceCopied ? <Check size={14} className="text-green-500"/> : <Copy size={14}/>} {txt('btn_copy_invoice')}</button>
           </div>
           <div className="grid gap-3"><Button variant="primary" onClick={handleManualCheck}>{txt('btn_check')}</Button><Button variant="secondary" onClick={() => window.location.href = `lightning:${invoice.req}`}>{txt('btn_wallet')}</Button><button onClick={() => setView('dashboard')} className="text-xs text-neutral-500 mt-4 font-bold uppercase">{txt('btn_cancel')}</button></div>
         </div>
@@ -1949,7 +1609,7 @@ if (dashboardView === 'settings') {
     );
   }
   
- if (view === 'game') {
+  if (view === 'game') {
     if (!allQuestions || allQuestions.length === 0) { return (<Background><div className="text-white">Fehler: Keine Fragen geladen.</div></Background>); }
     const roundConfig = gameData[currentQ];
     const questionID = roundConfig.id;
@@ -2095,3 +1755,40 @@ if (dashboardView === 'settings') {
   // Falls kein View matched (Fallback)
   return <Background><div>Loading...</div></Background>;
 }
+
+// ==========================================
+// HIER IST DER FEHLENDE BAUPLAN FÜR DIE KACHELN
+// Füge das GANZ UNTEN in deine Datei ein (außerhalb der App Funktion)
+// ==========================================
+
+const DashboardTile = ({ title, icon, color, count, onClick }) => {
+  const colorClasses = {
+    blue: 'border-blue-500/50 hover:bg-blue-500/10 text-blue-500',
+    orange: 'border-orange-500/50 hover:bg-orange-500/10 text-orange-500',
+    red: 'border-red-500/50 hover:bg-red-500/10 text-red-500',
+    green: 'border-green-500/50 hover:bg-green-500/10 text-green-500',
+    neutral: 'border-white/10 hover:bg-white/5 text-neutral-400',
+    yellow: 'border-yellow-500/50 hover:bg-yellow-500/10 text-yellow-500',
+    purple: 'border-purple-500/50 hover:bg-purple-500/10 text-purple-500',
+  };
+
+  const activeClass = colorClasses[color] || colorClasses.neutral;
+
+  return (
+    <button 
+      onClick={onClick} 
+      className={`relative p-4 rounded-2xl border flex flex-col items-center justify-center gap-3 transition-all active:scale-95 bg-neutral-900/60 aspect-[4/3] group ${activeClass}`}
+    >
+      <div className="group-hover:scale-110 transition-transform duration-300">
+        {icon}
+      </div>
+      <span className="text-xs font-black uppercase tracking-widest text-center shadow-black drop-shadow-md">{title}</span>
+      
+      {count > 0 && (
+        <div className={`absolute top-2 right-2 text-[10px] font-black w-6 h-6 rounded-full flex items-center justify-center border border-white/20 shadow-lg ${color === 'neutral' ? 'bg-white text-black' : 'bg-current text-black'}`}>
+          <span className="text-white mix-blend-difference">{count}</span>
+        </div>
+      )}
+    </button>
+  );
+};
