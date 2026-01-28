@@ -725,13 +725,42 @@ export default function App() {
       setLeaderboard(Object.values(playerStats).sort((a, b) => b.satsWon - a.satsWon).slice(0, 10));
       setStats(prev => ({ ...prev, wins: myWins, satsWon: mySats }));
     }
+// ... (vorheriger Code für finishedDuels bleibt gleich) ...
+
+    // 1. Offene Duelle laden
     const { data: allOpen } = await supabase.from('duels').select('*').eq('status', 'open').order('created_at', { ascending: false });
+    
     if (allOpen) {
-      const publicData = allOpen.filter(d => !d.target_player || d.target_player.trim() === '');
+      // 2. NEU: Wir sammeln alle Namen der Ersteller
+      const uniqueCreators = [...new Set(allOpen.map(d => d.creator))];
+      
+      // 3. NEU: Wir laden die Avatare dieser Spieler aus der Players-Tabelle
+      const { data: creatorProfiles } = await supabase
+        .from('players')
+        .select('name, avatar')
+        .in('name', uniqueCreators);
+
+      // 4. NEU: Wir bauen eine schnelle "Landkarte" (Map) für die Bilder
+      // z.B. { "stefan": "url_zum_bild.jpg", "louis": "..." }
+      const avatarMap = {};
+      if (creatorProfiles) {
+         creatorProfiles.forEach(p => { avatarMap[p.name] = p.avatar; });
+      }
+
+      // 5. Wir kleben das Bild an das Duell-Objekt dran
+      const enrichedDuels = allOpen.map(d => ({
+         ...d,
+         creator_avatar: avatarMap[d.creator] // Das ist das neue Feld!
+      }));
+
+      // Ab hier wie vorher, aber mit den "enrichedDuels" (angereicherten Duellen)
+      const publicData = enrichedDuels.filter(d => !d.target_player || d.target_player.trim() === '');
       setPublicDuels(publicData);
-      const targetData = allOpen.filter(d => d.target_player === user.name);
+      
+      const targetData = enrichedDuels.filter(d => d.target_player === user.name);
       setTargetedDuels(targetData);
     }
+    // ... (nachfolgender Code für myHistory bleibt gleich) ...
     const { data: myHistory } = await supabase
       .from('duels')
       .select('*')
@@ -1345,18 +1374,52 @@ if (dashboardView === 'home') {
       );
     }
 
-    if (dashboardView === 'lobby') {
+   if (dashboardView === 'lobby') {
       const list = publicDuels.filter(d => d.creator !== user.name);
       return (
         <Background>
           <div className="w-full max-w-md flex flex-col h-[95vh] gap-4 px-2">
-            <div className="flex items-center gap-4 py-4"><button onClick={() => setDashboardView('home')} className="bg-white/10 p-2 rounded-xl hover:bg-white/20 transition-colors"><ArrowLeft className="text-white"/></button><h2 className="text-xl font-black text-white uppercase tracking-widest">{txt('tile_lobby')}</h2></div>
+            
+            {/* Header */}
+            <div className="flex items-center gap-4 py-4">
+               <button onClick={() => setDashboardView('home')} className="bg-white/10 p-2 rounded-xl hover:bg-white/20 transition-colors">
+                  <ArrowLeft className="text-white"/>
+               </button>
+               <h2 className="text-xl font-black text-white uppercase tracking-widest">{txt('tile_lobby')}</h2>
+            </div>
+            
+            {/* Liste */}
             <div className="flex-1 overflow-y-auto space-y-2 custom-scrollbar">
-              {list.length === 0 && <div className="text-center py-20 text-neutral-600 italic">Keine offenen Duelle.<br/>Starte selbst eins!</div>}
+              {list.length === 0 && (
+                 <div className="text-center py-20 text-neutral-600 italic">
+                    Keine offenen Duelle.<br/>Starte selbst eins!
+                 </div>
+              )}
+              
               {list.map(d => (
-                <div key={d.id} className="bg-white/5 p-4 rounded-2xl flex justify-between items-center border border-white/5 hover:border-orange-500/30 transition-all">
-                  <div><p className="font-bold text-white text-sm uppercase">{formatName(d.creator)}</p><p className="text-xs text-orange-400 font-mono">{d.amount} sats</p></div>
-                  <button onClick={() => initJoinDuel(d)} className="bg-orange-500 text-black px-4 py-2 rounded-lg text-xs font-black uppercase hover:scale-105 transition-transform">{txt('lobby_fight')}</button>
+                <div key={d.id} className="bg-neutral-900/80 p-3 rounded-2xl flex justify-between items-center border border-white/5 hover:border-orange-500/50 transition-all group">
+                  <div className="flex items-center gap-3">
+                     
+                     {/* AVATAR BILD */}
+                     <div className="w-12 h-12 rounded-xl overflow-hidden border border-white/10 bg-black group-hover:scale-105 transition-transform">
+                        <img 
+                           src={d.creator_avatar || getRobotAvatar(d.creator)} 
+                           alt={d.creator} 
+                           className="w-full h-full object-cover"
+                        />
+                     </div>
+
+                     <div className="flex flex-col">
+                        <span className="font-bold text-white text-sm uppercase">{formatName(d.creator)}</span>
+                        <span className="text-xs text-orange-400 font-mono flex items-center gap-1">
+                           <Zap size={10}/> {d.amount} sats
+                        </span>
+                     </div>
+                  </div>
+
+                  <button onClick={() => initJoinDuel(d)} className="bg-white text-black px-5 py-2 rounded-xl text-xs font-black uppercase hover:bg-orange-500 transition-colors shadow-lg">
+                     {txt('lobby_fight')}
+                  </button>
                 </div>
               ))}
             </div>
@@ -1364,7 +1427,7 @@ if (dashboardView === 'home') {
         </Background>
       );
     }
-
+    
     if (dashboardView === 'history') {
       // Wir sortieren: Neueste zuerst
       const historyList = myDuels.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
