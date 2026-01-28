@@ -70,6 +70,7 @@ export const TRANSLATIONS = {
     pre_game_title: "Zahlung erhalten!",
     pre_game_text: "Gleich geht es los. Mach dich bereit.",
     game_q: "Frage",
+    pay_title: 'EINSATZ ZAHLEN',
     
     // Results
     result_wait: "Warte auf Gegner...",
@@ -167,6 +168,7 @@ export const TRANSLATIONS = {
     pre_game_title: "Payment received!",
     pre_game_text: "Get ready. Starting soon.",
     game_q: "Question",
+    pay_title: 'PAY ENTRY FEE',
 
     result_wait: "Waiting for opponent...",
     result_win: "You Won!",
@@ -262,6 +264,7 @@ export const TRANSLATIONS = {
     pre_game_title: "¡Pago recibido!",
     pre_game_text: "Prepárate. Empieza pronto.",
     game_q: "Pregunta",
+    pay_title: 'PAGAR ENTRADA',
 
     result_wait: "Esperando oponente...",
     result_win: "¡Ganaste!",
