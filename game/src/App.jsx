@@ -26,14 +26,45 @@ const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_KEY;
 const LNBITS_URL = import.meta.env.VITE_LNBITS_URL;
 const INVOICE_KEY = import.meta.env.VITE_INVOICE_KEY; 
 
-// 🔥 DEINE DOMAIN
 const MAIN_DOMAIN = "https://satoshiduell.vercel.app"; 
 
 // --- SUPABASE CLIENT ---
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-// --- KONSTANTEN ---
 const REFUND_TIMEOUT_MS = 3 * 24 * 60 * 60 * 1000; 
+
+// --- HELPER COMPONENT (Hier definiert, damit sie verfügbar ist) ---
+const DashboardTile = ({ title, icon, color, count, onClick }) => {
+  const colorClasses = {
+    blue: 'border-blue-500/50 hover:bg-blue-500/10 text-blue-500',
+    orange: 'border-orange-500/50 hover:bg-orange-500/10 text-orange-500',
+    red: 'border-red-500/50 hover:bg-red-500/10 text-red-500',
+    green: 'border-green-500/50 hover:bg-green-500/10 text-green-500',
+    neutral: 'border-white/10 hover:bg-white/5 text-neutral-400',
+    yellow: 'border-yellow-500/50 hover:bg-yellow-500/10 text-yellow-500',
+    purple: 'border-purple-500/50 hover:bg-purple-500/10 text-purple-500',
+  };
+
+  const activeClass = colorClasses[color] || colorClasses.neutral;
+
+  return (
+    <button 
+      onClick={onClick} 
+      className={`relative p-4 rounded-2xl border flex flex-col items-center justify-center gap-3 transition-all active:scale-95 bg-neutral-900/60 aspect-[4/3] group ${activeClass}`}
+    >
+      <div className="group-hover:scale-110 transition-transform duration-300">
+        {icon}
+      </div>
+      <span className="text-xs font-black uppercase tracking-widest text-center shadow-black drop-shadow-md">{title}</span>
+      
+      {count > 0 && (
+        <div className={`absolute top-2 right-2 text-[10px] font-black w-6 h-6 rounded-full flex items-center justify-center border border-white/20 shadow-lg ${color === 'neutral' ? 'bg-white text-black' : 'bg-current text-black'}`}>
+          <span className="text-white mix-blend-difference">{count}</span>
+        </div>
+      )}
+    </button>
+  );
+};
 
 // --- HELPER FUNKTIONEN ---
 
@@ -51,8 +82,6 @@ const formatName = (name) => {
   return (name.substring(0, 6) + '...' + name.substring(name.length - 4)).toUpperCase();
 };
 
-// --- AVATAR HELPER ---
-
 const fetchNostrImage = async (pubkey) => {
   if (!pubkey) return null;
   try {
@@ -69,7 +98,6 @@ const getRobotAvatar = (name) => {
   return `https://api.dicebear.com/9.x/bottts-neutral/svg?seed=${name}`;
 };
 
-// --- SOUND & HAPTIK SYSTEM ---
 const playSound = (type, muted = false) => {
   if (navigator.vibrate) {
     if (type === 'click') navigator.vibrate(10);
@@ -462,13 +490,12 @@ export default function App() {
     }
   };
 
- // --- REPARIERTER SMART LOGIN (NPUB + HEX Support) ---
+ // --- REPARIERTER SMART LOGIN ---
   const handleSmartLogin = async (e) => {
     if (e) e.preventDefault(); 
     setLoginError(''); 
     setIsLoginLoading(true);
 
-    // 1. Input putzen
     let input = loginInput.trim();
     if (input.startsWith('nostr:')) {
         input = input.replace('nostr:', '');
@@ -483,9 +510,6 @@ export default function App() {
         return; 
     }
 
-    // --- SCHLÜSSEL ERKENNUNG ---
-    
-    // A) Ist es ein Bech32 Code (npub1...)?
     if (input.startsWith('npub1')) {
       try { 
           const { type, data } = nip19.decode(input); 
@@ -496,11 +520,9 @@ export default function App() {
           return; 
       }
     } 
-    // B) Ist es ein Hex-Key?
     else if (/^[0-9a-fA-F]{64}$/.test(input)) {
         pubkeyFromInput = input.toLowerCase();
     }
-    // C) Normaler Username
     else {
       nameFromInput = input.toLowerCase();
       if (nameFromInput.length < 3) { 
@@ -537,7 +559,6 @@ export default function App() {
         }
 
       } else {
-        // User ist NEU
         if (pubkeyFromInput) { 
             localStorage.setItem('temp_nostr_pin', hashedPin); 
             
@@ -601,7 +622,6 @@ export default function App() {
     setLoginInput(""); 
 
     const intentUrl = "intent:#Intent;scheme=nostrsigner;package=com.greenart7c3.nostrsigner;S.type=get_public_key;end";
-    
     window.location.href = intentUrl;
     
     setTimeout(() => {
@@ -682,7 +702,6 @@ export default function App() {
   };
   const handleConfirmDonation = () => { setIsDonationSuccess(true); };
 
-  // --- ADMIN LOGIC ---
   const fetchAdminData = async () => {
     if (!user.isAdmin) return;
     const { data } = await supabase.from('duels').select('*').order('created_at', { ascending: false });
@@ -749,22 +768,17 @@ export default function App() {
     if (!withdrawId) return; 
     
     try { 
-      // Wir fragen LNbits: Wurde das Geld abgeholt?
       const res = await fetch(`${LNBITS_URL}/withdraw/api/v1/links/${withdrawId}`, { headers: { 'X-Api-Key': INVOICE_KEY } }); 
       const data = await res.json(); 
       
-      // Wenn 'used' >= 1 ist (oder spent=true), wurde das Geld erfolgreich ausgezahlt
       if (data.used >= 1 || data.spent === true) { 
         confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } }); 
         
-        // 2. WICHTIG: In der Datenbank markieren, dass es erledigt ist!
         if (activeDuel && !activeDuel.claimed) {
             await supabase.from('duels').update({ claimed: true }).eq('id', activeDuel.id);
-            // Auch lokal updaten, damit der QR Code sofort verschwindet (für den grünen Haken)
             setActiveDuel(prev => ({ ...prev, claimed: true }));
         }
 
-        // 3. Nach 3 Sekunden aufräumen und zurück zur Lobby
         setTimeout(() => { 
            setWithdrawLink(''); 
            setWithdrawId(''); 
@@ -968,8 +982,6 @@ export default function App() {
 
   const handleLogout = () => { localStorage.clear(); setUser(null); setView('language_select'); };
 
-  // --- VIEWS ---
-
   // --- AVATAR UPLOAD FUNKTION ---
   const handleAvatarUpload = async (event) => {
     try {
@@ -1122,139 +1134,40 @@ export default function App() {
     );
   }
 
-// --- DASHBOARD ---
+// --- DASHBOARD ROUTER ---
   if (view === 'dashboard') {
-    
-    // 1. Deine bestehenden Berechnungen (bleiben gleich)
-    const unclaimedWin = myDuels.find(d => 
-      d.status === 'finished' && 
-      !d.claimed && 
-      ( (d.creator === user.name && d.creator_score > d.challenger_score) || 
-        (d.challenger === user.name && d.challenger_score > d.creator_score) )
-    );
+    // Top Level
+    if (dashboardView === 'home') {
+       const unclaimedWin = myDuels.find(d => d.status === 'finished' && !d.claimed && ((d.creator === user.name && d.creator_score > d.challenger_score) || (d.challenger === user.name && d.challenger_score > d.creator_score)));
+       const publicCount = publicDuels.filter(d => d.creator !== user.name).length;
+       const challengeCount = targetedDuels.length;
+       const myOpenDuels = myDuels.filter(d => d.creator === user.name && d.status === 'open');
 
-    const publicCount = publicDuels.filter(d => d.creator !== user.name).length;
-    const challengeCount = targetedDuels.length;
-    const myOpenDuels = myDuels.filter(d => d.creator === user.name && d.status === 'open');
-
-    // 2. Hier beginnt die Optik (Das return)
-    return (
-      <Background>
-        <div className="w-full max-w-md flex flex-col h-[95vh] px-4">
-          
-          {/* --- NEUER HEADER MIT AVATAR --- */}
-          <header className="flex justify-between items-center py-4 mb-2">
-            <div className="flex items-center gap-3">
-               <div className="w-12 h-12 rounded-full border-2 border-orange-500 overflow-hidden shadow-lg shadow-orange-500/20">
-                  <img 
-                    src={user.avatar || getRobotAvatar(user.name)} 
-                    alt="Avatar" 
-                    className="w-full h-full object-cover"
-                  />
-               </div>
-               <div className="flex flex-col">
-                  <span className="text-neutral-400 text-xs font-bold uppercase tracking-widest">{txt('dashboard_welcome')}</span>
-                  <span className="text-xl font-black text-white leading-none">{formatName(user.name)}</span>
-               </div>
-            </div>
-            
-            <div className="flex items-center gap-3">
-               <div className="bg-orange-500/10 border border-orange-500/50 px-3 py-1 rounded-full flex items-center gap-2">
-                  <Zap size={14} className="text-orange-500 fill-orange-500 animate-pulse"/>
-                  <span className="text-orange-500 font-mono font-bold text-sm">{stats.total_sats.toLocaleString()}</span>
-               </div>
-               <button onClick={() => setView('language_select')} className="text-2xl hover:scale-110 transition-transform">{lang === 'de' ? '🇩🇪' : lang === 'en' ? '🇺🇸' : '🇪🇸'}</button>
-            </div>
-          </header>
-          
-          {/* --- GRID --- */}
-          <div className="grid grid-cols-2 gap-3 overflow-y-auto custom-scrollbar pb-20">
-            
-            {unclaimedWin && (
-               <button onClick={() => { setActiveDuel(unclaimedWin); setView('result_final'); }} className="col-span-2 bg-green-500 text-black font-black p-4 rounded-2xl animate-pulse shadow-lg shadow-green-500/20 flex items-center justify-between">
-                 <div className="flex items-center gap-2"><Trophy className="animate-bounce"/><span className="uppercase tracking-widest">Gewinn abholen!</span></div>
-                 <span>{unclaimedWin.amount * 2} Sats</span>
-               </button>
-            )}
-
-            <button 
-                onClick={() => { alert("Coming Soon!"); }} 
-                className="col-span-2 bg-gradient-to-r from-red-900/80 to-purple-900/80 border border-yellow-500/50 p-4 rounded-2xl flex items-center justify-between relative overflow-hidden group shadow-[0_0_20px_rgba(234,179,8,0.2)]"
-              >
-                <div className="absolute -right-10 -top-10 bg-yellow-500 blur-[60px] w-32 h-32 opacity-20 group-hover:opacity-40 transition-opacity"></div>
-                <div className="flex flex-col items-start z-10">
-                   <div className="flex items-center gap-2 mb-1"><Trophy size={18} className="text-yellow-400 animate-pulse"/><span className="text-sm font-black text-yellow-500 uppercase tracking-widest">SATOSHI ARENA</span></div>
-                   <span className="text-[10px] text-neutral-300 font-bold uppercase">Weekly Battle Royale</span>
-                </div>
-                <div className="flex flex-col items-end z-10">
-                   <span className="text-2xl font-black text-white font-mono drop-shadow-md">??? <span className="text-sm text-yellow-500">SATS</span></span>
-                   <span className="text-[9px] text-red-300 uppercase font-bold bg-red-900/50 px-2 py-0.5 rounded border border-red-500/30">Jackpot</span>
-                </div>
-            </button>
-
-            <DashboardTile 
-               title={txt('tile_lobby')} 
-               icon={<Globe size={24}/>} 
-               color="blue" 
-               count={publicCount} 
-               onClick={() => setDashboardView('lobby')} 
-            />
-             
-            <DashboardTile 
-               title={txt('tile_new_game')} 
-               icon={<Plus size={24}/>} 
-               color="orange" 
-               onClick={() => setView('create_duel')} 
-            />
-
-            {challengeCount > 0 && (
-              <DashboardTile 
-                 title={txt('tile_challenges')} 
-                 icon={<Swords size={24}/>} 
-                 color="red" 
-                 count={challengeCount} 
-                 onClick={() => setDashboardView('challenges')} 
-              />
-            )}
-
-            <DashboardTile 
-               title={txt('tile_active')} 
-               icon={<Zap size={24}/>} 
-               color="green" 
-               count={myDuels.filter(d => d.status === 'open' || d.status === 'active').length} 
-               onClick={() => setDashboardView('active_games')} 
-            />
-
-            <DashboardTile 
-               title={txt('tile_history')} 
-               icon={<History size={24}/>} 
-               color="neutral" 
-               onClick={() => setDashboardView('history')} 
-            />
-
-            <DashboardTile 
-               title={txt('tile_leaderboard')} 
-               icon={<Trophy size={24}/>} 
-               color="yellow" 
-               onClick={() => setDashboardView('leaderboard')} 
-            />
-
-            <DashboardTile 
-               title={txt('tile_settings')} 
-               icon={<Settings size={24}/>} 
-               color="purple" 
-               onClick={() => setDashboardView('settings')} 
-            />
-
+       return (
+        <Background>
+          <div className="w-full max-w-md flex flex-col h-[95vh] px-4">
+             <header className="flex justify-between items-center py-4 mb-2">
+               <div className="flex items-center gap-3"><div className="w-12 h-12 rounded-full border-2 border-orange-500 overflow-hidden shadow-lg shadow-orange-500/20"><img src={user.avatar || getRobotAvatar(user.name)} alt="Avatar" className="w-full h-full object-cover"/></div><div className="flex flex-col"><span className="text-neutral-400 text-xs font-bold uppercase tracking-widest">{txt('dashboard_welcome')}</span><span className="text-xl font-black text-white leading-none">{formatName(user.name)}</span></div></div>
+               <div className="flex items-center gap-3"><div className="bg-orange-500/10 border border-orange-500/50 px-3 py-1 rounded-full flex items-center gap-2"><Zap size={14} className="text-orange-500 fill-orange-500 animate-pulse"/><span className="text-orange-500 font-mono font-bold text-sm">{stats.total_sats.toLocaleString()}</span></div><button onClick={() => setView('language_select')} className="text-2xl hover:scale-110 transition-transform">{lang === 'de' ? '🇩🇪' : lang === 'en' ? '🇺🇸' : '🇪🇸'}</button></div>
+             </header>
+             <div className="grid grid-cols-2 gap-3 overflow-y-auto custom-scrollbar pb-20">
+               {unclaimedWin && (<button onClick={() => { setActiveDuel(unclaimedWin); setView('result_final'); }} className="col-span-2 bg-green-500 text-black font-black p-4 rounded-2xl animate-pulse shadow-lg shadow-green-500/20 flex items-center justify-between"><div className="flex items-center gap-2"><Trophy className="animate-bounce"/><span className="uppercase tracking-widest">Gewinn abholen!</span></div><span>{unclaimedWin.amount * 2} Sats</span></button>)}
+               <button onClick={() => { alert("Coming Soon!"); }} className="col-span-2 bg-gradient-to-r from-red-900/80 to-purple-900/80 border border-yellow-500/50 p-4 rounded-2xl flex items-center justify-between relative overflow-hidden group shadow-[0_0_20px_rgba(234,179,8,0.2)]"><div className="absolute -right-10 -top-10 bg-yellow-500 blur-[60px] w-32 h-32 opacity-20 group-hover:opacity-40 transition-opacity"></div><div className="flex flex-col items-start z-10"><div className="flex items-center gap-2 mb-1"><Trophy size={18} className="text-yellow-400 animate-pulse"/><span className="text-sm font-black text-yellow-500 uppercase tracking-widest">SATOSHI ARENA</span></div><span className="text-[10px] text-neutral-300 font-bold uppercase">Weekly Battle Royale</span></div><div className="flex flex-col items-end z-10"><span className="text-2xl font-black text-white font-mono drop-shadow-md">??? <span className="text-sm text-yellow-500">SATS</span></span><span className="text-[9px] text-red-300 uppercase font-bold bg-red-900/50 px-2 py-0.5 rounded border border-red-500/30">Jackpot</span></div></button>
+               <DashboardTile title={txt('tile_lobby')} icon={<Globe size={24}/>} color="blue" count={publicCount} onClick={() => setDashboardView('lobby')} />
+               <DashboardTile title={txt('tile_new_game')} icon={<Plus size={24}/>} color="orange" onClick={() => setView('create_duel')} />
+               {challengeCount > 0 && (<DashboardTile title={txt('tile_challenges')} icon={<Swords size={24}/>} color="red" count={challengeCount} onClick={() => setDashboardView('challenges')} />)}
+               <DashboardTile title={txt('tile_active')} icon={<Zap size={24}/>} color="green" count={myOpenDuels.length} onClick={() => setDashboardView('active_games')} />
+               <DashboardTile title={txt('tile_history')} icon={<History size={24}/>} color="neutral" onClick={() => setDashboardView('history')} />
+               <DashboardTile title={txt('tile_leaderboard')} icon={<Trophy size={24}/>} color="yellow" onClick={() => setDashboardView('leaderboard')} />
+               <DashboardTile title={txt('tile_settings')} icon={<Settings size={24}/>} color="purple" onClick={() => setDashboardView('settings')} />
+             </div>
           </div>
-        </div>
-      </Background>
-    );
-  }
+        </Background>
+      );
+    }
 
-  // --- DASHBOARD SUB-VIEWS ---
-
-  if (dashboardView === 'active_games') {
+    if (dashboardView === 'active_games') {
+      const myOpenDuels = myDuels.filter(d => d.creator === user.name && d.status === 'open');
       return (
         <Background>
           <div className="w-full max-w-md flex flex-col h-[95vh] gap-4 px-2">
@@ -1542,32 +1455,14 @@ export default function App() {
         </Background>
       );
     }
-
-  // --- ADMIN QUESTIONS MANAGER VIEW ---
-  if (view === 'admin_questions') {
-    return (
-      <Background>
-        <div className="w-full max-w-2xl flex flex-col h-[95vh] gap-4 px-4 mx-auto">
-           <AdminQuestionManager onBack={() => { setView('dashboard'); setDashboardView('admin'); }} />
-        </div>
-      </Background>
-    );
   }
 
-  // --- SUBMIT QUESTION VIEW ---
-  if (view === 'submit_question') {
-    return (
-      <Background>
-        <div className="w-full max-w-md flex flex-col h-[95vh] gap-4 px-4 mx-auto py-6">
-           <SubmitQuestion user={user} onBack={() => setView('dashboard')} />
-        </div>
-      </Background>
-    );
-  }
+  // --- SUB-VIEWS (Admin & Submit) ---
+  if (view === 'admin_questions') return (<Background><div className="w-full max-w-2xl flex flex-col h-[95vh] gap-4 px-4 mx-auto"><AdminQuestionManager onBack={() => { setView('dashboard'); setDashboardView('admin'); }} /></div></Background>);
+  if (view === 'submit_question') return (<Background><div className="w-full max-w-md flex flex-col h-[95vh] gap-4 px-4 mx-auto py-6"><SubmitQuestion user={user} onBack={() => setView('dashboard')} /></div></Background>);
 
-  // --- PRE_GAME VIEW ---
-  if (view === 'pre_game') {
-      if (!checkingPayment) { confetti({ particleCount: 150, spread: 100, origin: { y: 0.6 } }); }
+  if (view === 'pre_game') { 
+      if (!checkingPayment) { confetti({ particleCount: 150, spread: 100, origin: { y: 0.6 } }); } 
       return (
         <Background>
           <div className="w-full max-w-sm flex flex-col gap-6 text-center px-4 items-center justify-center min-h-[60vh]">
@@ -1576,10 +1471,10 @@ export default function App() {
              <Button variant="primary" onClick={startGame} className="animate-neon mt-8"><Rocket size={20} className="mr-2" />{txt('btn_ready')}</Button>
           </div>
         </Background>
-      );
+      ); 
   }
 
-  if (view === 'create_setup') {
+  if (view === 'create_setup') { 
     return (
       <Background>
         <Card className="w-full max-w-sm text-center">
@@ -1591,48 +1486,35 @@ export default function App() {
           <div className="grid gap-3"><Button variant="primary" onClick={submitCreateDuel}>{txt('btn_start')}</Button><button onClick={() => setView('dashboard')} className="text-xs text-neutral-600 uppercase font-bold mt-2">{txt('btn_cancel')}</button></div>
         </Card>
       </Background>
-    );
+    ); 
   }
 
-  if (view === 'payment') {
+  if (view === 'payment') { 
     return (
       <Background>
         <div className="w-full max-w-sm text-center">
           <h2 className="text-2xl font-black text-white mb-8 uppercase">{txt('pay_title')}</h2>
           <div className="bg-white p-4 rounded-3xl mx-auto mb-8 flex justify-center shadow-2xl">{invoice.req && <QRCodeCanvas value={`lightning:${invoice.req.toUpperCase()}`} size={220} includeMargin={true}/>}</div>
-          <div className="my-4 flex justify-center">
-             <button onClick={() => { navigator.clipboard.writeText(invoice.req); setInvoiceCopied(true); setTimeout(() => setInvoiceCopied(false), 2000); }} className="flex items-center gap-2 bg-neutral-800 hover:bg-neutral-700 text-neutral-400 hover:text-white px-4 py-2 rounded-full text-xs font-bold transition-all border border-white/5">{invoiceCopied ? <Check size={14} className="text-green-500"/> : <Copy size={14}/>} {txt('btn_copy_invoice')}</button>
-          </div>
+          <div className="my-4 flex justify-center"><button onClick={() => { navigator.clipboard.writeText(invoice.req); setInvoiceCopied(true); setTimeout(() => setInvoiceCopied(false), 2000); }} className="flex items-center gap-2 bg-neutral-800 hover:bg-neutral-700 text-neutral-400 hover:text-white px-4 py-2 rounded-full text-xs font-bold transition-all border border-white/5">{invoiceCopied ? <Check size={14} className="text-green-500"/> : <Copy size={14}/>} {txt('btn_copy_invoice')}</button></div>
           <div className="grid gap-3"><Button variant="primary" onClick={handleManualCheck}>{txt('btn_check')}</Button><Button variant="secondary" onClick={() => window.location.href = `lightning:${invoice.req}`}>{txt('btn_wallet')}</Button><button onClick={() => setView('dashboard')} className="text-xs text-neutral-500 mt-4 font-bold uppercase">{txt('btn_cancel')}</button></div>
         </div>
       </Background>
-    );
+    ); 
   }
   
   if (view === 'game') {
-    if (!allQuestions || allQuestions.length === 0) { return (<Background><div className="text-white">Fehler: Keine Fragen geladen.</div></Background>); }
-    const roundConfig = gameData[currentQ];
-    const questionID = roundConfig.id;
-    const shuffledOrder = roundConfig.order;
-    const questionData = allQuestions[questionID]?.[lang]; 
+    if (!allQuestions || allQuestions.length === 0) return (<Background><div className="text-white">Fehler: Keine Fragen geladen.</div></Background>);
+    const roundConfig = gameData[currentQ]; 
+    if (!allQuestions[roundConfig.id]) return (<Background><div className="w-full max-w-sm mx-auto flex flex-col justify-center min-h-[60vh] px-4 text-center"><AlertTriangle size={64} className="text-red-500 mx-auto mb-4"/><h3 className="text-xl font-bold text-white mb-2">Fehler beim Laden der Frage</h3><p className="text-neutral-400 text-xs mb-8">Diese Frage existiert nicht mehr in der Datenbank.</p><Button onClick={() => finishGameLogic(score)}>Spiel beenden</Button></div></Background>);
     
-    // SAFE GUARD 1: Fehlende Frage
-    if (!questionData) {
-       return (
-         <Background>
-           <div className="w-full max-w-sm mx-auto flex flex-col justify-center min-h-[60vh] px-4 text-center">
-             <AlertTriangle size={64} className="text-red-500 mx-auto mb-4"/>
-             <h3 className="text-xl font-bold text-white mb-2">Fehler beim Laden der Frage</h3>
-             <p className="text-neutral-400 text-xs mb-8">Diese Frage existiert nicht mehr in der Datenbank.</p>
-             <Button onClick={() => finishGameLogic(score)}>Spiel beenden</Button>
-           </div>
-         </Background>
-       );
-    }
-
-    const originalOptions = questionData.options;
+    const questionID = roundConfig.id; 
+    const shuffledOrder = roundConfig.order; 
+    const questionData = allQuestions[questionID]?.[lang]; 
+    if (!questionData) return null;
+    
+    const originalOptions = questionData.options; 
     const correctIndex = allQuestions[questionID].correct;
-
+    
     return (
       <Background>
         <div className="w-full max-w-sm mx-auto flex flex-col justify-center min-h-[60vh] px-4">
@@ -1640,13 +1522,7 @@ export default function App() {
           <div className="w-full h-2 bg-neutral-900 rounded-full mb-10 overflow-hidden"><div className="h-full bg-orange-500 transition-all duration-1000 ease-linear" style={{ width: `${(timeLeft / 15) * 100}%` }}></div></div>
           <h3 className="text-2xl font-bold text-white text-center mb-10 min-h-[100px]">"{questionData.q}"</h3>
           <div className="grid gap-3">{[0,1,2,3].map((displayIndex) => { const originalOptionIndex = shuffledOrder[displayIndex]; const optionText = originalOptions[originalOptionIndex]; let btnClass = "bg-neutral-900/50 hover:bg-orange-500 border-white/10"; const isCorrect = originalOptionIndex === correctIndex; const isSelected = selectedAnswer === displayIndex; if (selectedAnswer !== null) { if (isCorrect) btnClass = "bg-green-500 text-black border-green-500 shadow-[0_0_15px_rgba(34,197,94,0.6)]"; else if (isSelected) btnClass = "bg-red-500 text-white border-red-500"; else btnClass = "opacity-30 border-transparent"; } return (<button key={`${currentQ}-${displayIndex}`} onClick={() => handleAnswer(displayIndex)} disabled={selectedAnswer !== null} className={`border p-5 rounded-2xl text-left transition-all active:scale-[0.95] flex items-center gap-4 ${btnClass}`}><span className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-sm ${selectedAnswer !== null && isCorrect ? 'bg-black text-green-500' : 'bg-neutral-800 text-neutral-400'}`}>{String.fromCharCode(65 + displayIndex)}</span><span className="font-bold text-lg text-neutral-200">{optionText}</span></button>); })}</div>
-          
-          {isProcessingGame && (
-            <div className="absolute inset-0 bg-black/80 flex flex-col items-center justify-center z-50 animate-in fade-in">
-                <Loader2 size={64} className="text-orange-500 animate-spin mb-4"/>
-                <p className="text-white font-black text-xl animate-pulse">FINISHING...</p>
-            </div>
-          )}
+          {isProcessingGame && (<div className="absolute inset-0 bg-black/80 flex flex-col items-center justify-center z-50 animate-in fade-in"><Loader2 size={64} className="text-orange-500 animate-spin mb-4"/><p className="text-white font-black text-xl animate-pulse">FINISHING...</p></div>)}
         </div>
       </Background>
     );
@@ -1755,40 +1631,3 @@ export default function App() {
   // Falls kein View matched (Fallback)
   return <Background><div>Loading...</div></Background>;
 }
-
-// ==========================================
-// HIER IST DER FEHLENDE BAUPLAN FÜR DIE KACHELN
-// Füge das GANZ UNTEN in deine Datei ein (außerhalb der App Funktion)
-// ==========================================
-
-const DashboardTile = ({ title, icon, color, count, onClick }) => {
-  const colorClasses = {
-    blue: 'border-blue-500/50 hover:bg-blue-500/10 text-blue-500',
-    orange: 'border-orange-500/50 hover:bg-orange-500/10 text-orange-500',
-    red: 'border-red-500/50 hover:bg-red-500/10 text-red-500',
-    green: 'border-green-500/50 hover:bg-green-500/10 text-green-500',
-    neutral: 'border-white/10 hover:bg-white/5 text-neutral-400',
-    yellow: 'border-yellow-500/50 hover:bg-yellow-500/10 text-yellow-500',
-    purple: 'border-purple-500/50 hover:bg-purple-500/10 text-purple-500',
-  };
-
-  const activeClass = colorClasses[color] || colorClasses.neutral;
-
-  return (
-    <button 
-      onClick={onClick} 
-      className={`relative p-4 rounded-2xl border flex flex-col items-center justify-center gap-3 transition-all active:scale-95 bg-neutral-900/60 aspect-[4/3] group ${activeClass}`}
-    >
-      <div className="group-hover:scale-110 transition-transform duration-300">
-        {icon}
-      </div>
-      <span className="text-xs font-black uppercase tracking-widest text-center shadow-black drop-shadow-md">{title}</span>
-      
-      {count > 0 && (
-        <div className={`absolute top-2 right-2 text-[10px] font-black w-6 h-6 rounded-full flex items-center justify-center border border-white/20 shadow-lg ${color === 'neutral' ? 'bg-white text-black' : 'bg-current text-black'}`}>
-          <span className="text-white mix-blend-difference">{count}</span>
-        </div>
-      )}
-    </button>
-  );
-};
