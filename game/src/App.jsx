@@ -463,7 +463,7 @@ export default function App() {
     }
   };
 
- // --- REPARIERTER SMART LOGIN (NPUB + HEX Support) ---
+// --- REPARIERTER SMART LOGIN (MIT AVATAR CHECK) ---
   const handleSmartLogin = async (e) => {
     if (e) e.preventDefault(); 
     setLoginError(''); 
@@ -471,7 +471,6 @@ export default function App() {
 
     // 1. Input putzen
     let input = loginInput.trim();
-    // Falls jemand versehentlich "nostr:npub..." oder "nostr:hex..." eingibt
     if (input.startsWith('nostr:')) {
         input = input.replace('nostr:', '');
     }
@@ -485,9 +484,7 @@ export default function App() {
         return; 
     }
 
-    // --- SCHLÜSSEL ERKENNUNG (JETZT VERBESSERT) ---
-    
-    // A) Ist es ein Bech32 Code (npub1...)?
+    // --- SCHLÜSSEL ERKENNUNG ---
     if (input.startsWith('npub1')) {
       try { 
           const { type, data } = nip19.decode(input); 
@@ -498,15 +495,11 @@ export default function App() {
           return; 
       }
     } 
-    // B) NEU: Ist es ein Hex-Key? (64 Zeichen, 0-9, a-f)
-    // Das fängt deinen "fa..." String ab!
     else if (/^[0-9a-fA-F]{64}$/.test(input)) {
         pubkeyFromInput = input.toLowerCase();
     }
-    // C) Wenn weder noch -> Dann ist es ein normaler Username
     else {
       nameFromInput = input.toLowerCase();
-      // Validierung: Namen müssen min. 3 Zeichen haben
       if (nameFromInput.length < 3) { 
           setLoginError(txt('login_error_name')); 
           setIsLoginLoading(false); 
@@ -514,7 +507,6 @@ export default function App() {
       }
     }
 
-    // --- AB HIER BLEIBT ALLES GLEICH ---
     try {
       const hashedPin = await hashPin(loginPin);
       
@@ -536,8 +528,20 @@ export default function App() {
         }
         
         if (existingUser.pin === hashedPin) { 
-            const nostrPic = pubkeyFromInput ? await fetchNostrImage(pubkeyFromInput) : null;
-            finishLogin(existingUser.name, existingUser.pubkey, existingUser.is_admin, nostrPic); 
+            // --- FIX START: Erst DB prüfen, dann Nostr ---
+            
+            // 1. Wir nehmen das Bild aus der Datenbank (dein Upload)
+            let finalAvatar = existingUser.avatar;
+
+            // 2. Nur wenn KEIN Bild in der DB ist UND wir einen Key haben, suchen wir bei Nostr
+            if (!finalAvatar && pubkeyFromInput) {
+                 finalAvatar = await fetchNostrImage(pubkeyFromInput);
+            }
+
+            // 3. Wir loggen ein mit dem gefundenen Bild (oder null -> Roboter)
+            finishLogin(existingUser.name, existingUser.pubkey, existingUser.is_admin, finalAvatar); 
+            
+            // --- FIX ENDE ---
         } else { 
             setLoginError(txt('login_error_wrong_pin')); 
         }
@@ -545,7 +549,6 @@ export default function App() {
       } else {
         // User ist NEU
         if (pubkeyFromInput) { 
-            // -> Wir leiten weiter zum Setup
             localStorage.setItem('temp_nostr_pin', hashedPin); 
             
             const nostrPic = await fetchNostrImage(pubkeyFromInput);
@@ -555,7 +558,6 @@ export default function App() {
             setIsLoginLoading(false); 
             setView('nostr_setup'); 
         } else {
-             // -> Wir registrieren den normalen Namen
              const { data: nameTaken } = await supabase.from('players').select('*').eq('name', nameFromInput).single();
              if(nameTaken) { 
                  setLoginError(txt('login_error_taken')); 
