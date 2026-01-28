@@ -6,7 +6,7 @@ import {
   History, Coins, Lock, Medal, Share2, Globe, Settings, Save, Heart,
   Github, CheckCircle, RefreshCcw, Rocket, ArrowLeft, Users, AlertCircle,
   Bell, Shield, Search, Link as LinkIcon, PlayCircle, Edit2, 
-  Volume2, VolumeX, Smartphone // <--- WICHTIG: Smartphone Icon ist hier
+  Volume2, VolumeX, Smartphone, Upload // <--- WICHTIG: Smartphone Icon ist hier
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { QRCodeCanvas } from 'qrcode.react';
@@ -991,6 +991,62 @@ const handleAnswer = (displayIndex) => {
 
   // --- VIEWS ---
 
+  // --- AVATAR UPLOAD FUNKTION ---
+  const handleAvatarUpload = async (event) => {
+    try {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      // 1. Sicherheits-Check: Ist das Bild zu groß? (> 2MB)
+      if (file.size > 2 * 1024 * 1024) {
+        alert("Das Bild ist zu groß! Bitte maximal 2MB.");
+        return;
+      }
+
+      // Lade-Indikator an (wir nutzen kurz den Login-Loader)
+      setIsLoginLoading(true); 
+
+      // 2. Dateiname generieren (Name + Zeitstempel, damit es eindeutig ist)
+      // Wir entfernen Sonderzeichen aus dem Namen sicherheitshalber
+      const cleanName = user.name.replace(/[^a-zA-Z0-9]/g, '');
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${cleanName}_${Date.now()}.${fileExt}`;
+
+      // 3. Hochladen in den 'avatars' Bucket
+      const { error: uploadError } = await supabase.storage
+        .from('avatars')
+        .upload(fileName, file);
+
+      if (uploadError) throw uploadError;
+
+      // 4. Die öffentliche URL abrufen
+      const { data: { publicUrl } } = supabase.storage
+        .from('avatars')
+        .getPublicUrl(fileName);
+
+      // 5. URL in der Datenbank beim Spieler speichern
+      const { error: dbError } = await supabase
+        .from('players')
+        .update({ avatar: publicUrl })
+        .eq('name', user.name);
+
+      if (dbError) throw dbError;
+
+      // 6. Lokalen User sofort aktualisieren (damit man es gleich sieht)
+      const updatedUser = { ...user, avatar: publicUrl };
+      setUser(updatedUser);
+      localStorage.setItem('satoshi_user', JSON.stringify(updatedUser));
+      
+      alert("Profilbild erfolgreich aktualisiert! 📸");
+
+    } catch (error) {
+      console.error(error);
+      alert("Fehler beim Hochladen: " + error.message);
+    } finally {
+      setIsLoginLoading(false);
+    }
+  };
+
   if (view === 'loading_data') {
     return (<Background><div className="flex flex-col items-center justify-center h-screen"><Loader2 size={48} className="text-orange-500 animate-spin"/><p className="text-white mt-4 font-bold uppercase tracking-widest">Lade Quiz Daten...</p></div></Background>);
   }
@@ -1413,31 +1469,72 @@ if (dashboardView === 'home') {
       );
     }
 
-    if (dashboardView === 'settings') {
+if (dashboardView === 'settings') {
       return (
         <Background>
           <div className="w-full max-w-md flex flex-col h-[95vh] gap-4 px-2">
-            <div className="flex items-center gap-4 py-4"><button onClick={() => setDashboardView('home')} className="bg-white/10 p-2 rounded-xl hover:bg-white/20 transition-colors"><ArrowLeft className="text-white"/></button><h2 className="text-xl font-black text-white uppercase tracking-widest text-neutral-400">{txt('tile_settings')}</h2></div>
             
-            <div className="flex-1 overflow-y-auto space-y-4 px-2">
+            {/* Header */}
+            <div className="flex items-center gap-4 py-4">
+                <button onClick={() => setDashboardView('home')} className="bg-white/10 p-2 rounded-xl hover:bg-white/20 transition-colors">
+                    <ArrowLeft className="text-white"/>
+                </button>
+                <h2 className="text-xl font-black text-white uppercase tracking-widest text-neutral-400">{txt('tile_settings')}</h2>
+            </div>
+            
+            <div className="flex-1 overflow-y-auto space-y-4 px-2 custom-scrollbar">
                
+               {/* --- NEU: AVATAR UPLOAD --- */}
+               <div className="bg-white/5 p-4 rounded-2xl border border-white/5">
+                  <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                          {/* Vorschau des aktuellen Bildes */}
+                          <div className="w-12 h-12 rounded-full overflow-hidden border-2 border-orange-500/50 shadow-[0_0_10px_rgba(249,115,22,0.2)]">
+                              <img 
+                                src={user.avatar || getRobotAvatar(user.name)} 
+                                alt="Avatar" 
+                                className="w-full h-full object-cover" 
+                              />
+                          </div>
+                          <div className="flex flex-col">
+                              <span className="text-sm font-bold text-white uppercase">Profilbild</span>
+                              <span className="text-[10px] text-neutral-500">Max. 2MB (JPG/PNG)</span>
+                          </div>
+                      </div>
+                      
+                      {/* Der Upload Button (verstecktes Input Feld) */}
+                      <label className="bg-neutral-800 hover:bg-orange-500/20 text-white hover:text-orange-500 p-3 rounded-xl cursor-pointer transition-all border border-white/10 hover:border-orange-500 flex items-center justify-center">
+                          {isLoginLoading ? <Loader2 size={18} className="animate-spin text-orange-500"/> : <Upload size={18} />}
+                          <input 
+                              type="file" 
+                              accept="image/*" 
+                              onChange={handleAvatarUpload} 
+                              disabled={isLoginLoading}
+                              className="hidden" 
+                          />
+                      </label>
+                  </div>
+               </div>
+
+               {/* --- BENACHRICHTIGUNGEN --- */}
                <div className="bg-white/5 p-4 rounded-2xl border border-white/5">
                   <div className="flex items-center gap-3 mb-4 text-orange-500"><Bell size={20}/><span className="text-sm font-bold uppercase">{txt('settings_notifications')}</span></div>
                   <div className="flex justify-between items-center">
-                     <p className="text-neutral-400 text-xs">{txt('settings_notifications_desc')}</p>
-                     <button onClick={toggleNotifications} className={`w-12 h-6 rounded-full p-1 transition-colors ${notificationsEnabled ? 'bg-green-500' : 'bg-neutral-700'}`}>
-                        <div className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform ${notificationsEnabled ? 'translate-x-6' : 'translate-x-0'}`}></div>
-                     </button>
+                      <p className="text-neutral-400 text-xs">{txt('settings_notifications_desc')}</p>
+                      <button onClick={toggleNotifications} className={`w-12 h-6 rounded-full p-1 transition-colors ${notificationsEnabled ? 'bg-green-500' : 'bg-neutral-700'}`}>
+                         <div className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform ${notificationsEnabled ? 'translate-x-6' : 'translate-x-0'}`}></div>
+                      </button>
                   </div>
                   {!notificationsEnabled && <p className="text-[10px] text-neutral-600 mt-2 italic">{txt('perm_request')}</p>}
                </div>
 
+               {/* --- SICHERHEIT (PIN) --- */}
                <div className="bg-white/5 p-4 rounded-2xl border border-white/5">
                   <div className="flex items-center gap-3 mb-4 text-blue-500"><Shield size={20}/><span className="text-sm font-bold uppercase">{txt('settings_security')}</span></div>
                   <p className="text-neutral-400 text-xs mb-3">{txt('settings_change_pin')}</p>
                   <div className="flex gap-2">
-                     <input type="password" placeholder="****" value={newPin} onChange={(e) => setNewPin(e.target.value)} className="w-full p-3 rounded-xl bg-black/40 border border-white/10 text-white text-center font-bold outline-none focus:border-blue-500"/>
-                     <button onClick={handleUpdatePin} className="bg-blue-500 text-white px-4 rounded-xl"><Save size={18}/></button>
+                      <input type="password" placeholder="****" value={newPin} onChange={(e) => setNewPin(e.target.value)} className="w-full p-3 rounded-xl bg-black/40 border border-white/10 text-white text-center font-bold outline-none focus:border-blue-500"/>
+                      <button onClick={handleUpdatePin} className="bg-blue-500 text-white px-4 rounded-xl hover:bg-blue-600 transition-colors"><Save size={18}/></button>
                   </div>
                   {settingsMsg && <p className={`text-xs font-bold mt-2 ${settingsMsg.includes('!') ? 'text-green-500' : 'text-red-500'}`}>{settingsMsg}</p>}
                </div>
