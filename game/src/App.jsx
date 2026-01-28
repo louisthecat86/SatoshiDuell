@@ -1152,9 +1152,10 @@ const handleAnswer = (displayIndex) => {
     );
   }
 
-  // --- DASHBOARD ---
+// --- DASHBOARD ---
   if (view === 'dashboard') {
     
+    // 1. Deine bestehenden Berechnungen (bleiben gleich)
     const unclaimedWin = myDuels.find(d => 
       d.status === 'finished' && 
       !d.claimed && 
@@ -1164,9 +1165,130 @@ const handleAnswer = (displayIndex) => {
 
     const publicCount = publicDuels.filter(d => d.creator !== user.name).length;
     const challengeCount = targetedDuels.length;
-    
-    // Eigene offene Spiele
     const myOpenDuels = myDuels.filter(d => d.creator === user.name && d.status === 'open');
+
+    // 2. Hier beginnt die Optik (Das return)
+    return (
+      <Background>
+        <div className="w-full max-w-md flex flex-col h-[95vh] px-4">
+          
+          {/* --- NEUER HEADER MIT AVATAR (HIER EINFÜGEN) --- */}
+          <header className="flex justify-between items-center py-4 mb-2">
+            <div className="flex items-center gap-3">
+               {/* Dein Avatar Bild (Neu) */}
+               <div className="w-12 h-12 rounded-full border-2 border-orange-500 overflow-hidden shadow-lg shadow-orange-500/20">
+                  <img 
+                    src={user.avatar || getRobotAvatar(user.name)} 
+                    alt="Avatar" 
+                    className="w-full h-full object-cover"
+                  />
+               </div>
+               <div className="flex flex-col">
+                  <span className="text-neutral-400 text-xs font-bold uppercase tracking-widest">{txt('dashboard_welcome')}</span>
+                  <span className="text-xl font-black text-white leading-none">{formatName(user.name)}</span>
+               </div>
+            </div>
+            
+            <div className="flex items-center gap-3">
+               {/* Sats Anzeige */}
+               <div className="bg-orange-500/10 border border-orange-500/50 px-3 py-1 rounded-full flex items-center gap-2">
+                  <Zap size={14} className="text-orange-500 fill-orange-500 animate-pulse"/>
+                  <span className="text-orange-500 font-mono font-bold text-sm">{stats.total_sats.toLocaleString()}</span>
+               </div>
+               {/* Sprachwahl */}
+               <button onClick={() => setView('language_select')} className="text-2xl hover:scale-110 transition-transform">{lang === 'de' ? '🇩🇪' : lang === 'en' ? '🇺🇸' : '🇪🇸'}</button>
+            </div>
+          </header>
+          {/* ----------------------------------------------- */}
+
+          {/* Ab hier kommen deine Kacheln (Das Grid) - Das bleibt wie vorher */}
+          <div className="grid grid-cols-2 gap-3 overflow-y-auto custom-scrollbar pb-20">
+            
+            {/* CLAIM BUTTON (falls Gewinn offen) */}
+            {unclaimedWin && (
+               <button onClick={() => { setActiveDuel(unclaimedWin); setView('result_final'); }} className="col-span-2 bg-green-500 text-black font-black p-4 rounded-2xl animate-pulse shadow-lg shadow-green-500/20 flex items-center justify-between">
+                 <div className="flex items-center gap-2"><Trophy className="animate-bounce"/><span className="uppercase tracking-widest">Gewinn abholen!</span></div>
+                 <span>{unclaimedWin.amount * 2} Sats</span>
+               </button>
+            )}
+
+            {/* ARENA TILE (Falls wir das schon eingebaut haben) */}
+            <button 
+                onClick={() => { fetchArena(); setView('arena_intro'); }} 
+                className="col-span-2 bg-gradient-to-r from-red-900/80 to-purple-900/80 border border-yellow-500/50 p-4 rounded-2xl flex items-center justify-between relative overflow-hidden group shadow-[0_0_20px_rgba(234,179,8,0.2)]"
+              >
+                <div className="absolute inset-0 bg-[url('/noise.png')] opacity-10"></div>
+                <div className="absolute -right-10 -top-10 bg-yellow-500 blur-[60px] w-32 h-32 opacity-20 group-hover:opacity-40 transition-opacity"></div>
+                <div className="flex flex-col items-start z-10">
+                   <div className="flex items-center gap-2 mb-1"><Trophy size={18} className="text-yellow-400 animate-pulse"/><span className="text-sm font-black text-yellow-500 uppercase tracking-widest">SATOSHI ARENA</span></div>
+                   <span className="text-[10px] text-neutral-300 font-bold uppercase">Weekly Battle Royale</span>
+                </div>
+                <div className="flex flex-col items-end z-10">
+                   <span className="text-2xl font-black text-white font-mono drop-shadow-md">{arenaData ? arenaData.pot.toLocaleString() : '???'} <span className="text-sm text-yellow-500">SATS</span></span>
+                   <span className="text-[9px] text-red-300 uppercase font-bold bg-red-900/50 px-2 py-0.5 rounded border border-red-500/30">Jackpot</span>
+                </div>
+            </button>
+
+            {/* DEINE ANDEREN KACHELN (LOBBY, NEW GAME, ETC.) */}
+            <DashboardTile 
+               title={txt('tile_lobby')} 
+               icon={<Globe size={24}/>} 
+               color="blue" 
+               count={publicCount} 
+               onClick={() => setDashboardView('lobby')} 
+            />
+             
+            <DashboardTile 
+               title={txt('tile_new_game')} 
+               icon={<Plus size={24}/>} 
+               color="orange" 
+               onClick={() => setView('create_duel')} 
+            />
+
+            {challengeCount > 0 && (
+              <DashboardTile 
+                 title={txt('tile_challenges')} 
+                 icon={<Swords size={24}/>} 
+                 color="red" 
+                 count={challengeCount} 
+                 onClick={() => setDashboardView('challenges')} 
+              />
+            )}
+
+            <DashboardTile 
+               title={txt('tile_active')} 
+               icon={<Zap size={24}/>} 
+               color="green" 
+               count={myDuels.filter(d => d.status === 'open' || d.status === 'active').length} 
+               onClick={() => setDashboardView('active')} 
+            />
+
+            <DashboardTile 
+               title={txt('tile_history')} 
+               icon={<History size={24}/>} 
+               color="neutral" 
+               onClick={() => setDashboardView('history')} 
+            />
+
+            <DashboardTile 
+               title={txt('tile_leaderboard')} 
+               icon={<Trophy size={24}/>} 
+               color="yellow" 
+               onClick={() => setDashboardView('leaderboard')} 
+            />
+
+            <DashboardTile 
+               title={txt('tile_settings')} 
+               icon={<Settings size={24}/>} 
+               color="purple" 
+               onClick={() => setDashboardView('settings')} 
+            />
+
+          </div>
+        </div>
+      </Background>
+    );
+  }
 
 if (dashboardView === 'home') {
       return (
@@ -1363,7 +1485,7 @@ if (dashboardView === 'home') {
       );
     }
 
-    if (dashboardView === 'history') {
+if (dashboardView === 'history') {
       // Wir sortieren: Neueste zuerst
       const historyList = myDuels.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
 
@@ -1386,40 +1508,64 @@ if (dashboardView === 'home') {
               )}
               
               {historyList.map(d => {
-                 // Logik: Hab ich gewonnen?
+                 // Logik: Wer war ich? Wer war der Gegner?
                  const isCreator = d.creator === user.name;
                  const myScore = isCreator ? d.creator_score : d.challenger_score;
                  const opScore = isCreator ? d.challenger_score : d.creator_score;
                  const opponent = isCreator ? (d.challenger || '?') : d.creator;
                  
-                 let resultStatus = 'running'; // Standard: läuft noch
-                 let resultColor = 'text-neutral-500';
+                 // Ergebnis Berechnung
+                 let resultStatus = 'RUNNING'; 
+                 let resultColor = 'bg-neutral-600 text-white';
                  let borderColor = 'border-white/5';
                  
                  if (d.status === 'finished') {
-                    // Win Condition: Mehr Punkte ODER gleiche Punkte und weniger Zeit
+                    // Win Condition
                     const iWon = myScore > opScore || (myScore === opScore && (isCreator ? d.creator_time < d.challenger_time : d.challenger_time < d.creator_time));
                     resultStatus = iWon ? 'WON' : 'LOST';
-                    resultColor = iWon ? 'text-green-500' : 'text-red-500';
+                    resultColor = iWon ? 'bg-green-500 text-black' : 'bg-red-600 text-white';
                     borderColor = iWon ? 'border-green-500/30' : 'border-red-500/30';
                  } else if (d.status === 'refunded') {
                     resultStatus = 'REFUND';
-                    resultColor = 'text-yellow-500';
+                    resultColor = 'bg-yellow-500 text-black';
+                    borderColor = 'border-yellow-500/30';
                  }
 
                  return (
-                   <button key={d.id} onClick={() => openPastDuel(d)} className={`w-full bg-neutral-900/80 border ${borderColor} p-3 rounded-xl flex flex-col gap-2 hover:bg-neutral-800 transition-all`}>
-                      <div className="flex justify-between items-center w-full">
-                         <div className="flex items-center gap-2">
-                            <span className={`font-black text-sm ${resultColor}`}>{resultStatus}</span>
-                            <span className="text-neutral-400 text-xs">vs {formatName(opponent)}</span>
+                   <button key={d.id} onClick={() => openPastDuel(d)} className={`w-full bg-neutral-900/80 border ${borderColor} p-3 rounded-xl flex items-center justify-between gap-3 hover:bg-neutral-800 transition-all group`}>
+                      
+                      {/* Linke Seite: Avatar + Name */}
+                      <div className="flex items-center gap-3">
+                         {/* Avatar Container */}
+                         <div className="relative">
+                            <div className="w-12 h-12 rounded-full overflow-hidden border border-white/10 bg-black">
+                               <img 
+                                  src={getRobotAvatar(opponent)} 
+                                  alt={opponent} 
+                                  className="w-full h-full object-cover group-hover:scale-110 transition-transform"
+                               />
+                            </div>
+                            {/* Kleines Status Badge am Avatar */}
+                            <div className={`absolute -bottom-1 -right-1 text-[8px] font-black px-1.5 py-0.5 rounded shadow-sm ${resultColor}`}>
+                               {resultStatus}
+                            </div>
                          </div>
-                         <span className="font-mono text-xs text-white">{d.amount} sats</span>
+
+                         {/* Infos */}
+                         <div className="flex flex-col items-start">
+                            <span className="text-white font-bold text-sm uppercase">vs {formatName(opponent)}</span>
+                            <span className="text-neutral-500 text-[10px]">{new Date(d.created_at).toLocaleDateString()}</span>
+                         </div>
                       </div>
-                      <div className="flex justify-between w-full text-[10px] text-neutral-500">
-                         <span>{new Date(d.created_at).toLocaleDateString()}</span>
-                         <span>Score: {myScore ?? '-'} : {opScore ?? '-'}</span>
+
+                      {/* Rechte Seite: Stats */}
+                      <div className="flex flex-col items-end">
+                         <span className="font-mono font-bold text-white text-sm">{d.amount} sats</span>
+                         <span className="text-[10px] text-neutral-400 bg-white/5 px-2 py-0.5 rounded-lg mt-1">
+                            {myScore ?? '-'} : {opScore ?? '-'}
+                         </span>
                       </div>
+
                    </button>
                  );
               })}
@@ -1448,19 +1594,67 @@ if (dashboardView === 'home') {
       );
     }
 
-    if (dashboardView === 'leaderboard') {
+if (dashboardView === 'leaderboard') {
       return (
         <Background>
           <div className="w-full max-w-md flex flex-col h-[95vh] gap-4 px-2">
-            <div className="flex items-center gap-4 py-4"><button onClick={() => setDashboardView('home')} className="bg-white/10 p-2 rounded-xl hover:bg-white/20 transition-colors"><ArrowLeft className="text-white"/></button><h2 className="text-xl font-black text-white uppercase tracking-widest text-yellow-500">{txt('tile_leaderboard')}</h2></div>
+            
+            {/* Header */}
+            <div className="flex items-center gap-4 py-4">
+                <button onClick={() => setDashboardView('home')} className="bg-white/10 p-2 rounded-xl hover:bg-white/20 transition-colors">
+                    <ArrowLeft className="text-white"/>
+                </button>
+                <h2 className="text-xl font-black text-white uppercase tracking-widest text-yellow-500">{txt('tile_leaderboard')}</h2>
+            </div>
+            
+            {/* Liste der Spieler */}
             <div className="flex-1 overflow-y-auto space-y-2 custom-scrollbar">
               {leaderboard.map((p, i) => (
-                <div key={p.name} className="flex justify-between items-center bg-black/40 p-3 rounded-xl border border-white/5">
+                <div 
+                    key={p.name} 
+                    className={`flex justify-between items-center p-3 rounded-xl border transition-all ${p.name === user.name ? 'bg-orange-500/20 border-orange-500/50' : 'bg-neutral-900/60 border-white/5 hover:bg-neutral-800'}`}
+                >
                   <div className="flex items-center gap-3">
-                    <span className={`font-mono font-bold w-6 text-center ${i===0?'text-yellow-500 text-lg':i===1?'text-gray-400':i===2?'text-orange-700':'text-neutral-600'}`}>{i + 1}</span>
-                    <div className="flex flex-col"><span className="text-white font-bold uppercase text-sm">{formatName(p.name)}</span><span className="text-orange-400 font-mono text-[10px]">{p.satsWon} sats</span></div>
+                    
+                    {/* Rang # */}
+                    <span className={`font-black font-mono w-6 text-center ${i===0?'text-yellow-400 text-lg drop-shadow-lg':i===1?'text-neutral-300':i===2?'text-amber-700':'text-neutral-600'}`}>
+                        {i + 1}
+                    </span>
+                    
+                    {/* AVATAR BILD (NEU) */}
+                    <div className={`w-10 h-10 rounded-full overflow-hidden border bg-black ${i===0 ? 'border-yellow-400 shadow-[0_0_10px_rgba(250,204,21,0.3)]' : 'border-white/10'}`}>
+                        <img 
+                            src={p.avatar || getRobotAvatar(p.name)} 
+                            alt={p.name} 
+                            className="w-full h-full object-cover"
+                        />
+                    </div>
+
+                    {/* Name & Stats */}
+                    <div className="flex flex-col">
+                        <span className={`font-bold uppercase text-sm flex items-center gap-1 ${p.name === user.name ? 'text-orange-400' : 'text-white'}`}>
+                            {formatName(p.name)} 
+                            {p.isAdmin && <Shield size={10} className="text-red-500"/>}
+                        </span>
+                        <span className="text-neutral-500 text-[10px]">
+                            {p.wins || 0} Wins • {p.games_played || 0} Games
+                        </span>
+                    </div>
                   </div>
-                  {p.name !== user.name && <button onClick={() => startChallenge(p.name)} className="text-neutral-500 hover:text-white p-2 rounded-full hover:bg-white/10 transition-all"><Swords size={18}/></button>}
+                  
+                  {/* Rechte Seite: Sats & Button */}
+                  <div className="flex items-center gap-3">
+                      <span className="text-orange-400 font-mono font-bold text-xs">
+                        {(p.total_sats || p.satsWon || 0).toLocaleString()} <span className="text-[9px]">sats</span>
+                      </span>
+
+                      {/* Challenge Button (nur bei anderen) */}
+                      {p.name !== user.name && (
+                        <button onClick={() => startChallenge(p.name)} className="text-neutral-500 hover:text-white hover:bg-white/10 p-2 rounded-full transition-all" title="Herausfordern">
+                            <Swords size={18}/>
+                        </button>
+                      )}
+                  </div>
                 </div>
               ))}
             </div>
