@@ -1290,6 +1290,43 @@ const handleAnswer = (displayIndex) => {
     );
   }
 
+  // ==========================================
+// HIER IST DER FEHLENDE BAUPLAN FÜR DIE KACHELN
+// Füge das GANZ UNTEN in deine Datei ein (außerhalb der App Funktion)
+// ==========================================
+
+const DashboardTile = ({ title, icon, color, count, onClick }) => {
+  const colorClasses = {
+    blue: 'border-blue-500/50 hover:bg-blue-500/10 text-blue-500',
+    orange: 'border-orange-500/50 hover:bg-orange-500/10 text-orange-500',
+    red: 'border-red-500/50 hover:bg-red-500/10 text-red-500',
+    green: 'border-green-500/50 hover:bg-green-500/10 text-green-500',
+    neutral: 'border-white/10 hover:bg-white/5 text-neutral-400',
+    yellow: 'border-yellow-500/50 hover:bg-yellow-500/10 text-yellow-500',
+    purple: 'border-purple-500/50 hover:bg-purple-500/10 text-purple-500',
+  };
+
+  const activeClass = colorClasses[color] || colorClasses.neutral;
+
+  return (
+    <button 
+      onClick={onClick} 
+      className={`relative p-4 rounded-2xl border flex flex-col items-center justify-center gap-3 transition-all active:scale-95 bg-neutral-900/60 aspect-[4/3] group ${activeClass}`}
+    >
+      <div className="group-hover:scale-110 transition-transform duration-300">
+        {icon}
+      </div>
+      <span className="text-xs font-black uppercase tracking-widest text-center shadow-black drop-shadow-md">{title}</span>
+      
+      {count > 0 && (
+        <div className={`absolute top-2 right-2 text-[10px] font-black w-6 h-6 rounded-full flex items-center justify-center border border-white/20 shadow-lg ${color === 'neutral' ? 'bg-white text-black' : 'bg-current text-black'}`}>
+          <span className="text-white mix-blend-difference">{count}</span>
+        </div>
+      )}
+    </button>
+  );
+};
+
 if (dashboardView === 'home') {
       return (
         <Background>
@@ -1912,12 +1949,12 @@ if (dashboardView === 'settings') {
     );
   }
   
-  if (view === 'game') {
+ if (view === 'game') {
     if (!allQuestions || allQuestions.length === 0) { return (<Background><div className="text-white">Fehler: Keine Fragen geladen.</div></Background>); }
     const roundConfig = gameData[currentQ];
     const questionID = roundConfig.id;
     const shuffledOrder = roundConfig.order;
-    const questionData = allQuestions[questionID]?.[lang]; // Safe Access
+    const questionData = allQuestions[questionID]?.[lang]; 
     
     // SAFE GUARD 1: Fehlende Frage
     if (!questionData) {
@@ -1926,8 +1963,8 @@ if (dashboardView === 'settings') {
            <div className="w-full max-w-sm mx-auto flex flex-col justify-center min-h-[60vh] px-4 text-center">
              <AlertTriangle size={64} className="text-red-500 mx-auto mb-4"/>
              <h3 className="text-xl font-bold text-white mb-2">Fehler beim Laden der Frage</h3>
-             <p className="text-neutral-400 text-xs mb-8">Diese Frage existiert nicht mehr in der Datenbank. Das Spiel wird beendet.</p>
-             <Button onClick={() => finishGameLogic(score)}>Trotzdem beenden</Button>
+             <p className="text-neutral-400 text-xs mb-8">Diese Frage existiert nicht mehr in der Datenbank.</p>
+             <Button onClick={() => finishGameLogic(score)}>Spiel beenden</Button>
            </div>
          </Background>
        );
@@ -1944,7 +1981,6 @@ if (dashboardView === 'settings') {
           <h3 className="text-2xl font-bold text-white text-center mb-10 min-h-[100px]">"{questionData.q}"</h3>
           <div className="grid gap-3">{[0,1,2,3].map((displayIndex) => { const originalOptionIndex = shuffledOrder[displayIndex]; const optionText = originalOptions[originalOptionIndex]; let btnClass = "bg-neutral-900/50 hover:bg-orange-500 border-white/10"; const isCorrect = originalOptionIndex === correctIndex; const isSelected = selectedAnswer === displayIndex; if (selectedAnswer !== null) { if (isCorrect) btnClass = "bg-green-500 text-black border-green-500 shadow-[0_0_15px_rgba(34,197,94,0.6)]"; else if (isSelected) btnClass = "bg-red-500 text-white border-red-500"; else btnClass = "opacity-30 border-transparent"; } return (<button key={`${currentQ}-${displayIndex}`} onClick={() => handleAnswer(displayIndex)} disabled={selectedAnswer !== null} className={`border p-5 rounded-2xl text-left transition-all active:scale-[0.95] flex items-center gap-4 ${btnClass}`}><span className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-sm ${selectedAnswer !== null && isCorrect ? 'bg-black text-green-500' : 'bg-neutral-800 text-neutral-400'}`}>{String.fromCharCode(65 + displayIndex)}</span><span className="font-bold text-lg text-neutral-200">{optionText}</span></button>); })}</div>
           
-          {/* LADE-OVERLAY BEIM SPEICHERN */}
           {isProcessingGame && (
             <div className="absolute inset-0 bg-black/80 flex flex-col items-center justify-center z-50 animate-in fade-in">
                 <Loader2 size={64} className="text-orange-500 animate-spin mb-4"/>
@@ -1956,69 +1992,50 @@ if (dashboardView === 'settings') {
     );
   }
 
-if (view === 'result_final') { 
+  if (view === 'result_final') { 
     // --- FALL 1: REFUND (RÜCKERSTATTUNG) ---
     if (activeDuel && activeDuel.status === 'refunded') {
-       // FIX: Link aus State ODER Datenbank holen
        const finalLink = withdrawLink || activeDuel.withdraw_link;
-
        return (
          <Background>
            <div className="w-full max-w-sm text-center mt-10 px-4">
-             {/* Gelbes Icon */}
              <div className="mx-auto w-20 h-20 bg-yellow-500/20 rounded-full flex items-center justify-center mb-6 ring-2 ring-yellow-500 animate-pulse">
                 <RefreshCcw size={40} className="text-yellow-500"/>
              </div>
-             
              <h2 className="text-3xl font-black text-white mb-4 uppercase">RÜCKERSTATTUNG</h2>
-             <p className="text-neutral-400 text-xs mb-8 bg-neutral-900/50 p-4 rounded-xl border border-white/5">
-                {txt('refund_info')}
-             </p>
+             <p className="text-neutral-400 text-xs mb-8 bg-neutral-900/50 p-4 rounded-xl border border-white/5">{txt('refund_info')}</p>
 
-             {/* ANZEIGE LOGIK: Schon ausgezahlt? Link da? Oder Fehler? */}
              {activeDuel.claimed ? (
-                /* FALL A: GELD WURDE SCHON ABGEHOLT */
                 <div className="p-8 bg-green-500/10 border border-green-500/50 rounded-2xl animate-in zoom-in mb-6">
                     <CheckCircle size={64} className="text-green-500 mx-auto mb-4"/>
-                    <h3 className="text-xl font-black text-white uppercase">Erfolgreich Erstattet!</h3>
-                    <p className="text-green-400 text-xs mt-2">Die Sats sind zurück in deiner Wallet.</p>
+                    <h3 className="text-xl font-black text-white uppercase">Ausgezahlt!</h3>
+                    <p className="text-green-400 text-xs mt-2">Die Sats sind in deiner Wallet.</p>
                 </div>
              ) : finalLink ? (
-                /* FALL B: LINK IST DA -> QR CODE ZEIGEN */
                 <div className="animate-in slide-in-from-bottom-5">
                   <div className="bg-white p-4 rounded-3xl inline-block mb-6 shadow-2xl shadow-yellow-500/20">
                      <QRCodeCanvas value={`lightning:${finalLink.toUpperCase()}`} size={200} includeMargin={true}/>
                   </div>
-                  
                   <div className="my-4 flex justify-center">
                       <button onClick={() => { navigator.clipboard.writeText(finalLink); setWithdrawCopied(true); setTimeout(() => setWithdrawCopied(false), 2000); }} className="flex items-center gap-2 bg-neutral-800 hover:bg-neutral-700 text-neutral-400 hover:text-white px-4 py-3 rounded-xl text-xs font-bold transition-all border border-white/5">
                         {withdrawCopied ? <Check size={14} className="text-green-500"/> : <Copy size={14}/>} {txt('btn_copy_withdraw')}
                       </button>
                   </div>
-                  
-                  <Button variant="primary" onClick={() => window.location.href = `lightning:${finalLink}`} className="mb-2">
-                     GELD IN WALLET ÖFFNEN
-                  </Button>
+                  <Button variant="primary" onClick={() => window.location.href = `lightning:${finalLink}`} className="mb-2">GELD IN WALLET ÖFFNEN</Button>
                 </div>
              ) : (
-                /* FALL C: KEIN LINK GEFUNDEN */
                 <div className="p-4 bg-red-500/10 border border-red-500/50 rounded-xl">
                     <p className="text-red-400 text-xs font-bold">Fehler: Kein Refund-Link gefunden.</p>
                     <p className="text-[10px] text-red-300 mt-1">Bitte kontaktiere den Admin mit Spiel-ID: {activeDuel.id}</p>
                 </div>
              )}
-             
-             <button onClick={() => setView('dashboard')} className="text-neutral-500 font-black uppercase text-xs tracking-widest mt-8 hover:text-white transition-colors">
-                {txt('btn_lobby')}
-             </button>
+             <button onClick={() => setView('dashboard')} className="text-neutral-500 font-black uppercase text-xs tracking-widest mt-8 hover:text-white transition-colors">{txt('btn_lobby')}</button>
            </div>
          </Background>
-       )
+       );
     }
 
     // --- FALL 2: NORMALES SPIELERGEBNIS (WIN/LOSS) ---
-
-    // SAFE GUARD
     if (!activeDuel) return <Background><div className="text-white text-center mt-20">Lade Ergebnisse...</div></Background>;
 
     const duel = activeDuel; 
@@ -2041,9 +2058,6 @@ if (view === 'result_final') {
               <Card className="p-4 bg-white/5 opacity-50"><p className="text-[10px] font-bold text-neutral-500 uppercase">Gegner</p><p className="text-4xl font-black text-white font-mono">{duel.status === 'finished' ? opS : '?'}</p><p className="text-[10px] text-neutral-500 italic">{duel.status === 'finished' ? (typeof opT === 'number' ? opT.toFixed(1) + 's' : opT) : 'läuft...'}</p></Card>
             </div>
             
-            {/* ANZEIGE LOGIK FÜR GEWINNE */}
-
-            {/* FALL A: SCHON AUSGEZAHLT (Claimed) */}
             {duel.claimed ? (
                 <div className="p-8 bg-green-500/10 border border-green-500/50 rounded-2xl animate-in zoom-in mb-6">
                     <CheckCircle size={64} className="text-green-500 mx-auto mb-4"/>
@@ -2051,7 +2065,6 @@ if (view === 'result_final') {
                     <p className="text-green-400 text-xs mt-2">Die Sats sind in deiner Wallet.</p>
                 </div>
             ) : withdrawLink ? (
-              /* FALL B: LINK GENEIRIERT -> QR ZEIGEN */
               <div className="animate-in slide-in-from-bottom-5 duration-700">
                 <div className="bg-white p-4 rounded-3xl inline-block mb-6 shadow-2xl"><QRCodeCanvas value={`lightning:${withdrawLink.toUpperCase()}`} size={180}/></div>
                 <div className="my-4 flex justify-center">
@@ -2063,7 +2076,6 @@ if (view === 'result_final') {
                 <p className="text-orange-400 text-[10px] mt-4 font-mono animate-pulse uppercase tracking-widest italic">App springt nach Einlösung automatisch zurück</p>
               </div>
             ) : isFinished && won ? (
-              /* FALL C: GEWONNEN ABER NOCH NICHT GECLAIMED -> BUTTON ZEIGEN */
              <div className="flex flex-col gap-2">
                 <div className="bg-orange-500/10 border border-orange-500/50 p-2 rounded-xl mb-2 text-orange-400 text-[10px] font-black uppercase tracking-widest">JACKPOT: {duel.amount * 2} SATS</div>
                 <Button onClick={handleClaimReward} disabled={isClaiming} className="bg-green-500 text-black animate-pulse">
@@ -2072,7 +2084,6 @@ if (view === 'result_final') {
              </div>
             ) : null}
 
-            {/* ZURÜCK BUTTON (Nur wenn kein QR Code da ist, damit es nicht zu voll wird) */}
             {!withdrawLink && (
                <button onClick={() => setView('dashboard')} className="text-neutral-500 font-black uppercase text-xs tracking-widest mt-6">{txt('btn_lobby')}</button>
             )}
