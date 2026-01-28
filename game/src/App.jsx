@@ -1262,6 +1262,72 @@ if (dashboardView === 'home') {
       );
     }
 
+    if (dashboardView === 'history') {
+      // Wir sortieren: Neueste zuerst
+      const historyList = myDuels.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+      return (
+        <Background>
+          <div className="w-full max-w-md flex flex-col h-[95vh] gap-4 px-2">
+            
+            {/* Header */}
+            <div className="flex items-center gap-4 py-4">
+               <button onClick={() => setDashboardView('home')} className="bg-white/10 p-2 rounded-xl hover:bg-white/20 transition-colors">
+                  <ArrowLeft className="text-white"/>
+               </button>
+               <h2 className="text-xl font-black text-blue-500 uppercase tracking-widest">{txt('tile_history')}</h2>
+            </div>
+            
+            {/* Liste */}
+            <div className="flex-1 overflow-y-auto space-y-2 custom-scrollbar">
+              {historyList.length === 0 && (
+                 <div className="text-center py-20 text-neutral-600 italic">Noch keine Spiele gespielt.</div>
+              )}
+              
+              {historyList.map(d => {
+                 // Logik: Hab ich gewonnen?
+                 const isCreator = d.creator === user.name;
+                 const myScore = isCreator ? d.creator_score : d.challenger_score;
+                 const opScore = isCreator ? d.challenger_score : d.creator_score;
+                 const opponent = isCreator ? (d.challenger || '?') : d.creator;
+                 
+                 let resultStatus = 'running'; // Standard: läuft noch
+                 let resultColor = 'text-neutral-500';
+                 let borderColor = 'border-white/5';
+                 
+                 if (d.status === 'finished') {
+                    // Win Condition: Mehr Punkte ODER gleiche Punkte und weniger Zeit
+                    const iWon = myScore > opScore || (myScore === opScore && (isCreator ? d.creator_time < d.challenger_time : d.challenger_time < d.creator_time));
+                    resultStatus = iWon ? 'WON' : 'LOST';
+                    resultColor = iWon ? 'text-green-500' : 'text-red-500';
+                    borderColor = iWon ? 'border-green-500/30' : 'border-red-500/30';
+                 } else if (d.status === 'refunded') {
+                    resultStatus = 'REFUND';
+                    resultColor = 'text-yellow-500';
+                 }
+
+                 return (
+                   <button key={d.id} onClick={() => openPastDuel(d)} className={`w-full bg-neutral-900/80 border ${borderColor} p-3 rounded-xl flex flex-col gap-2 hover:bg-neutral-800 transition-all`}>
+                      <div className="flex justify-between items-center w-full">
+                         <div className="flex items-center gap-2">
+                            <span className={`font-black text-sm ${resultColor}`}>{resultStatus}</span>
+                            <span className="text-neutral-400 text-xs">vs {formatName(opponent)}</span>
+                         </div>
+                         <span className="font-mono text-xs text-white">{d.amount} sats</span>
+                      </div>
+                      <div className="flex justify-between w-full text-[10px] text-neutral-500">
+                         <span>{new Date(d.created_at).toLocaleDateString()}</span>
+                         <span>Score: {myScore ?? '-'} : {opScore ?? '-'}</span>
+                      </div>
+                   </button>
+                 );
+              })}
+            </div>
+          </div>
+        </Background>
+      );
+    }
+
     if (dashboardView === 'challenges') {
       return (
         <Background>
