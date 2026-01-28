@@ -800,7 +800,7 @@ export default function App() {
     setGameData(safeGameData); setRole('challenger'); await fetchInvoice(duel.amount); 
   };
 
-  const handleRefund = async (duel) => {
+ const handleRefund = async (duel) => {
     if (!confirm("Einsatz wirklich zurückfordern?")) return;
     try {
       const res = await fetch('/api/refund', {
@@ -809,13 +809,28 @@ export default function App() {
         body: JSON.stringify({ amount: duel.amount, duelId: duel.id, reason: 'timeout' })
       });
       const data = await res.json();
+      
       if (data.lnurl) {
         setWithdrawLink(data.lnurl);
         setWithdrawId(data.id);
-        await supabase.from('duels').update({ status: 'refunded' }).eq('id', duel.id);
+        
+        // WICHTIG: Wir speichern den Link jetzt in der DB!
+        await supabase.from('duels').update({ 
+            status: 'refunded',
+            withdraw_link: data.lnurl  // <--- NEU
+        }).eq('id', duel.id);
+        
+        // Wir aktualisieren auch das lokale Objekt, damit es sofort sichtbar ist
+        setActiveDuel({...duel, status: 'refunded', withdraw_link: data.lnurl});
+        
         setView('result_final');
-      } else { alert("Fehler beim Erstellen des Refunds."); }
-    } catch (e) { console.error(e); alert("Verbindungsfehler"); }
+      } else { 
+          alert("Fehler beim Erstellen des Refunds."); 
+      }
+    } catch (e) { 
+        console.error(e); 
+        alert("Verbindungsfehler"); 
+    }
   };
 
   const fetchInvoice = async (amountSat) => {
@@ -1620,31 +1635,61 @@ if (dashboardView === 'home') {
     );
   }
 
-  if (view === 'result_final') { 
+ if (view === 'result_final') { 
+    // --- FALL 1: REFUND (RÜCKERSTATTUNG) ---
     if (activeDuel && activeDuel.status === 'refunded') {
+       // FIX: Wir schauen: Haben wir den Link im State? ODER im gespeicherten Duel in der DB?
+       const finalLink = withdrawLink || activeDuel.withdraw_link;
+
        return (
          <Background>
-           <div className="w-full max-w-sm text-center">
-             <h2 className="text-4xl font-black text-white mb-8 uppercase">REFUND</h2>
-             <p className="text-neutral-400 mb-8">{txt('refund_info')}</p>
-             {withdrawLink && (
+           <div className="w-full max-w-sm text-center mt-10 px-4">
+             {/* Gelbes Icon für Refund */}
+             <div className="mx-auto w-20 h-20 bg-yellow-500/20 rounded-full flex items-center justify-center mb-6 ring-2 ring-yellow-500 animate-pulse">
+                <RefreshCcw size={40} className="text-yellow-500"/>
+             </div>
+             
+             <h2 className="text-3xl font-black text-white mb-4 uppercase">RÜCKERSTATTUNG</h2>
+             <p className="text-neutral-400 text-xs mb-8 bg-neutral-900/50 p-4 rounded-xl border border-white/5">
+                {txt('refund_info')}
+             </p>
+
+             {/* Haben wir einen Link? */}
+             {finalLink ? (
                 <div className="animate-in slide-in-from-bottom-5">
-                  <div className="bg-white p-4 rounded-3xl inline-block mb-6 shadow-2xl"><QRCodeCanvas value={`lightning:${withdrawLink.toUpperCase()}`} size={180}/></div>
+                  <div className="bg-white p-4 rounded-3xl inline-block mb-6 shadow-2xl shadow-yellow-500/20">
+                     <QRCodeCanvas value={`lightning:${finalLink.toUpperCase()}`} size={200} includeMargin={true}/>
+                  </div>
+                  
                   <div className="my-4 flex justify-center">
-                      <button onClick={() => { navigator.clipboard.writeText(withdrawLink); setWithdrawCopied(true); setTimeout(() => setWithdrawCopied(false), 2000); }} className="flex items-center gap-2 bg-neutral-800 hover:bg-neutral-700 text-neutral-400 hover:text-white px-4 py-2 rounded-full text-xs font-bold transition-all border border-white/5">
+                      <button onClick={() => { navigator.clipboard.writeText(finalLink); setWithdrawCopied(true); setTimeout(() => setWithdrawCopied(false), 2000); }} className="flex items-center gap-2 bg-neutral-800 hover:bg-neutral-700 text-neutral-400 hover:text-white px-4 py-3 rounded-xl text-xs font-bold transition-all border border-white/5">
                         {withdrawCopied ? <Check size={14} className="text-green-500"/> : <Copy size={14}/>} {txt('btn_copy_withdraw')}
                       </button>
                   </div>
-                  <Button variant="success" onClick={() => window.location.href = `lightning:${withdrawLink}`}>SATs ABHOLEN</Button>
+                  
+                  <Button variant="primary" onClick={() => window.location.href = `lightning:${finalLink}`} className="mb-2">
+                     GELD IN WALLET ÖFFNEN
+                  </Button>
+                </div>
+             ) : (
+                /* Fallback falls Link fehlt */
+                <div className="p-4 bg-red-500/10 border border-red-500/50 rounded-xl">
+                    <p className="text-red-400 text-xs font-bold">Fehler: Kein Refund-Link gefunden.</p>
+                    <p className="text-[10px] text-red-300 mt-1">Bitte kontaktiere den Admin mit Spiel-ID: {activeDuel.id}</p>
                 </div>
              )}
-             <button onClick={() => setView('dashboard')} className="text-neutral-500 font-black uppercase text-xs tracking-widest mt-6">{txt('btn_lobby')}</button>
+             
+             <button onClick={() => setView('dashboard')} className="text-neutral-500 font-black uppercase text-xs tracking-widest mt-8 hover:text-white transition-colors">
+                {txt('btn_lobby')}
+             </button>
            </div>
          </Background>
        )
     }
 
-    // SAFE GUARD 2: Prüfen ob Daten da sind
+    // --- FALL 2: NORMALES SPIELERGEBNIS (WIN/LOSS) ---
+
+    // SAFE GUARD: Prüfen ob Daten da sind
     if (!activeDuel) return <Background><div className="text-white text-center mt-20">Lade Ergebnisse...</div></Background>;
 
     const duel = activeDuel; 
@@ -1666,7 +1711,7 @@ if (dashboardView === 'home') {
               <Card className="p-4 bg-white/5 opacity-50"><p className="text-[10px] font-bold text-neutral-500 uppercase">Gegner</p><p className="text-4xl font-black text-white font-mono">{duel.status === 'finished' ? opS : '?'}</p><p className="text-[10px] text-neutral-500 italic">{duel.status === 'finished' ? (typeof opT === 'number' ? opT.toFixed(1) + 's' : opT) : 'läuft...'}</p></Card>
             </div>
             
-            {/* MANUELLER CLAIM BUTTON */}
+            {/* MANUELLER CLAIM BUTTON (JACKPOT GEWINN) */}
             {isFinished && won && !duel.claimed && !withdrawLink && (
              <div className="flex flex-col gap-2">
                 <div className="bg-orange-500/10 border border-orange-500/50 p-2 rounded-xl mb-2 text-orange-400 text-[10px] font-black uppercase tracking-widest">JACKPOT: {duel.amount * 2} SATS</div>
