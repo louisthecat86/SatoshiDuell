@@ -755,7 +755,37 @@ export default function App() {
     } catch(e) {} 
   };
 
-  const checkWithdrawStatus = async () => { if (!withdrawId) return; try { const res = await fetch(`${LNBITS_URL}/withdraw/api/v1/links/${withdrawId}`, { headers: { 'X-Api-Key': INVOICE_KEY } }); const data = await res.json(); if (data.used >= 1 || data.spent === true) { confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } }); setTimeout(() => { setView('dashboard'); resetGameState(); setWithdrawId(''); }, 2000); } } catch(e) {} };
+const checkWithdrawStatus = async () => { 
+    if (!withdrawId) return; 
+    
+    try { 
+      // Wir fragen LNbits: Wurde das Geld abgeholt?
+      const res = await fetch(`${LNBITS_URL}/withdraw/api/v1/links/${withdrawId}`, { headers: { 'X-Api-Key': INVOICE_KEY } }); 
+      const data = await res.json(); 
+      
+      // Wenn 'used' >= 1 ist (oder spent=true), wurde das Geld erfolgreich ausgezahlt
+      if (data.used >= 1 || data.spent === true) { 
+        // 1. Konfetti zur Feier
+        confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } }); 
+        
+        // 2. WICHTIG: In der Datenbank markieren, dass es erledigt ist!
+        if (activeDuel && !activeDuel.claimed) {
+            await supabase.from('duels').update({ claimed: true }).eq('id', activeDuel.id);
+            // Auch lokal updaten, damit der QR Code sofort verschwindet (für den grünen Haken)
+            setActiveDuel(prev => ({ ...prev, claimed: true }));
+        }
+
+        // 3. Nach 3 Sekunden aufräumen und zurück zur Lobby
+        setTimeout(() => { 
+           setWithdrawLink(''); // Link löschen
+           setWithdrawId(''); 
+           setView('dashboard'); 
+           resetGameState(); 
+        }, 3000); 
+      } 
+    } catch(e) { console.error(e); } 
+  };
+
   const handleManualCheck = async () => { setManualCheckLoading(true); await checkPaymentStatus(); setTimeout(() => setManualCheckLoading(false), 1000); };
   
   const resetGameState = () => { 
@@ -1635,16 +1665,16 @@ if (dashboardView === 'home') {
     );
   }
 
- if (view === 'result_final') { 
+if (view === 'result_final') { 
     // --- FALL 1: REFUND (RÜCKERSTATTUNG) ---
     if (activeDuel && activeDuel.status === 'refunded') {
-       // FIX: Wir schauen: Haben wir den Link im State? ODER im gespeicherten Duel in der DB?
+       // FIX: Link aus State ODER Datenbank holen
        const finalLink = withdrawLink || activeDuel.withdraw_link;
 
        return (
          <Background>
            <div className="w-full max-w-sm text-center mt-10 px-4">
-             {/* Gelbes Icon für Refund */}
+             {/* Gelbes Icon */}
              <div className="mx-auto w-20 h-20 bg-yellow-500/20 rounded-full flex items-center justify-center mb-6 ring-2 ring-yellow-500 animate-pulse">
                 <RefreshCcw size={40} className="text-yellow-500"/>
              </div>
@@ -1654,8 +1684,16 @@ if (dashboardView === 'home') {
                 {txt('refund_info')}
              </p>
 
-             {/* Haben wir einen Link? */}
-             {finalLink ? (
+             {/* ANZEIGE LOGIK: Schon ausgezahlt? Link da? Oder Fehler? */}
+             {activeDuel.claimed ? (
+                /* FALL A: GELD WURDE SCHON ABGEHOLT */
+                <div className="p-8 bg-green-500/10 border border-green-500/50 rounded-2xl animate-in zoom-in mb-6">
+                    <CheckCircle size={64} className="text-green-500 mx-auto mb-4"/>
+                    <h3 className="text-xl font-black text-white uppercase">Erfolgreich Erstattet!</h3>
+                    <p className="text-green-400 text-xs mt-2">Die Sats sind zurück in deiner Wallet.</p>
+                </div>
+             ) : finalLink ? (
+                /* FALL B: LINK IST DA -> QR CODE ZEIGEN */
                 <div className="animate-in slide-in-from-bottom-5">
                   <div className="bg-white p-4 rounded-3xl inline-block mb-6 shadow-2xl shadow-yellow-500/20">
                      <QRCodeCanvas value={`lightning:${finalLink.toUpperCase()}`} size={200} includeMargin={true}/>
@@ -1672,7 +1710,7 @@ if (dashboardView === 'home') {
                   </Button>
                 </div>
              ) : (
-                /* Fallback falls Link fehlt */
+                /* FALL C: KEIN LINK GEFUNDEN */
                 <div className="p-4 bg-red-500/10 border border-red-500/50 rounded-xl">
                     <p className="text-red-400 text-xs font-bold">Fehler: Kein Refund-Link gefunden.</p>
                     <p className="text-[10px] text-red-300 mt-1">Bitte kontaktiere den Admin mit Spiel-ID: {activeDuel.id}</p>
@@ -1689,7 +1727,7 @@ if (dashboardView === 'home') {
 
     // --- FALL 2: NORMALES SPIELERGEBNIS (WIN/LOSS) ---
 
-    // SAFE GUARD: Prüfen ob Daten da sind
+    // SAFE GUARD
     if (!activeDuel) return <Background><div className="text-white text-center mt-20">Lade Ergebnisse...</div></Background>;
 
     const duel = activeDuel; 
@@ -1706,22 +1744,23 @@ if (dashboardView === 'home') {
          <div className="w-full max-w-sm text-center mt-10">
             <div className={`mx-auto w-24 h-24 rounded-full flex items-center justify-center mb-6 ring-4 ring-offset-4 ring-offset-black ${won && isFinished ? "bg-green-500 ring-green-500" : "bg-red-500 ring-red-500"}`}>{won && isFinished ? <Trophy size={48} className="text-black animate-bounce"/> : <Flame size={48} className="text-black"/>}</div>
             <h2 className={`text-5xl font-black mb-10 uppercase ${won && isFinished ? "text-green-500" : "text-red-500"}`}>{!isFinished ? txt('result_wait') : won ? txt('result_win') : txt('result_loss')}</h2>
+            
             <div className="grid grid-cols-2 gap-4 mb-10">
               <Card className="p-4 bg-white/5 border-orange-500/30"><p className="text-[10px] font-bold text-neutral-500 uppercase">Du</p><p className="text-4xl font-black text-white font-mono">{myS}</p><p className="text-[10px] text-neutral-500 italic">{myT?.toFixed(1)}s</p></Card>
               <Card className="p-4 bg-white/5 opacity-50"><p className="text-[10px] font-bold text-neutral-500 uppercase">Gegner</p><p className="text-4xl font-black text-white font-mono">{duel.status === 'finished' ? opS : '?'}</p><p className="text-[10px] text-neutral-500 italic">{duel.status === 'finished' ? (typeof opT === 'number' ? opT.toFixed(1) + 's' : opT) : 'läuft...'}</p></Card>
             </div>
             
-            {/* MANUELLER CLAIM BUTTON (JACKPOT GEWINN) */}
-            {isFinished && won && !duel.claimed && !withdrawLink && (
-             <div className="flex flex-col gap-2">
-                <div className="bg-orange-500/10 border border-orange-500/50 p-2 rounded-xl mb-2 text-orange-400 text-[10px] font-black uppercase tracking-widest">JACKPOT: {duel.amount * 2} SATS</div>
-                <Button onClick={handleClaimReward} disabled={isClaiming} className="bg-green-500 text-black animate-pulse">
-                  {isClaiming ? <Loader2 className="animate-spin mx-auto"/> : `${txt('btn_withdraw')} (${duel.amount * 2} Sats)`}
-                </Button>
-             </div>
-            )}
+            {/* ANZEIGE LOGIK FÜR GEWINNE */}
 
-            {withdrawLink ? (
+            {/* FALL A: SCHON AUSGEZAHLT (Claimed) */}
+            {duel.claimed ? (
+                <div className="p-8 bg-green-500/10 border border-green-500/50 rounded-2xl animate-in zoom-in mb-6">
+                    <CheckCircle size={64} className="text-green-500 mx-auto mb-4"/>
+                    <h3 className="text-xl font-black text-white uppercase">Ausgezahlt!</h3>
+                    <p className="text-green-400 text-xs mt-2">Die Sats sind in deiner Wallet.</p>
+                </div>
+            ) : withdrawLink ? (
+              /* FALL B: LINK GENEIRIERT -> QR ZEIGEN */
               <div className="animate-in slide-in-from-bottom-5 duration-700">
                 <div className="bg-white p-4 rounded-3xl inline-block mb-6 shadow-2xl"><QRCodeCanvas value={`lightning:${withdrawLink.toUpperCase()}`} size={180}/></div>
                 <div className="my-4 flex justify-center">
@@ -1732,8 +1771,19 @@ if (dashboardView === 'home') {
                 <Button variant="success" onClick={() => window.location.href = `lightning:${withdrawLink}`}>{txt('btn_withdraw')}</Button>
                 <p className="text-orange-400 text-[10px] mt-4 font-mono animate-pulse uppercase tracking-widest italic">App springt nach Einlösung automatisch zurück</p>
               </div>
-            ) : (
-              <button onClick={() => setView('dashboard')} className="text-neutral-500 font-black uppercase text-xs tracking-widest mt-6">{txt('btn_lobby')}</button>
+            ) : isFinished && won ? (
+              /* FALL C: GEWONNEN ABER NOCH NICHT GECLAIMED -> BUTTON ZEIGEN */
+             <div className="flex flex-col gap-2">
+                <div className="bg-orange-500/10 border border-orange-500/50 p-2 rounded-xl mb-2 text-orange-400 text-[10px] font-black uppercase tracking-widest">JACKPOT: {duel.amount * 2} SATS</div>
+                <Button onClick={handleClaimReward} disabled={isClaiming} className="bg-green-500 text-black animate-pulse">
+                  {isClaiming ? <Loader2 className="animate-spin mx-auto"/> : `${txt('btn_withdraw')} (${duel.amount * 2} Sats)`}
+                </Button>
+             </div>
+            ) : null}
+
+            {/* ZURÜCK BUTTON (Nur wenn kein QR Code da ist, damit es nicht zu voll wird) */}
+            {!withdrawLink && (
+               <button onClick={() => setView('dashboard')} className="text-neutral-500 font-black uppercase text-xs tracking-widest mt-6">{txt('btn_lobby')}</button>
             )}
          </div>
       </Background>
