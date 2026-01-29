@@ -903,68 +903,16 @@ const checkWithdrawStatus = async () => {
   const startGame = () => { setCurrentQ(0); setScore(0); setTotalTime(0); setTimeLeft(15.0); setSelectedAnswer(null); setIsProcessingGame(false); setView('game'); };
 
 const handleAnswer = (displayIndex) => {
-    // 1. Verhindern, dass man doppelt klickt (außer es ist ein Timeout -1)
-    if (selectedAnswer !== null && displayIndex !== -1) return;
+    if (selectedAnswer !== null) return; 
     
-    // --- SAFE GUARD START ---
+    // --- SAFE GUARD START: Existiert die Frage überhaupt? ---
     const roundConfig = gameData[currentQ];
+    // Falls Frage fehlt: Nicht crashen, sondern abbrechen
     if (!allQuestions[roundConfig.id]) {
         console.error("Frage fehlt in DB!");
         return;
     }
-    // --- SAFE GUARD ENDE ---
 
-    setSelectedAnswer(displayIndex);
-
-    // 2. ZEIT BERECHNEN (Der wichtige Fix!)
-    let timeTaken;
-    
-    if (displayIndex === -1) {
-      // Fall: Zeit abgelaufen -> Volle Zeit wurde verbraucht
-      timeTaken = MAX_TIME;
-    } else {
-      // Fall: Geklickt -> MaxZeit minus Restzeit = Benötigte Zeit
-      // parseFloat + toFixed(1) verhindert Fehler wie "2.30000001"
-      timeTaken = parseFloat((MAX_TIME - timeLeft).toFixed(1));
-    }
-    
-    // Zur Gesamtzeit addieren
-    setTotalTime(prev => parseFloat((prev + timeTaken).toFixed(1)));
-
-    // 3. PRÜFEN: WAR ES RICHTIG?
-    // Wir müssen den Display-Index (0-3) zurückrechnen auf die Original-Optionen
-    // displayIndex ist -1 bei Timeout -> automatisch falsch
-    let isCorrect = false;
-    
-    if (displayIndex !== -1) {
-        const originalOptionIndex = roundConfig.order[displayIndex];
-        const correctIndex = allQuestions[roundConfig.id].correct;
-        isCorrect = originalOptionIndex === correctIndex;
-    }
-
-    // 4. SCORE & SOUND
-    let newScore = score;
-    if (isCorrect) {
-        playSound('correct', isMuted);
-        newScore = score + 1;
-        setScore(newScore);
-    } else {
-        playSound('wrong', isMuted);
-    }
-
-    // 5. WEITER GEHT'S (nach kurzer Pause)
-    setTimeout(() => {
-        if (currentQ < 4) {
-            // Nächste Frage vorbereiten
-            setCurrentQ(prev => prev + 1);
-            setSelectedAnswer(null);
-            setTimeLeft(MAX_TIME); // Timer resetten!
-        } else {
-            // Spiel vorbei -> Ergebnis verarbeiten
-            finishGameLogic(newScore);
-        }
-    }, 1500); // 1.5 Sekunden warten, damit man sieht ob grün/rot
-  };
     // --- SAFE GUARD ENDE ---
 
     // --- SOUND LOGIK START (Nur Effekte, kein Ticken hier) ---
