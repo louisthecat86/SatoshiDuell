@@ -988,7 +988,8 @@ export default function App() {
     const cleanTime = parseFloat((rawTime || 0).toFixed(1));
 
     try {
-      if (activeDuel.type === 'tournament') {
+      // FIX: Hier stand vorher nur activeDuel.type -> Das stürzt ab bei neuen Duellen!
+      if (activeDuel && activeDuel.type === 'tournament') {
           // --- TURNIER LOGIK ---
           const { data: freshDuel } = await supabase.from('duels').select('*').eq('id', activeDuel.id).single();
           
@@ -1013,6 +1014,7 @@ export default function App() {
 
       } else if (role === 'creator') {
         // --- CREATOR LOGIK (Duell) ---
+        // Hier ist activeDuel oft null, deshalb landen wir hier im 'else if' -> Korrekt!
         const { error } = await supabase.from('duels').insert([{ 
           creator: user.name, 
           creator_score: finalScore, 
