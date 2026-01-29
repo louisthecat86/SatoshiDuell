@@ -903,46 +903,40 @@ const checkWithdrawStatus = async () => {
   const startGame = () => { setCurrentQ(0); setScore(0); setTotalTime(0); setTimeLeft(15.0); setSelectedAnswer(null); setIsProcessingGame(false); setView('game'); };
 
 const handleAnswer = (displayIndex) => {
-    // 1. Verhindern, dass man doppelt klickt (außer es ist ein Timeout -1)
     if (selectedAnswer !== null && displayIndex !== -1) return;
     
-    // --- SAFE GUARD START ---
     const roundConfig = gameData[currentQ];
     if (!allQuestions[roundConfig.id]) {
         console.error("Frage fehlt in DB!");
         return;
     }
-    // --- SAFE GUARD ENDE ---
 
     setSelectedAnswer(displayIndex);
 
-    // 2. ZEIT BERECHNEN (Der wichtige Fix!)
+    // 1. ZEIT BERECHNEN
     let timeTaken;
-    
     if (displayIndex === -1) {
-      // Fall: Zeit abgelaufen -> Volle Zeit wurde verbraucht
       timeTaken = MAX_TIME;
     } else {
-      // Fall: Geklickt -> MaxZeit minus Restzeit = Benötigte Zeit
-      // parseFloat + toFixed(1) verhindert Fehler wie "2.30000001"
       timeTaken = parseFloat((MAX_TIME - timeLeft).toFixed(1));
     }
     
-    // Zur Gesamtzeit addieren
-    setTotalTime(prev => parseFloat((prev + timeTaken).toFixed(1)));
-
-    // 3. PRÜFEN: WAR ES RICHTIG?
-    // Wir müssen den Display-Index (0-3) zurückrechnen auf die Original-Optionen
-    // displayIndex ist -1 bei Timeout -> automatisch falsch
-    let isCorrect = false;
+    // WICHTIG: Wir berechnen die NEUE Gesamtzeit hier sofort in einer Variable!
+    // "totalTime" ist hier noch der alte Wert (Summe von 1-4).
+    const newTotalTime = parseFloat((totalTime + timeTaken).toFixed(1));
     
+    // State updaten (für die Anzeige)
+    setTotalTime(newTotalTime);
+
+    // 2. PRÜFEN OB RICHTIG
+    let isCorrect = false;
     if (displayIndex !== -1) {
         const originalOptionIndex = roundConfig.order[displayIndex];
         const correctIndex = allQuestions[roundConfig.id].correct;
         isCorrect = originalOptionIndex === correctIndex;
     }
 
-    // 4. SCORE & SOUND
+    // 3. SCORE
     let newScore = score;
     if (isCorrect) {
         playSound('correct', isMuted);
@@ -952,18 +946,17 @@ const handleAnswer = (displayIndex) => {
         playSound('wrong', isMuted);
     }
 
-    // 5. WEITER GEHT'S (nach kurzer Pause)
+    // 4. WEITERLEITEN
     setTimeout(() => {
         if (currentQ < 4) {
-            // Nächste Frage vorbereiten
             setCurrentQ(prev => prev + 1);
             setSelectedAnswer(null);
-            setTimeLeft(MAX_TIME); // Timer resetten!
+            setTimeLeft(MAX_TIME);
         } else {
-            // Spiel vorbei -> Ergebnis verarbeiten
-            finishGameLogic(newScore);
+            // FIX: Wir übergeben jetzt Score UND die fertige Zeit direkt!
+            finishGameLogic(newScore, newTotalTime);
         }
-    }, 1500); // 1.5 Sekunden warten, damit man sieht ob grün/rot
+    }, 1500);
   };
 
   const finishGameLogic = async (finalScore = score) => {
