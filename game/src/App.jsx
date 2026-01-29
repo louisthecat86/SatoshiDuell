@@ -150,6 +150,7 @@ export default function App() {
   const [role, setRole] = useState(null); 
   const [gameData, setGameData] = useState([]); 
   const [wager, setWager] = useState(''); 
+  const [tournamentPlayers, setTournamentPlayers] = useState(4);
   const [stats, setStats] = useState({ wins: 0, losses: 0, total: 0, satsWon: 0 });
   
   // Quiz
@@ -847,6 +848,68 @@ const checkWithdrawStatus = async () => {
     setView('create_setup'); 
   };
   
+  const initTournament = async () => {
+    if (!user) return login();
+    
+    // 1. Validierung
+    const entryFee = parseInt(amount);
+    if (isNaN(entryFee) || entryFee < 10) {
+      alert("Minimum 10 Sats!");
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      // 2. 12 Fragen generieren (statt 5)
+      // HINWEIS: Hier rufen wir deine generateQuestions Logik auf, aber 12x
+      const questions = [];
+      // Wir nehmen an, du hast eine funktion 'getRandomQuestion' oder ähnlich.
+      // Falls du eine API nutzt, musst du hier 12 abfragen.
+      // Hier ein Beispiel-Loop, passe ihn an deine Fragen-Logik an:
+      for(let i=0; i<12; i++) {
+          // Falls du Fragen lokal hast:
+          const q = QUESTIONS[Math.floor(Math.random() * QUESTIONS.length)];
+          questions.push(q);
+      }
+
+      // 3. Datenbank Objekt vorbereiten
+      // WICHTIG: Das Backend muss 'max_players' unterstützen oder du speicherst es in metadata
+      const duelData = {
+        creator: user.name,
+        creator_avatar: user.avatar,
+        amount: entryFee,
+        status: 'open',
+        type: 'tournament', // Markierung als Turnier
+        max_players: tournamentPlayers, // Neue Info
+        questions: questions, // 12 Fragen
+        rounds: 12,
+        current_pot: entryFee, // Start-Topf
+        created_at: new Date().toISOString()
+      };
+
+      // 4. In Supabase speichern (Beispiel)
+      const { data, error } = await supabase
+        .from('duels')
+        .insert([duelData])
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      // 5. Weiterleitung zur Lobby oder Invoice
+      // Da es ein Turnier ist, zahlen wir erst ein
+      setActiveDuel(data);
+      setView('pay_invoice'); // Oder direkt in die Lobby, je nach deinem Flow
+
+    } catch (err) {
+      console.error(err);
+      alert("Fehler beim Erstellen.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const submitCreateDuel = async () => { 
     const val = Number(wager);
     if (!wager || val <= 0) { alert("Bitte einen Einsatz wählen!"); return; }
@@ -1418,6 +1481,115 @@ if (view === 'dashboard') {
       );
     }
 
+    // ---------------------------------------------------------
+  // VIEW: TOURNAMENT SETUP (Hier kommt die neue Ansicht hin)
+  // ---------------------------------------------------------
+  if (view === 'create_tournament_setup') {
+    return (
+      <Background>
+        <div className="w-full max-w-md flex flex-col h-[95vh] justify-between px-4 py-6">
+          
+          {/* Header */}
+          <div className="flex items-center gap-4">
+             <button onClick={() => setView('dashboard')} className="bg-white/10 p-3 rounded-xl hover:bg-white/20 transition-colors">
+                <ArrowLeft className="text-white"/>
+             </button>
+             <div>
+                 <h2 className="text-2xl font-black text-white uppercase tracking-widest text-red-500">{txt('setup_tournament_title')}</h2>
+                 <p className="text-xs text-red-200 font-mono flex items-center gap-2">
+                    <Zap size={12}/> {txt('setup_tournament_info')}
+                 </p>
+             </div>
+          </div>
+
+          {/* Settings Card */}
+          <div className="flex-1 flex flex-col justify-center gap-6">
+             
+             {/* 1. EINSATZ WÄHLEN */}
+             <div className="bg-neutral-900/80 p-6 rounded-3xl border border-red-500/30 shadow-[0_0_30px_rgba(220,38,38,0.2)]">
+                <label className="text-xs font-bold text-neutral-400 uppercase tracking-widest mb-4 block text-center">
+                    {txt('setup_wager_label')} (pro Person)
+                </label>
+                
+                <div className="flex items-center justify-center gap-2 mb-6">
+                    <Coins className="text-yellow-500 animate-pulse" size={32} />
+                    <input 
+                      type="number" 
+                      value={amount}
+                      onChange={(e) => setAmount(e.target.value)}
+                      className="bg-transparent text-5xl font-black text-white text-center w-full focus:outline-none placeholder-neutral-700"
+                      placeholder="0"
+                    />
+                </div>
+                
+                {/* Preset Buttons */}
+                <div className="grid grid-cols-4 gap-2">
+                   {[100, 500, 1000, 5000].map(val => (
+                      <button key={val} onClick={() => setAmount(val)} className="bg-white/5 hover:bg-white/10 py-2 rounded-lg text-xs font-mono text-neutral-300 transition-colors">
+                         {val}
+                      </button>
+                   ))}
+                </div>
+             </div>
+
+             {/* 2. SPIELERANZAHL WÄHLEN (Neu) */}
+             <div className="bg-neutral-900/80 p-6 rounded-3xl border border-white/5">
+                <div className="flex justify-between items-center mb-4">
+                    <label className="text-xs font-bold text-neutral-400 uppercase tracking-widest">
+                        {txt('setup_players_label')}
+                    </label>
+                    <span className="text-xl font-black text-red-500">{tournamentPlayers}</span>
+                </div>
+
+                {/* Slider für Spieler */}
+                <input 
+                  type="range" 
+                  min="3" 
+                  max="50" 
+                  step="1"
+                  value={tournamentPlayers}
+                  onChange={(e) => setTournamentPlayers(parseInt(e.target.value))}
+                  className="w-full h-2 bg-neutral-700 rounded-lg appearance-none cursor-pointer accent-red-500 mb-6"
+                />
+
+                {/* Presets für Spieler */}
+                <div className="grid grid-cols-5 gap-2">
+                   {[4, 8, 16, 32, 50].map(p => (
+                      <button 
+                        key={p} 
+                        onClick={() => setTournamentPlayers(p)} 
+                        className={`py-2 rounded-lg text-xs font-black transition-all ${tournamentPlayers === p ? 'bg-red-500 text-white shadow-lg scale-105' : 'bg-white/5 text-neutral-400 hover:bg-white/10'}`}
+                      >
+                         {p}
+                      </button>
+                   ))}
+                </div>
+                
+                {/* Info Text Pot Berechnung */}
+                <div className="mt-4 pt-4 border-t border-white/5 flex justify-between items-center">
+                    <span className="text-xs text-neutral-500">Gesamter Preispool:</span>
+                    <span className="text-lg font-mono font-bold text-yellow-500">
+                        {(!isNaN(parseInt(amount)) ? (parseInt(amount) * tournamentPlayers).toLocaleString() : 0)} Sats
+                    </span>
+                </div>
+             </div>
+
+          </div>
+
+          {/* CREATE BUTTON */}
+          <button 
+            onClick={initTournament} 
+            disabled={loading}
+            className="w-full py-5 bg-gradient-to-r from-red-600 to-red-500 rounded-2xl text-white font-black uppercase tracking-widest text-lg shadow-[0_0_20px_rgba(220,38,38,0.5)] hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {loading ? <Loader2 className="animate-spin"/> : <Rocket />}
+            {txt('btn_create_tournament')}
+          </button>
+
+        </div>
+      </Background>
+    );
+  }
 // ---------------------------------------------------------
     // VIEW: HOME (Hauptmenü) - Beide mit Plus-Icon
     // ---------------------------------------------------------
@@ -1476,13 +1648,13 @@ if (view === 'dashboard') {
                   </span>
                 </button>
 
-                {/* 2. NEUES TURNIER (Dunkelgrau - Jetzt auch mit Plus) */}
+                {/* 2. NEUES TURNIER (Dunkelgrau - Jetzt mit Link zum Setup) */}
                 <button 
-                  onClick={() => { playSound('click', isMuted); setDashboardView('tournaments'); }} 
+                  // HIER IST DIE ÄNDERUNG:
+                  onClick={() => { playSound('click', isMuted); setView('create_tournament_setup'); }} 
                   className="bg-neutral-800 p-4 rounded-2xl flex flex-col items-center justify-center gap-2 shadow-lg hover:bg-neutral-700 hover:scale-[1.02] transition-all border border-white/10 group relative overflow-hidden"
                 >
                   <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-5"></div>
-                  {/* HIER GEÄNDERT: Trophy -> Plus */}
                   <Plus size={28} className="text-neutral-400 group-hover:text-white transition-colors relative z-10"/>
                   <span className="text-xs font-black text-neutral-400 group-hover:text-white transition-colors uppercase tracking-widest relative z-10 shadow-black drop-shadow-sm text-center">
                     {txt('dashboard_new_tournament')}

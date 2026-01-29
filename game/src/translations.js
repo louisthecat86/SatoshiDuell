@@ -116,6 +116,10 @@ export const TRANSLATIONS = {
     pre_game_text: "Gleich geht es los. Mach dich bereit.",
     game_q: "Frage",
     pay_title: 'EINSATZ ZAHLEN',
+    setup_tournament_title: "Turnier erstellen",
+    setup_players_label: "Anzahl Spieler",
+    setup_tournament_info: "12 Fragen • Winner takes all",
+    btn_create_tournament: "Turnier starten",
     
     // Results
     result_wait: "Warte auf Gegner...",
@@ -259,6 +263,10 @@ export const TRANSLATIONS = {
     pre_game_text: "Get ready. Starting soon.",
     game_q: "Question",
     pay_title: 'PAY ENTRY FEE',
+    setup_tournament_title: "Create Tournament",
+    setup_players_label: "Number of Players",
+    setup_tournament_info: "12 Questions • Winner takes all",
+    btn_create_tournament: "Start Tournament",
 
     result_wait: "Waiting for opponent...",
     result_win: "You Won!",
@@ -395,6 +403,10 @@ export const TRANSLATIONS = {
     setup_target: "Desafiar a",
     setup_wager_label: "Apuesta (Sats)",
     setup_refund_info: "Duelos no aceptados se reembolsan tras 3 días.",
+    setup_tournament_title: "Crear Torneo",
+    setup_players_label: "Número de Jugadores",
+    setup_tournament_info: "12 Preguntas • El ganador se lo lleva todo",
+    btn_create_tournament: "Iniciar Torneo",
 
     pre_game_title: "¡Pago recibido!",
     pre_game_text: "Prepárate. Empieza pronto.",
