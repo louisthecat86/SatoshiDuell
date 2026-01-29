@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createClient } from '@supabase/supabase-js';
-import {
+import { 
   Zap, Trophy, Clock, User, Plus, Swords, RefreshCw, Copy, Check,
-  ExternalLink, AlertTriangle, Loader2, LogOut, Fingerprint, Flame,
+  ExternalLink, AlertTriangle, Loader2, LogOut, Fingerprint, Flame, // <--- FLAME
   History, Coins, Lock, Medal, Share2, Globe, Settings, Save, Heart,
-  Github, CheckCircle, RefreshCcw, Rocket, ArrowLeft, Users, AlertCircle,
-  Bell, Shield, Search, Link as LinkIcon, PlayCircle, Edit2, 
-  Volume2, VolumeX, Smartphone, Upload // <--- WICHTIG: Smartphone Icon ist hier
+  Github, CheckCircle, RefreshCcw, Rocket, // <--- ROCKET
+  ArrowLeft, Users, AlertCircle, Bell, Shield, Search, Link as LinkIcon, 
+  PlayCircle, Edit2, Volume2, VolumeX, Smartphone, Upload,
+  Flag, Gem // <--- FLAG, GEM
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { QRCodeCanvas } from 'qrcode.react';
@@ -1256,14 +1257,31 @@ if (view === 'dashboard') {
     // ---------------------------------------------------------
     // VIEW: BADGES / ERFOLGE (Hall of Fame)
     // ---------------------------------------------------------
+    // ---------------------------------------------------------
+    // VIEW: BADGES / ERFOLGE (Hall of Fame) - ERWEITERT
+    // ---------------------------------------------------------
     if (dashboardView === 'badges') {
       
-      // 1. STATISTIK BERECHNEN (Live aus deiner Historie)
-      let stats = { played: myDuels.length, wins: 0, sats: 0, perfect: 0 };
+      // 1. STATISTIK BERECHNEN
+      let stats = { 
+        played: myDuels.length, 
+        wins: 0, 
+        sats: 0, 
+        perfect: 0,
+        speedWin: false,    // Für "Der Blitz"
+        highRoller: false,  // Für "High Roller"
+        photoFinish: false, // Für "Fotofinish"
+        currentStreak: 0    // Für "Streak"
+      };
 
-      myDuels.forEach(d => {
-         // Nur fertige Spiele zählen
-         if (d.status !== 'finished') return;
+      // Zuerst sortieren wir die Spiele nach Datum (neueste zuerst), um den Streak zu berechnen
+      const sortedDuels = [...myDuels].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+      // Streak Logik: Wir zählen solange, bis wir eine Niederlage finden
+      let streakActive = true;
+
+      sortedDuels.forEach(d => {
+         if (d.status !== 'finished') return; // Laufende Spiele ignorieren
 
          const isCreator = d.creator === user.name;
          const myScore = isCreator ? d.creator_score : d.challenger_score;
@@ -1271,39 +1289,60 @@ if (view === 'dashboard') {
          const myTime = isCreator ? d.creator_time : d.challenger_time;
          const opTime = isCreator ? d.challenger_time : d.creator_time;
          
-         // Gewinn-Logik
          const iWon = myScore > opScore || (myScore === opScore && myTime < opTime);
          
+         // Streak berechnen (nur solange streakActive true ist)
+         if (streakActive) {
+            if (iWon) {
+                stats.currentStreak++;
+            } else {
+                streakActive = false; // Streak gerissen
+            }
+         }
+
          if (iWon) {
              stats.wins++;
              stats.sats += (d.amount || 0);
+
+             // Check: Blitz (Gewonnen in unter 12 Sekunden Gesamtzeit)
+             if (myTime < 12.0) stats.speedWin = true;
+
+             // Check: Fotofinish (Punktegleichstand, aber durch Zeit gewonnen)
+             if (myScore === opScore && myTime < opTime) stats.photoFinish = true;
          }
          
-         // Perfekte Runde (5/5)
-         if (myScore === 5) {
-             stats.perfect++;
-         }
+         // Check: Perfekte Runde
+         if (myScore === 5) stats.perfect++;
+
+         // Check: High Roller (Einsatz > 500 Sats)
+         if ((d.amount || 0) >= 500) stats.highRoller = true;
       });
 
       // 2. DIE ABZEICHEN DEFINIEREN
       const BADGES = [
-        // Kategorie: SPIELE
+        // --- KATEGORIE: BASIS ---
         { id: 'p1', name: 'Neuling', desc: '5 Spiele gespielt', icon: User, color: 'text-blue-400', achieved: stats.played >= 5 },
         { id: 'p2', name: 'Stammgast', desc: '25 Spiele gespielt', icon: Users, color: 'text-blue-500', achieved: stats.played >= 25 },
         { id: 'p3', name: 'Inventar', desc: '100 Spiele gespielt', icon: Globe, color: 'text-blue-600', achieved: stats.played >= 100 },
         
-        // Kategorie: SIEGE
+        // --- KATEGORIE: SIEGE ---
         { id: 'w1', name: 'Gewinner', desc: '5 Siege errungen', icon: Trophy, color: 'text-yellow-400', achieved: stats.wins >= 5 },
         { id: 'w2', name: 'Champion', desc: '20 Siege errungen', icon: Medal, color: 'text-yellow-500', achieved: stats.wins >= 20 },
         { id: 'w3', name: 'Legende', desc: '50 Siege errungen', icon: Fingerprint, color: 'text-yellow-600', achieved: stats.wins >= 50 },
 
-        // Kategorie: SATS
+        // --- KATEGORIE: SPECIALS (NEU!) ---
+        { id: 'sp1', name: 'Der Blitz', desc: 'Sieg in unter 12s', icon: Rocket, color: 'text-red-500', achieved: stats.speedWin },
+        { id: 'sp2', name: 'Unaufhaltsam', desc: '3 Siege in Folge', icon: Flame, color: 'text-orange-500', achieved: stats.currentStreak >= 3 },
+        { id: 'sp3', name: 'High Roller', desc: 'Spiel um 500+ Sats', icon: Gem, color: 'text-purple-400', achieved: stats.highRoller },
+        { id: 'sp4', name: 'Fotofinish', desc: 'Knapper Zeitsieg', icon: Flag, color: 'text-pink-500', achieved: stats.photoFinish },
+
+        // --- KATEGORIE: SATS ---
         { id: 's1', name: 'Sparer', desc: '100 Sats gewonnen', icon: Coins, color: 'text-green-400', achieved: stats.sats >= 100 },
         { id: 's2', name: 'Stacker', desc: '1.000 Sats gewonnen', icon: Coins, color: 'text-green-500', achieved: stats.sats >= 1000 },
         { id: 's3', name: 'Whale', desc: '10.000 Sats gewonnen', icon: Coins, color: 'text-green-600', achieved: stats.sats >= 10000 },
         
-        // Kategorie: SKILL
-        { id: 'sk1', name: 'Scharfschütze', desc: '5x Perfekte Runde (5/5)', icon: Zap, color: 'text-purple-500', achieved: stats.perfect >= 5 },
+        // --- KATEGORIE: SKILL ---
+        { id: 'sk1', name: 'Scharfschütze', desc: '5x Perfekte Runde', icon: Zap, color: 'text-cyan-400', achieved: stats.perfect >= 5 },
       ];
 
       // Fortschritt berechnen
@@ -1314,7 +1353,7 @@ if (view === 'dashboard') {
         <Background>
           <div className="w-full max-w-md flex flex-col h-[95vh] gap-4 px-2">
             
-            {/* Header mit Zurück-Button */}
+            {/* Header */}
             <div className="flex items-center gap-4 py-4">
                <button onClick={() => setDashboardView('home')} className="bg-white/10 p-2 rounded-xl hover:bg-white/20 transition-colors">
                   <ArrowLeft className="text-white"/>
@@ -1325,12 +1364,12 @@ if (view === 'dashboard') {
                </div>
             </div>
 
-            {/* Gelber Progress Bar */}
+            {/* Progress Bar */}
             <div className="w-full h-2 bg-neutral-800 rounded-full overflow-hidden mb-2">
                 <div className="h-full bg-gradient-to-r from-yellow-600 to-yellow-400 transition-all duration-1000" style={{ width: `${progressPercent}%` }}></div>
             </div>
             
-            {/* Das Gitter mit den Abzeichen */}
+            {/* Grid */}
             <div className="flex-1 overflow-y-auto custom-scrollbar pb-10">
               <div className="grid grid-cols-2 gap-3">
                 {BADGES.map(badge => {
@@ -1349,7 +1388,7 @@ if (view === 'dashboard') {
                             <p className="text-[10px] text-neutral-400 font-mono mt-1">{badge.desc}</p>
                         </div>
 
-                        {/* Schloss oder Haken */}
+                        {/* Status Icons */}
                         {!badge.achieved && (
                             <div className="absolute top-2 right-2 text-neutral-600">
                                 <Lock size={12} />
