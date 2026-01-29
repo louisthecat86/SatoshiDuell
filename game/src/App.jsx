@@ -1527,17 +1527,53 @@ if (dashboardView === 'home') {
       );
     }
 
-    if (dashboardView === 'challenges') {
+ if (dashboardView === 'challenges') {
       return (
         <Background>
           <div className="w-full max-w-md flex flex-col h-[95vh] gap-4 px-2">
-            <div className="flex items-center gap-4 py-4"><button onClick={() => setDashboardView('home')} className="bg-white/10 p-2 rounded-xl hover:bg-white/20 transition-colors"><ArrowLeft className="text-white"/></button><h2 className="text-xl font-black text-white uppercase tracking-widest text-purple-400">{txt('tile_challenges')}</h2></div>
+            
+            {/* Header */}
+            <div className="flex items-center gap-4 py-4">
+                <button onClick={() => setDashboardView('home')} className="bg-white/10 p-2 rounded-xl hover:bg-white/20 transition-colors">
+                    <ArrowLeft className="text-white"/>
+                </button>
+                <h2 className="text-xl font-black text-white uppercase tracking-widest text-purple-400">{txt('tile_challenges')}</h2>
+            </div>
+            
+            {/* Liste */}
             <div className="flex-1 overflow-y-auto space-y-2 custom-scrollbar">
-              {targetedDuels.length === 0 && <div className="text-center py-20 text-neutral-600 italic">{txt('no_challenges')}</div>}
+              {targetedDuels.length === 0 && (
+                 <div className="text-center py-20 text-neutral-600 italic">{txt('no_challenges')}</div>
+              )}
+              
               {targetedDuels.map(d => (
-                <div key={d.id} className="bg-purple-500/10 p-4 rounded-2xl flex justify-between items-center border border-purple-500/50 shadow-[0_0_15px_rgba(168,85,247,0.2)]">
-                  <div><p className="font-bold text-white text-sm uppercase">{formatName(d.creator)} ⚔️</p><p className="text-xs text-purple-300 font-mono">{d.amount} sats</p></div>
-                  <button onClick={() => initJoinDuel(d)} className="bg-purple-500 text-white px-4 py-2 rounded-lg text-xs font-black uppercase hover:scale-105 transition-transform">ACCEPT</button>
+                <div key={d.id} className="bg-purple-500/10 p-3 rounded-xl flex justify-between items-center border border-purple-500/50 shadow-[0_0_15px_rgba(168,85,247,0.2)] hover:bg-purple-500/20 transition-all">
+                  
+                  {/* LINKE SEITE: Avatar & Infos */}
+                  <div className="flex items-center gap-3">
+                      {/* Avatar des Herausforderers (Eckig wie in Historie) */}
+                      <div className="w-12 h-12 rounded-xl overflow-hidden border border-purple-500/50 bg-black shrink-0 shadow-lg">
+                         <img 
+                           src={d.creator_avatar || getRobotAvatar(d.creator)} 
+                           alt={d.creator} 
+                           className="w-full h-full object-cover"
+                         />
+                      </div>
+
+                      <div className="flex flex-col">
+                         <p className="font-bold text-white text-sm uppercase flex items-center gap-1">
+                            {formatName(d.creator)} <Swords size={12} className="text-purple-400 animate-pulse"/>
+                         </p>
+                         <p className="text-xs text-purple-300 font-mono font-bold">
+                            {d.amount} sats
+                         </p>
+                      </div>
+                  </div>
+
+                  {/* ACTION BUTTON */}
+                  <button onClick={() => initJoinDuel(d)} className="bg-purple-500 text-white px-5 py-2.5 rounded-xl text-xs font-black uppercase hover:scale-105 hover:bg-purple-400 transition-all shadow-lg border border-white/20">
+                     ACCEPT
+                  </button>
                 </div>
               ))}
             </div>
@@ -1545,7 +1581,7 @@ if (dashboardView === 'home') {
         </Background>
       );
     }
-
+    
     if (dashboardView === 'leaderboard') {
       return (
         <Background>
