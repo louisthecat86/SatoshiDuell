@@ -848,11 +848,12 @@ const checkWithdrawStatus = async () => {
     setView('create_setup'); 
   };
   
-  const initTournament = async () => {
+const initTournament = async () => {
     if (!user) return login();
     
-    // 1. Validierung
+    // 1. Validierung (Wir nutzen 'amount', da das im Turnier-Setup so benannt war)
     const entryFee = parseInt(amount);
+    
     if (isNaN(entryFee) || entryFee < 10) {
       alert("Minimum 10 Sats!");
       return;
@@ -861,34 +862,37 @@ const checkWithdrawStatus = async () => {
     setLoading(true);
 
     try {
-      // 2. 12 Fragen generieren (statt 5)
-      // HINWEIS: Hier rufen wir deine generateQuestions Logik auf, aber 12x
+      // 2. 12 Fragen aus deinem echten Pool (allQuestions) generieren
       const questions = [];
-      // Wir nehmen an, du hast eine funktion 'getRandomQuestion' oder ähnlich.
-      // Falls du eine API nutzt, musst du hier 12 abfragen.
-      // Hier ein Beispiel-Loop, passe ihn an deine Fragen-Logik an:
+      
+      // Sicherheitscheck: Haben wir Fragen?
+      if (!allQuestions || allQuestions.length === 0) {
+          alert("Fehler: Keine Fragen geladen.");
+          setLoading(false);
+          return;
+      }
+
+      // 12 Zufällige Fragen auswählen
       for(let i=0; i<12; i++) {
-          // Falls du Fragen lokal hast:
-          const q = QUESTIONS[Math.floor(Math.random() * QUESTIONS.length)];
+          const q = allQuestions[Math.floor(Math.random() * allQuestions.length)];
           questions.push(q);
       }
 
       // 3. Datenbank Objekt vorbereiten
-      // WICHTIG: Das Backend muss 'max_players' unterstützen oder du speicherst es in metadata
       const duelData = {
         creator: user.name,
         creator_avatar: user.avatar,
         amount: entryFee,
         status: 'open',
-        type: 'tournament', // Markierung als Turnier
-        max_players: tournamentPlayers, // Neue Info
-        questions: questions, // 12 Fragen
-        rounds: 12,
-        current_pot: entryFee, // Start-Topf
+        type: 'tournament',             // WICHTIG: Typ Turnier
+        max_players: tournamentPlayers, // WICHTIG: Anzahl Spieler
+        questions: questions,
+        rounds: 12,                     // 12 Runden
+        current_pot: entryFee,          // Start-Topf = Einsatz des Erstellers
         created_at: new Date().toISOString()
       };
 
-      // 4. In Supabase speichern (Beispiel)
+      // 4. In Supabase speichern
       const { data, error } = await supabase
         .from('duels')
         .insert([duelData])
@@ -897,14 +901,19 @@ const checkWithdrawStatus = async () => {
 
       if (error) throw error;
 
-      // 5. Weiterleitung zur Lobby oder Invoice
-      // Da es ein Turnier ist, zahlen wir erst ein
+      // 5. Spielstatus setzen und Invoice holen
       setActiveDuel(data);
-      setView('pay_invoice'); // Oder direkt in die Lobby, je nach deinem Flow
+      setRole('creator'); // Du bist der Ersteller
+      
+      // Invoice generieren (nutzt deine existierende Funktion)
+      await fetchInvoice(entryFee); 
+      
+      // 6. Weiterleitung zur Bezahl-Ansicht (heißt bei dir 'payment')
+      setView('payment'); 
 
     } catch (err) {
-      console.error(err);
-      alert("Fehler beim Erstellen.");
+      console.error("Turnier Fehler:", err);
+      alert("Fehler beim Erstellen des Turniers.");
     } finally {
       setLoading(false);
     }
