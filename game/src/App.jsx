@@ -826,66 +826,65 @@ const checkWithdrawStatus = async () => {
  const handleManualCheck = async () => {
     setManualCheckLoading(true);
 
-    // 1. Deine existierende Prüfung aufrufen
-    // Wir gehen davon aus, checkPaymentStatus wirft einen Fehler, wenn nicht bezahlt wurde
-    // oder wir prüfen hier das Ergebnis.
     try {
-        await checkPaymentStatus(); 
-        
-        // Wenn wir hier sind, war die Zahlung erfolgreich (oder simuliert erfolgreich)
-        
-        // --- TURNIER LOGIK START ---
+        // Hier deine Zahlungsprüfung (simuliert oder echt)
+        // await checkPaymentStatus(); 
+
+        // --- TURNIER JOIN LOGIK ---
         if (activeDuel && activeDuel.type === 'tournament') {
             
-            // A. Aktuellste Daten laden (Wichtig, falls gerade wer anders beigetreten ist)
+            // 1. Frische Daten holen
             const { data: freshDuel, error } = await supabase
                 .from('duels')
                 .select('*')
                 .eq('id', activeDuel.id)
                 .single();
-            
-            if (!error && freshDuel) {
-                // B. Bin ich schon drin?
-                const list = freshDuel.participants || [];
-                const alreadyIn = list.some(p => p.name === user.name);
-                
-                if (!alreadyIn) {
-                    // C. Mich hinzufügen
-                    const me = {
-                        name: user.name,
-                        avatar: user.avatar,
-                        score: 0,
-                        time: 0,
-                        status: 'playing'
-                    };
-                    
-                    const newList = [...list, me];
-                    const newPot = freshDuel.current_pot + freshDuel.amount;
 
-                    // D. Update senden
-                    await supabase
-                        .from('duels')
-                        .update({ 
-                            participants: newList,
-                            current_pot: newPot
-                        })
-                        .eq('id', activeDuel.id);
-                        
-                    console.log("Spieler zum Turnier hinzugefügt, Pot erhöht auf", newPot);
-                }
+            if (error || !freshDuel) throw new Error("Turnier nicht gefunden");
+
+            const list = freshDuel.participants || [];
+            const alreadyIn = list.some(p => p.name === user.name);
+
+            if (!alreadyIn) {
+                // Neuer Spieler Eintrag
+                const me = {
+                    name: user.name,
+                    avatar: user.avatar,
+                    score: 0,
+                    time: 0,
+                    status: 'playing'
+                };
+
+                const newList = [...list, me];
+                const newPot = freshDuel.current_pot + freshDuel.amount;
+
+                // 2. DB Update - WICHTIG: Wir warten auf das 'await'!
+                const { error: updateError } = await supabase
+                    .from('duels')
+                    .update({ 
+                        participants: newList,
+                        current_pot: newPot
+                    })
+                    .eq('id', activeDuel.id);
+
+                if (updateError) throw updateError;
+                
+                console.log("Erfolgreich eingetragen!");
+            } else {
+                console.log("War schon eingetragen (Refresh?).");
             }
         }
-        // --- TURNIER LOGIK ENDE ---
+        // --------------------------
 
-        // Weiter zum Spiel
-        setTimeout(() => setManualCheckLoading(false), 500);
+        // Erst JETZT weiterleiten
+        setManualCheckLoading(false);
         setView('pre_game');
         setTimeout(() => setView('game'), 3000);
 
     } catch (err) {
-        console.error("Zahlung noch nicht da oder Fehler:", err);
+        console.error("Fehler beim Check:", err);
         setManualCheckLoading(false);
-        alert("Zahlung noch nicht bestätigt.");
+        alert("Fehler beim Beitreten. Wurde die Zahlung bestätigt?");
     }
   };
   
@@ -1125,52 +1124,67 @@ const handleAnswer = (displayIndex) => {
 
 const finishGameLogic = async (finalScore) => {
     setIsProcessingGame(true);
-    // Gesamtzeit berechnen (Summe aller Runden oder einfach verbrauchte Zeit)
     const finalTime = totalTime + (15 - timeLeft); 
 
     try {
-      // A) IST ES EIN TURNIER?
-      if (activeDuel && activeDuel.type === 'tournament') {
+      if (activeDuel.type === 'tournament') {
           
-          // 1. Frische Daten holen
+          // 1. Frischeste Daten laden
           const { data: freshDuel } = await supabase
             .from('duels')
             .select('*')
             .eq('id', activeDuel.id)
             .single();
           
-          // 2. Meinen Eintrag in der Liste finden und updaten
-          const updatedParticipants = freshDuel.participants.map(p => {
+          // 2. Update meinen Eintrag
+          // Falls ich noch nicht in der Liste stehe (Fehlerfall), fügen wir mich hier notfalls hinzu
+          let foundMe = false;
+          let updatedParticipants = (freshDuel.participants || []).map(p => {
               if (p.name === user.name) {
-                  return { 
-                      ...p, 
-                      score: finalScore, 
-                      time: finalTime, 
-                      status: 'finished' // Ich bin fertig
-                  };
+                  foundMe = true;
+                  return { ...p, score: finalScore, time: finalTime, status: 'finished' };
               }
               return p;
           });
 
-          // 3. Prüfen: Sind ALLE fertig?
-          // (Anzahl Einträge == max_players UND jeder hat status 'finished')
-          const allFinished = updatedParticipants.length >= freshDuel.max_players && 
-                              updatedParticipants.every(p => p.status === 'finished');
+          // Notfall-Fix: Falls handleManualCheck versagt hat und ich nicht in der Liste bin
+          if (!foundMe) {
+              updatedParticipants.push({
+                  name: user.name,
+                  avatar: user.avatar,
+                  score: finalScore,
+                  time: finalTime,
+                  status: 'finished'
+              });
+          }
 
-          // 4. DB Update
+          // 3. CHECK: Ist das Turnier jetzt vorbei?
+          const currentCount = updatedParticipants.length;
+          const maxP = freshDuel.max_players;
+          const everyoneFinished = updatedParticipants.every(p => p.status === 'finished');
+
+          // Bedingung: Liste ist vollzählig (oder größer) UND alle haben status 'finished'
+          const isTournamentOver = (currentCount >= maxP) && everyoneFinished;
+
+          console.log(`Status Check: ${currentCount}/${maxP} Spieler. Alle fertig? ${everyoneFinished}`);
+
+          // 4. Update senden
           await supabase
             .from('duels')
             .update({
                 participants: updatedParticipants,
-                status: allFinished ? 'finished' : 'open' // Nur beenden, wenn alle fertig
+                status: isTournamentOver ? 'finished' : 'open'
             })
             .eq('id', activeDuel.id);
 
-          alert(`Turnier-Runde beendet! Dein Score: ${finalScore}/12. Warte auf die anderen.`);
+          if (isTournamentOver) {
+              alert(`Turnier beendet! Alle ${maxP} haben gespielt.`);
+          } else {
+              alert(`Du bist fertig! Warte auf die anderen (${currentCount}/${maxP}).`);
+          }
 
-      } 
-      // B) NORMALES DUELL (Deine alte Logik für 1vs1)
-      else {
+      } else {
+          // Normales Duell Logik
           if (role === 'creator') {
              await supabase.from('duels').update({ creator_score: finalScore, creator_time: finalTime, status: 'open' }).eq('id', activeDuel.id); 
           } else {
@@ -1178,15 +1192,14 @@ const finishGameLogic = async (finalScore) => {
           }
       }
 
-      // Cleanup & Zurück zum Dashboard
       setRole(null);
       setActiveDuel(null);
       setView('dashboard');
-      setDashboardView('history'); 
+      setDashboardView('history');
 
     } catch (err) {
       console.error(err);
-      alert("Fehler beim Speichern des Spiels.");
+      alert("Fehler beim Speichern.");
     } finally {
       setIsProcessingGame(false);
     }
@@ -1927,14 +1940,16 @@ if (view === 'dashboard') {
               ) : (
                   publicDuels.map(d => {
                     // --- IST ES EIN TURNIER? (GRAUE KACHEL) ---
+                    // --- IST ES EIN TURNIER? (GRAUE KACHEL) ---
                     if (d.type === 'tournament') {
-                        // Wie viele sind schon dabei?
                         const currentPlayers = d.participants ? d.participants.length : 1;
                         const maxPlayers = d.max_players || 4;
                         
+                        // PRÜFUNG: Bin ich schon dabei?
+                        const amIIn = d.participants && d.participants.some(p => p.name === user.name);
+                        
                         return (
                           <div key={d.id} className="bg-neutral-900 border border-white/10 p-4 rounded-2xl relative overflow-hidden group">
-                             {/* Grauer Hintergrund-Effekt */}
                              <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-5"></div>
                              
                              <div className="relative z-10 flex justify-between items-center">
@@ -1952,17 +1967,29 @@ if (view === 'dashboard') {
                                 
                                 <div className="text-right">
                                    <p className="text-yellow-500 font-mono font-bold text-lg">{d.amount} <span className="text-[10px] text-neutral-500">SATS</span></p>
-                                   {/* BUTTON ZUM BEITRETEN */}
-                                   <button 
-                                     onClick={() => initJoinDuel(d)} 
-                                     className="mt-1 px-3 py-1 bg-white/5 hover:bg-white/10 border border-white/10 rounded text-[10px] font-black uppercase tracking-widest text-white transition-all"
-                                   >
-                                      Beitreten
-                                   </button>
+                                   
+                                   {/* BUTTON LOGIK: Nur anzeigen wenn noch Platz ist UND ich nicht schon drin bin */}
+                                   {amIIn ? (
+                                       <span className="mt-1 px-3 py-1 bg-green-500/20 text-green-500 rounded text-[10px] font-black uppercase inline-block border border-green-500/30">
+                                          Dabei
+                                       </span>
+                                   ) : (
+                                       <button 
+                                         onClick={() => initJoinDuel(d)} 
+                                         // Deaktivieren wenn voll
+                                         disabled={currentPlayers >= maxPlayers}
+                                         className={`mt-1 px-3 py-1 rounded text-[10px] font-black uppercase tracking-widest transition-all ${
+                                             currentPlayers >= maxPlayers 
+                                             ? 'bg-neutral-800 text-neutral-600 cursor-not-allowed' 
+                                             : 'bg-white/5 hover:bg-white/10 border border-white/10 text-white'
+                                         }`}
+                                       >
+                                          {currentPlayers >= maxPlayers ? 'Voll' : 'Beitreten'}
+                                       </button>
+                                   )}
                                 </div>
                              </div>
                              
-                             {/* Progress Bar für Spieler */}
                              <div className="absolute bottom-0 left-0 h-1 bg-neutral-800 w-full">
                                 <div className="h-full bg-yellow-500" style={{ width: `${(currentPlayers / maxPlayers) * 100}%` }}></div>
                              </div>
