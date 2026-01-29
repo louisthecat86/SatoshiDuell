@@ -885,7 +885,7 @@ const initTournament = async () => {
           });
       }
 
-      // 2. DATENBANK OBJEKT
+    // 2. DATENBANK OBJEKT
       const duelData = {
         creator: user.name,
         creator_avatar: user.avatar,
@@ -893,9 +893,22 @@ const initTournament = async () => {
         status: 'open',
         type: 'tournament',
         max_players: tournamentPlayers,
-        questions: tournamentQuestions, // Speichern wir so in der DB
+        questions: tournamentQuestions,
         rounds: 12,
         current_pot: entryFee,
+        
+        // --- NEU: Wir fügen dich als ersten Teilnehmer hinzu ---
+        participants: [
+          {
+            name: user.name,
+            avatar: user.avatar,
+            score: 0,      // Noch 0 Punkte
+            time: 0,       // Noch 0 Zeit
+            status: 'playing' // Du spielst gerade
+          }
+        ],
+        // -----------------------------------------------------
+
         created_at: new Date().toISOString()
       };
 
@@ -1804,59 +1817,105 @@ if (view === 'dashboard') {
       );
     }
 
-   if (dashboardView === 'lobby') {
-      const list = publicDuels.filter(d => d.creator !== user.name);
-      return (
-        <Background>
-          <div className="w-full max-w-md flex flex-col h-[95vh] gap-4 px-2">
-            
-            {/* Header */}
-            <div className="flex items-center gap-4 py-4">
-               <button onClick={() => setDashboardView('home')} className="bg-white/10 p-2 rounded-xl hover:bg-white/20 transition-colors">
-                  <ArrowLeft className="text-white"/>
-               </button>
-               <h2 className="text-xl font-black text-white uppercase tracking-widest">{txt('tile_lobby')}</h2>
-            </div>
-            
-            {/* Liste */}
-            <div className="flex-1 overflow-y-auto space-y-2 custom-scrollbar">
-              {list.length === 0 && (
-                 <div className="text-center py-20 text-neutral-600 italic">
-                    Keine offenen Duelle.<br/>Starte selbst eins!
-                 </div>
-              )}
-              
-              {list.map(d => (
-                <div key={d.id} className="bg-neutral-900/80 p-3 rounded-2xl flex justify-between items-center border border-white/5 hover:border-orange-500/50 transition-all group">
-                  <div className="flex items-center gap-3">
-                     
-                     {/* AVATAR BILD */}
-                     <div className="w-12 h-12 rounded-xl overflow-hidden border border-white/10 bg-black group-hover:scale-105 transition-transform">
-                        <img 
-                           src={d.creator_avatar || getRobotAvatar(d.creator)} 
-                           alt={d.creator} 
-                           className="w-full h-full object-cover"
-                        />
-                     </div>
+  // ---------------------------------------------------------
+  // VIEW: LOBBY (Unterscheidung Duell vs. Turnier)
+  // ---------------------------------------------------------
+  if (dashboardView === 'lobby') {
+    return (
+      <Background>
+        <div className="w-full max-w-md flex flex-col h-[95vh] gap-4 px-2">
+           
+           {/* Header mit Zurück-Button */}
+           <div className="flex items-center gap-4 py-4">
+              <button onClick={() => setDashboardView('home')} className="bg-white/10 p-2 rounded-xl hover:bg-white/20 transition-colors">
+                 <ArrowLeft className="text-white"/>
+              </button>
+              <h2 className="text-xl font-black text-white uppercase tracking-widest text-orange-500">{txt('tile_lobby')}</h2>
+           </div>
 
-                     <div className="flex flex-col">
-                        <span className="font-bold text-white text-sm uppercase">{formatName(d.creator)}</span>
-                        <span className="text-xs text-orange-400 font-mono flex items-center gap-1">
-                           <Zap size={10}/> {d.amount} sats
-                        </span>
-                     </div>
+           {/* Liste der offenen Spiele */}
+           <div className="flex-1 overflow-y-auto custom-scrollbar flex flex-col gap-3 pb-4">
+              {publicDuels.length === 0 ? (
+                  <div className="text-center text-neutral-500 mt-10 flex flex-col items-center gap-2">
+                     <Swords size={48} className="opacity-20"/>
+                     <p className="text-xs uppercase tracking-widest">{txt('no_challenges')}</p>
                   </div>
+              ) : (
+                  publicDuels.map(d => {
+                    // --- IST ES EIN TURNIER? (GRAUE KACHEL) ---
+                    if (d.type === 'tournament') {
+                        // Wie viele sind schon dabei?
+                        const currentPlayers = d.participants ? d.participants.length : 1;
+                        const maxPlayers = d.max_players || 4;
+                        
+                        return (
+                          <div key={d.id} className="bg-neutral-900 border border-white/10 p-4 rounded-2xl relative overflow-hidden group">
+                             {/* Grauer Hintergrund-Effekt */}
+                             <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-5"></div>
+                             
+                             <div className="relative z-10 flex justify-between items-center">
+                                <div className="flex items-center gap-3">
+                                   <div className="w-10 h-10 bg-neutral-800 rounded-lg flex items-center justify-center border border-white/5">
+                                      <Trophy size={20} className="text-neutral-400"/>
+                                   </div>
+                                   <div>
+                                      <h3 className="text-white font-black uppercase text-sm">Turnier</h3>
+                                      <p className="text-neutral-400 text-[10px] font-mono flex items-center gap-1">
+                                         <Users size={10}/> {currentPlayers} / {maxPlayers} Spieler
+                                      </p>
+                                   </div>
+                                </div>
+                                
+                                <div className="text-right">
+                                   <p className="text-yellow-500 font-mono font-bold text-lg">{d.amount} <span className="text-[10px] text-neutral-500">SATS</span></p>
+                                   {/* BUTTON ZUM BEITRETEN */}
+                                   <button 
+                                     onClick={() => initJoinDuel(d)} 
+                                     className="mt-1 px-3 py-1 bg-white/5 hover:bg-white/10 border border-white/10 rounded text-[10px] font-black uppercase tracking-widest text-white transition-all"
+                                   >
+                                      Beitreten
+                                   </button>
+                                </div>
+                             </div>
+                             
+                             {/* Progress Bar für Spieler */}
+                             <div className="absolute bottom-0 left-0 h-1 bg-neutral-800 w-full">
+                                <div className="h-full bg-yellow-500" style={{ width: `${(currentPlayers / maxPlayers) * 100}%` }}></div>
+                             </div>
+                          </div>
+                        );
+                    }
 
-                  <button onClick={() => initJoinDuel(d)} className="bg-white text-black px-5 py-2 rounded-xl text-xs font-black uppercase hover:bg-orange-500 transition-colors shadow-lg">
-                     {txt('lobby_fight')}
-                  </button>
-                </div>
-              ))}
-            </div>
-          </div>
-        </Background>
-      );
-    }
+                    // --- IST ES EIN NORMALES DUELL? (GRÜNE KACHEL - WIE BISHER) ---
+                    return (
+                      <div key={d.id} className="bg-neutral-900 border border-green-500/30 p-4 rounded-2xl relative overflow-hidden group">
+                          <div className="absolute inset-0 bg-green-500/5 group-hover:bg-green-500/10 transition-colors"></div>
+                          <div className="relative z-10 flex justify-between items-center">
+                              <div className="flex items-center gap-3">
+                                  <div className="w-10 h-10 rounded-full border-2 border-green-500/50 overflow-hidden">
+                                      <img src={d.creator_avatar || getRobotAvatar(d.creator)} alt="Avatar" className="w-full h-full object-cover"/>
+                                  </div>
+                                  <div>
+                                      <h3 className="text-white font-bold uppercase text-xs tracking-wider">{d.creator}</h3>
+                                      <span className="text-[10px] bg-green-500/20 text-green-400 px-2 py-0.5 rounded font-black uppercase">{txt('lobby_wait')}</span>
+                                  </div>
+                              </div>
+                              <div className="text-right">
+                                  <p className="text-yellow-500 font-mono font-black text-xl drop-shadow-md">{d.amount}</p>
+                                  <button onClick={() => initJoinDuel(d)} className="bg-green-500 hover:bg-green-400 text-black font-black text-[10px] uppercase px-3 py-1.5 rounded-lg mt-1 transition-transform active:scale-95 shadow-[0_0_10px_rgba(34,197,94,0.4)] flex items-center gap-1 ml-auto">
+                                      <Swords size={12}/> {txt('lobby_fight')}
+                                  </button>
+                              </div>
+                          </div>
+                      </div>
+                    );
+                  })
+              )}
+           </div>
+        </div>
+      </Background>
+    );
+  }
     
   if (dashboardView === 'history') {
       // Wir sortieren: Neueste zuerst
@@ -2280,9 +2339,17 @@ if (dashboardView === 'settings') {
     );
   }
   
-  if (view === 'game') {
+if (view === 'game') {
     if (!allQuestions || allQuestions.length === 0) { return (<Background><div className="text-white">Fehler: Keine Fragen geladen.</div></Background>); }
+    
+    // Daten laden
     const roundConfig = gameData[currentQ];
+    
+    // Sicherheitscheck: Falls roundConfig undefined ist (sollte nicht passieren, aber sicher ist sicher)
+    if (!roundConfig) {
+       return <Background><div className="text-white">Ladefehler: Runde {currentQ} nicht gefunden.</div></Background>;
+    }
+
     const questionID = roundConfig.id;
     const shuffledOrder = roundConfig.order;
     const questionData = allQuestions[questionID]?.[lang]; // Safe Access
@@ -2307,10 +2374,50 @@ if (dashboardView === 'settings') {
     return (
       <Background>
         <div className="w-full max-w-sm mx-auto flex flex-col justify-center min-h-[60vh] px-4">
-          <div className="flex justify-between items-end mb-4 px-1"><span className="text-xs font-bold text-neutral-500 uppercase">{txt('game_q')} {currentQ + 1}/5</span><span className={`text-4xl font-black font-mono ${timeLeft < 5 ? 'text-red-500 drop-shadow-[0_0_10px_red]' : 'text-white'}`}>{timeLeft.toFixed(1)}</span></div>
-          <div className="w-full h-2 bg-neutral-900 rounded-full mb-10 overflow-hidden"><div className="h-full bg-orange-500 transition-all duration-1000 ease-linear" style={{ width: `${(timeLeft / 15) * 100}%` }}></div></div>
+          
+          {/* HEADER: HIER IST DIE ÄNDERUNG (gameData.length statt 5) */}
+          <div className="flex justify-between items-end mb-4 px-1">
+              <span className="text-xs font-bold text-neutral-500 uppercase">
+                  {txt('game_q')} {currentQ + 1}/{gameData.length}
+              </span>
+              <span className={`text-4xl font-black font-mono ${timeLeft < 5 ? 'text-red-500 drop-shadow-[0_0_10px_red]' : 'text-white'}`}>
+                  {timeLeft.toFixed(1)}
+              </span>
+          </div>
+
+          {/* Progress Bar (Time) */}
+          <div className="w-full h-2 bg-neutral-900 rounded-full mb-10 overflow-hidden">
+              <div className="h-full bg-orange-500 transition-all duration-1000 ease-linear" style={{ width: `${(timeLeft / 15) * 100}%` }}></div>
+          </div>
+          
+          {/* Frage */}
           <h3 className="text-2xl font-bold text-white text-center mb-10 min-h-[100px]">"{questionData.q}"</h3>
-          <div className="grid gap-3">{[0,1,2,3].map((displayIndex) => { const originalOptionIndex = shuffledOrder[displayIndex]; const optionText = originalOptions[originalOptionIndex]; let btnClass = "bg-neutral-900/50 hover:bg-orange-500 border-white/10"; const isCorrect = originalOptionIndex === correctIndex; const isSelected = selectedAnswer === displayIndex; if (selectedAnswer !== null) { if (isCorrect) btnClass = "bg-green-500 text-black border-green-500 shadow-[0_0_15px_rgba(34,197,94,0.6)]"; else if (isSelected) btnClass = "bg-red-500 text-white border-red-500"; else btnClass = "opacity-30 border-transparent"; } return (<button key={`${currentQ}-${displayIndex}`} onClick={() => handleAnswer(displayIndex)} disabled={selectedAnswer !== null} className={`border p-5 rounded-2xl text-left transition-all active:scale-[0.95] flex items-center gap-4 ${btnClass}`}><span className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-sm ${selectedAnswer !== null && isCorrect ? 'bg-black text-green-500' : 'bg-neutral-800 text-neutral-400'}`}>{String.fromCharCode(65 + displayIndex)}</span><span className="font-bold text-lg text-neutral-200">{optionText}</span></button>); })}</div>
+          
+          {/* Antworten */}
+          <div className="grid gap-3">
+              {[0,1,2,3].map((displayIndex) => { 
+                  const originalOptionIndex = shuffledOrder[displayIndex]; 
+                  const optionText = originalOptions[originalOptionIndex]; 
+                  let btnClass = "bg-neutral-900/50 hover:bg-orange-500 border-white/10"; 
+                  const isCorrect = originalOptionIndex === correctIndex; 
+                  const isSelected = selectedAnswer === displayIndex; 
+                  
+                  if (selectedAnswer !== null) { 
+                      if (isCorrect) btnClass = "bg-green-500 text-black border-green-500 shadow-[0_0_15px_rgba(34,197,94,0.6)]"; 
+                      else if (isSelected) btnClass = "bg-red-500 text-white border-red-500"; 
+                      else btnClass = "opacity-30 border-transparent"; 
+                  } 
+                  
+                  return (
+                      <button key={`${currentQ}-${displayIndex}`} onClick={() => handleAnswer(displayIndex)} disabled={selectedAnswer !== null} className={`border p-5 rounded-2xl text-left transition-all active:scale-[0.95] flex items-center gap-4 ${btnClass}`}>
+                          <span className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-sm ${selectedAnswer !== null && isCorrect ? 'bg-black text-green-500' : 'bg-neutral-800 text-neutral-400'}`}>
+                              {String.fromCharCode(65 + displayIndex)}
+                          </span>
+                          <span className="font-bold text-lg text-neutral-200">{optionText}</span>
+                      </button>
+                  ); 
+              })}
+          </div>
           
           {/* LADE-OVERLAY BEIM SPEICHERN */}
           {isProcessingGame && (
