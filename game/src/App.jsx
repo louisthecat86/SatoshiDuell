@@ -1957,3 +1957,22 @@ if (view === 'result_final') {
   // Falls kein View matched (Fallback)
   return <Background><div>Loading...</div></Background>;
 }
+
+// Schutz gegen "ChunkLoadError" nach Deployment
+window.addEventListener('error', (e) => {
+  // Prüfen ob es ein Fehler beim Laden von Ressourcen ist (Script/Link)
+  const isLoadingError = e.message?.includes('Loading chunk') || 
+                         e.message?.includes('Importing a module script failed') ||
+                         e.target?.tagName === 'SCRIPT' || 
+                         e.target?.tagName === 'LINK';
+
+  if (isLoadingError) {
+    console.log('Alte Version erkannt, lade neu...');
+    // Verhindert Endlos-Reload-Schleifen (nur reloaden wenn der letzte reload > 10 sek her ist)
+    const lastReload = sessionStorage.getItem('last_reload');
+    if (!lastReload || Date.now() - parseInt(lastReload) > 10000) {
+        sessionStorage.setItem('last_reload', Date.now());
+        window.location.reload(true);
+    }
+  }
+}, true); // "true" für Capturing Phase ist wichtig bei Script-Fehlern
