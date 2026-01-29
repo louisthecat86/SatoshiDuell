@@ -1419,7 +1419,7 @@ if (view === 'dashboard') {
     }
 
 // ---------------------------------------------------------
-    // VIEW: HOME (Hauptmenü)
+    // VIEW: HOME (Hauptmenü) - Buttons nebeneinander
     // ---------------------------------------------------------
     if (dashboardView === 'home') {
       return (
@@ -1450,17 +1450,12 @@ if (view === 'dashboard') {
 
               {/* RECHTE SEITE: Buttons */}
               <div className="flex gap-1">
-                {/* Mute */}
                 <button onClick={toggleMute} className="p-2 text-neutral-500 hover:text-white transition-colors">
                   {isMuted ? <VolumeX size={18}/> : <Volume2 size={18}/>}
                 </button>
-                
-                {/* Settings */}
                 <button onClick={() => setDashboardView('settings')} className="p-2 text-neutral-500 hover:text-white transition-colors">
                    <Settings size={18}/>
                 </button>
-
-                {/* Logout */}
                 <button onClick={handleLogout} className="p-2 text-neutral-500 hover:text-red-500 transition-colors"><LogOut size={18}/></button>
               </div>
             </Card>
@@ -1473,22 +1468,34 @@ if (view === 'dashboard') {
               </button>
             )}
 
-            {/* === ACTION BUTTONS === */}
-            
-            {/* 1. NEUES DUELL (Blau) */}
-            <Button onClick={() => { playSound('click', isMuted); openCreateSetup(); }} className="py-5 text-lg animate-neon shadow-lg mb-2 relative z-10">
-              <Plus size={24}/> {txt('dashboard_new_duel')}
-            </Button>
-            
-            {/* 2. NEUES TURNIER (Rot & Leuchtend) */}
-            <button 
-              onClick={() => { playSound('click', isMuted); setDashboardView('tournaments'); }} 
-              className="w-full py-5 mb-4 rounded-2xl flex items-center justify-center gap-3 relative overflow-hidden group transition-all hover:scale-[1.02] z-10 text-lg font-black uppercase tracking-widest text-white bg-gradient-to-r from-red-700 to-red-500 shadow-[0_0_25px_rgba(220,38,38,0.6)] border border-red-400/30"
-            >
-              <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10 group-hover:opacity-20 transition-opacity"></div>
-              <Plus size={24} className="relative z-10"/>
-              <span className="relative z-10 shadow-black drop-shadow-sm">{txt('dashboard_new_tournament')}</span>
-            </button>
+            {/* === ACTION BUTTONS (NEU: NEBENEINANDER) === */}
+            <div className="grid grid-cols-2 gap-3 mb-2 relative z-10">
+                
+                {/* 1. NEUES DUELL (Blau) */}
+                <button 
+                  onClick={() => { playSound('click', isMuted); openCreateSetup(); }} 
+                  className="bg-gradient-to-br from-blue-600 to-blue-500 p-4 rounded-2xl flex flex-col items-center justify-center gap-2 shadow-[0_0_20px_rgba(37,99,235,0.4)] hover:scale-[1.02] transition-transform border border-blue-400/30 group relative overflow-hidden"
+                >
+                  <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10"></div>
+                  <Plus size={28} className="text-white relative z-10"/>
+                  <span className="text-xs font-black text-white uppercase tracking-widest relative z-10 shadow-black drop-shadow-sm text-center">
+                    {txt('dashboard_new_duel')}
+                  </span>
+                </button>
+
+                {/* 2. NEUES TURNIER (Rot & Leuchtend) */}
+                <button 
+                  onClick={() => { playSound('click', isMuted); setDashboardView('tournaments'); }} 
+                  className="bg-gradient-to-br from-red-600 to-red-500 p-4 rounded-2xl flex flex-col items-center justify-center gap-2 shadow-[0_0_20px_rgba(220,38,38,0.4)] hover:scale-[1.02] transition-transform border border-red-400/30 group relative overflow-hidden"
+                >
+                  <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10"></div>
+                  <Plus size={28} className="text-white relative z-10"/>
+                  <span className="text-xs font-black text-white uppercase tracking-widest relative z-10 shadow-black drop-shadow-sm text-center">
+                    {txt('dashboard_new_tournament')}
+                  </span>
+                </button>
+
+            </div>
             
             {/* 3. GRID MIT DEN KACHELN */}
             <div className="grid grid-cols-2 gap-2 flex-1 overflow-y-auto pb-4 relative z-10 custom-scrollbar">
