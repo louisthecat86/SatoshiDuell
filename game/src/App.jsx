@@ -1255,7 +1255,7 @@ if (view === 'dashboard') {
     const myOpenDuels = myDuels.filter(d => d.creator === user.name && d.status === 'open');
 
 // ---------------------------------------------------------
-    // VIEW: BADGES / ERFOLGE (Hall of Fame) - FINAL & CLEAN
+    // VIEW: BADGES / ERFOLGE (Hall of Fame) - FINAL URL FIX
     // ---------------------------------------------------------
     if (dashboardView === 'badges') {
       
@@ -1302,7 +1302,7 @@ if (view === 'dashboard') {
       });
       stats.currentStreak = tempStreak;
 
-      // 2. ABZEICHEN DEFINITIONEN (Jetzt mit txt() Funktion!)
+      // 2. ABZEICHEN DEFINITIONEN
       const BADGES = [
         // TREUE
         { id: 'p1', name: txt('badge_p1_name'), desc: txt('badge_p1_desc'), icon: User, color: 'text-blue-400', achieved: stats.played >= 5 },
@@ -1348,7 +1348,8 @@ if (view === 'dashboard') {
          const shareData = {
             title: txt('share_title'),
             text: `${txt('share_text_prefix')} ${unlockedCount} / ${BADGES.length} ${txt('share_text_suffix')}`,
-            url: window.location.href 
+            // FIX: Hier steht jetzt die feste URL!
+            url: 'https://www.satoshiduell.com' 
          };
 
          if (navigator.share) {
