@@ -22,6 +22,7 @@ export const TRANSLATIONS = {
     tile_leaderboard: "Bestenliste",
     tile_history: "Historie",
     tile_settings: "Einstellungen",
+    tile_badges: "Erfolge",
     tile_tournaments: "Turniere",
 
     // Login
@@ -169,6 +170,7 @@ export const TRANSLATIONS = {
     tile_leaderboard: "Leaderboard",
     tile_history: "History",
     tile_settings: "Settings",
+    tile_badges: "Badges",
     tile_tournaments: "Tournaments",
 
     welcome_disclaimer: "Important Notice",
@@ -308,6 +310,7 @@ export const TRANSLATIONS = {
     tile_leaderboard: "Ranking",
     tile_history: "Historial",
     tile_settings: "Ajustes",
+    tile_badges: "Logros",
     tile_tournaments: "Torneos",
 
     welcome_disclaimer: "Aviso Importante",
