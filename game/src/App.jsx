@@ -790,25 +790,24 @@ const checkWithdrawStatus = async () => {
     if (!withdrawId) return; 
     
     try { 
-      // Wir fragen LNbits: Ist der Link leer?
+      // Wir fragen LNbits: Wurde das Geld abgeholt?
       const res = await fetch(`${LNBITS_URL}/withdraw/api/v1/links/${withdrawId}`, { headers: { 'X-Api-Key': INVOICE_KEY } }); 
       const data = await res.json(); 
       
-      // Wenn 'used' >= 1 ist, wurde das Geld abgeholt
-      if (data.used >= 1 || data.spent === true) { 
-        // 1. Party machen
+      // Wenn 'used' >= 1 ist, wurde das Geld erfolgreich ausgezahlt
+      if (data.used >= 1) { 
         confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } }); 
         
-        // 2. WICHTIG: In der Datenbank markieren, dass es erledigt ist!
+        // JETZT markieren wir es als erledigt, weil der Nutzer gescannt hat
         if (activeDuel && !activeDuel.claimed) {
             await supabase.from('duels').update({ claimed: true }).eq('id', activeDuel.id);
-            // Lokalen Status updaten, damit der QR Code sofort verschwindet
+            // Das sorgt dafür, dass der QR-Code verschwindet und der grüne Haken kommt:
             setActiveDuel(prev => ({ ...prev, claimed: true }));
         }
 
-        // 3. Nach 3 Sekunden zurück zur Lobby
+        // Nach 3 Sekunden aufräumen
         setTimeout(() => { 
-           setWithdrawLink(''); // Link löschen
+           setWithdrawLink(''); 
            setWithdrawId(''); 
            setView('dashboard'); 
            resetGameState(); 
@@ -991,7 +990,7 @@ const handleAnswer = (displayIndex) => {
   };
   
   // WICHTIG: Hier fangen wir den Fehler von api/claim.js ab und zeigen ihn an!
-  const handleClaimReward = async () => {
+ const handleClaimReward = async () => {
     if (isClaiming) return;
     setIsClaiming(true);
     try {
@@ -1007,7 +1006,10 @@ const handleAnswer = (displayIndex) => {
         } else if (data.lnurl) {
             setWithdrawLink(data.lnurl);
             setWithdrawId(data.id);
-            setActiveDuel(prev => ({...prev, claimed: true}));
+            
+            // WICHTIG: Die Zeile "setActiveDuel... claimed: true" wurde HIER gelöscht!
+            // Wir zeigen jetzt nur den QR-Code an.
+            
             confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
         }
     } catch (e) {
