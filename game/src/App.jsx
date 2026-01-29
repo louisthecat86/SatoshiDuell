@@ -853,7 +853,6 @@ const checkWithdrawStatus = async () => {
 const initTournament = async () => {
     if (!user) return login();
     
-    // KORREKTUR: Wir nutzen 'wager' statt 'amount'
     const entryFee = parseInt(wager);
     
     if (isNaN(entryFee) || entryFee < 10) {
@@ -861,23 +860,32 @@ const initTournament = async () => {
       return;
     }
 
-    // WICHTIG: Hier setIsLoading statt setLoading
     setIsLoading(true);
 
     try {
-      const questions = [];
-      
+      // SICHERHEITSCHECK: Haben wir Fragen?
       if (!allQuestions || allQuestions.length === 0) {
           alert("Fehler: Keine Fragen geladen.");
-          setIsLoading(false); // <--- Auch hier ändern
+          setIsLoading(false);
           return;
       }
 
+      // 1. 12 FRAGEN GENERIEREN (Im richtigen Format!)
+      const tournamentQuestions = [];
       for(let i=0; i<12; i++) {
-          const q = allQuestions[Math.floor(Math.random() * allQuestions.length)];
-          questions.push(q);
+          const randIndex = Math.floor(Math.random() * allQuestions.length);
+          
+          // Wir erstellen für jede Frage eine zufällige Antwort-Reihenfolge
+          const shuffledOrder = [0, 1, 2, 3].sort(() => Math.random() - 0.5);
+          
+          // Das ist das Format, das dein Spiel braucht: { id, order }
+          tournamentQuestions.push({
+              id: randIndex, 
+              order: shuffledOrder
+          });
       }
 
+      // 2. DATENBANK OBJEKT
       const duelData = {
         creator: user.name,
         creator_avatar: user.avatar,
@@ -885,7 +893,7 @@ const initTournament = async () => {
         status: 'open',
         type: 'tournament',
         max_players: tournamentPlayers,
-        questions: questions,
+        questions: tournamentQuestions, // Speichern wir so in der DB
         rounds: 12,
         current_pot: entryFee,
         created_at: new Date().toISOString()
@@ -899,8 +907,11 @@ const initTournament = async () => {
 
       if (error) throw error;
 
+      // 3. STATE SETZEN (DAS HAT GEFEHLT!)
       setActiveDuel(data);
       setRole('creator');
+      setGameData(tournamentQuestions); // <--- WICHTIG: Damit das Spiel weiß, welche Fragen kommen!
+      
       await fetchInvoice(entryFee); 
       setView('payment'); 
 
@@ -908,7 +919,6 @@ const initTournament = async () => {
       console.error("Turnier Fehler:", err);
       alert("Fehler beim Erstellen.");
     } finally {
-      // WICHTIG: Hier setIsLoading statt setLoading
       setIsLoading(false);
     }
   };
