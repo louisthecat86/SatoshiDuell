@@ -823,7 +823,71 @@ const checkWithdrawStatus = async () => {
     } catch(e) { console.error(e); } 
   };
 
-  const handleManualCheck = async () => { setManualCheckLoading(true); await checkPaymentStatus(); setTimeout(() => setManualCheckLoading(false), 1000); };
+ const handleManualCheck = async () => {
+    setManualCheckLoading(true);
+
+    // 1. Deine existierende Prüfung aufrufen
+    // Wir gehen davon aus, checkPaymentStatus wirft einen Fehler, wenn nicht bezahlt wurde
+    // oder wir prüfen hier das Ergebnis.
+    try {
+        await checkPaymentStatus(); 
+        
+        // Wenn wir hier sind, war die Zahlung erfolgreich (oder simuliert erfolgreich)
+        
+        // --- TURNIER LOGIK START ---
+        if (activeDuel && activeDuel.type === 'tournament') {
+            
+            // A. Aktuellste Daten laden (Wichtig, falls gerade wer anders beigetreten ist)
+            const { data: freshDuel, error } = await supabase
+                .from('duels')
+                .select('*')
+                .eq('id', activeDuel.id)
+                .single();
+            
+            if (!error && freshDuel) {
+                // B. Bin ich schon drin?
+                const list = freshDuel.participants || [];
+                const alreadyIn = list.some(p => p.name === user.name);
+                
+                if (!alreadyIn) {
+                    // C. Mich hinzufügen
+                    const me = {
+                        name: user.name,
+                        avatar: user.avatar,
+                        score: 0,
+                        time: 0,
+                        status: 'playing'
+                    };
+                    
+                    const newList = [...list, me];
+                    const newPot = freshDuel.current_pot + freshDuel.amount;
+
+                    // D. Update senden
+                    await supabase
+                        .from('duels')
+                        .update({ 
+                            participants: newList,
+                            current_pot: newPot
+                        })
+                        .eq('id', activeDuel.id);
+                        
+                    console.log("Spieler zum Turnier hinzugefügt, Pot erhöht auf", newPot);
+                }
+            }
+        }
+        // --- TURNIER LOGIK ENDE ---
+
+        // Weiter zum Spiel
+        setTimeout(() => setManualCheckLoading(false), 500);
+        setView('pre_game');
+        setTimeout(() => setView('game'), 3000);
+
+    } catch (err) {
+        console.error("Zahlung noch nicht da oder Fehler:", err);
+        setManualCheckLoading(false);
+        alert("Zahlung noch nicht bestätigt.");
+    }
+  };
   
   const resetGameState = () => { 
     setWithdrawLink(''); setWithdrawId(''); setScore(0); setTotalTime(0); setCurrentQ(0); 
@@ -863,29 +927,22 @@ const initTournament = async () => {
     setIsLoading(true);
 
     try {
-      // SICHERHEITSCHECK: Haben wir Fragen?
+      // Sicherheitscheck
       if (!allQuestions || allQuestions.length === 0) {
           alert("Fehler: Keine Fragen geladen.");
           setIsLoading(false);
           return;
       }
 
-      // 1. 12 FRAGEN GENERIEREN (Im richtigen Format!)
+      // 1. Fragen generieren (12 Stück, gemischt)
       const tournamentQuestions = [];
       for(let i=0; i<12; i++) {
           const randIndex = Math.floor(Math.random() * allQuestions.length);
-          
-          // Wir erstellen für jede Frage eine zufällige Antwort-Reihenfolge
           const shuffledOrder = [0, 1, 2, 3].sort(() => Math.random() - 0.5);
-          
-          // Das ist das Format, das dein Spiel braucht: { id, order }
-          tournamentQuestions.push({
-              id: randIndex, 
-              order: shuffledOrder
-          });
+          tournamentQuestions.push({ id: randIndex, order: shuffledOrder });
       }
 
-    // 2. DATENBANK OBJEKT
+      // 2. DB Objekt bauen
       const duelData = {
         creator: user.name,
         creator_avatar: user.avatar,
@@ -895,35 +952,30 @@ const initTournament = async () => {
         max_players: tournamentPlayers,
         questions: tournamentQuestions,
         rounds: 12,
-        current_pot: entryFee,
+        current_pot: entryFee, // Start-Pot = Dein Einsatz
         
-        // --- NEU: Wir fügen dich als ersten Teilnehmer hinzu ---
+        // --- WICHTIG: DIE TEILNEHMER-LISTE STARTEN ---
         participants: [
           {
             name: user.name,
             avatar: user.avatar,
-            score: 0,      // Noch 0 Punkte
-            time: 0,       // Noch 0 Zeit
+            score: 0,
+            time: 0,
             status: 'playing' // Du spielst gerade
           }
         ],
-        // -----------------------------------------------------
+        // ---------------------------------------------
 
         created_at: new Date().toISOString()
       };
 
-      const { data, error } = await supabase
-        .from('duels')
-        .insert([duelData])
-        .select()
-        .single();
+      const { data, error } = await supabase.from('duels').insert([duelData]).select().single();
 
       if (error) throw error;
 
-      // 3. STATE SETZEN (DAS HAT GEFEHLT!)
       setActiveDuel(data);
-      setRole('creator');
-      setGameData(tournamentQuestions); // <--- WICHTIG: Damit das Spiel weiß, welche Fragen kommen!
+      setRole('creator'); // Oder 'player', beides okay
+      setGameData(tournamentQuestions); // Wichtig für die Anzeige der Fragen
       
       await fetchInvoice(entryFee); 
       setView('payment'); 
@@ -944,13 +996,35 @@ const initTournament = async () => {
     setGameData(gameConfig); setRole('creator'); await fetchInvoice(val); 
   };
   
-  const initJoinDuel = async (duel) => { 
-    resetGameState(); setActiveDuel(duel); 
-    const rawQuestions = duel.questions;
+const initJoinDuel = async (duel) => {
+    resetGameState();
+    setActiveDuel(duel);
+
+    // FRAGEN LADEN:
+    // Bei Turnieren sind die Fragen direkt im 'questions' Array gespeichert (als Objekte)
+    // Bei normalen Duellen oft nur als IDs. Das müssen wir prüfen.
     let safeGameData = [];
-    if (rawQuestions && typeof rawQuestions[0] === 'number') { safeGameData = rawQuestions.map(id => ({ id: id, order: [0, 1, 2, 3] })); } 
-    else { safeGameData = rawQuestions; }
-    setGameData(safeGameData); setRole('challenger'); await fetchInvoice(duel.amount); 
+    const rawQuestions = duel.questions;
+
+    if (duel.type === 'tournament') {
+        // Turnier: Fragen sind schon im richtigen Format
+        safeGameData = rawQuestions;
+        setRole('player'); // WICHTIG: Neue Rolle für Turniere
+    } else {
+        // Normales Duell: IDs in Objekte umwandeln
+        if (rawQuestions && typeof rawQuestions[0] === 'number') {
+            safeGameData = rawQuestions.map(id => ({ id: id, order: [0, 1, 2, 3] }));
+        } else {
+            safeGameData = rawQuestions;
+        }
+        setRole('challenger');
+    }
+
+    setGameData(safeGameData);
+    
+    // Invoice holen für den Einsatz
+    await fetchInvoice(duel.amount);
+    setView('payment');
   };
 
  const handleRefund = async (duel) => {
@@ -1049,61 +1123,71 @@ const handleAnswer = (displayIndex) => {
     }, 1500);
   };
 
-// 1. Wir nehmen 'finalTime' als zweites Argument an!
-  const finishGameLogic = async (finalScore, finalTime) => {
-    if (isProcessingGame) return; 
+const finishGameLogic = async (finalScore) => {
     setIsProcessingGame(true);
-
-    // 2. FIX: Nimm die übergebene Zeit (finalTime). Falls die fehlt (Fallback), nimm totalTime.
-    // Das löst das Problem, dass die letzte Frage fehlte.
-    const rawTime = finalTime !== undefined ? finalTime : totalTime;
-    const cleanTime = parseFloat((rawTime || 0).toFixed(1));
+    // Gesamtzeit berechnen (Summe aller Runden oder einfach verbrauchte Zeit)
+    const finalTime = totalTime + (15 - timeLeft); 
 
     try {
-      if (role === 'creator') {
-        // --- CREATOR LOGIK ---
-        const { error } = await supabase.from('duels').insert([{ 
-          creator: user.name, 
-          creator_score: finalScore, 
-          creator_time: cleanTime, // Hier die korrekte Zeit nutzen
-          questions: gameData, 
-          status: 'open', 
-          amount: invoice.amount, 
-          target_player: challengePlayer,
-          // WICHTIG: Avatare mitspeichern, damit wir sie in der Lobby sehen!
-          creator_avatar: user.avatar 
-        }]);
-        
-        if (error) throw error;
-        
-        // Nach Erstellen zurück zum Dashboard
-        setView('dashboard');
+      // A) IST ES EIN TURNIER?
+      if (activeDuel && activeDuel.type === 'tournament') {
+          
+          // 1. Frische Daten holen
+          const { data: freshDuel } = await supabase
+            .from('duels')
+            .select('*')
+            .eq('id', activeDuel.id)
+            .single();
+          
+          // 2. Meinen Eintrag in der Liste finden und updaten
+          const updatedParticipants = freshDuel.participants.map(p => {
+              if (p.name === user.name) {
+                  return { 
+                      ...p, 
+                      score: finalScore, 
+                      time: finalTime, 
+                      status: 'finished' // Ich bin fertig
+                  };
+              }
+              return p;
+          });
 
-      } else {
-        // --- CHALLENGER LOGIK ---
-        const { data, error } = await supabase.from('duels').update({ 
-            challenger: user.name, 
-            challenger_score: finalScore, 
-            challenger_time: cleanTime, // Hier die korrekte Zeit nutzen
-            status: 'finished',
-            // Auch hier Avatar speichern
-            challenger_avatar: user.avatar
-        }).eq('id', activeDuel.id).select();
-        
-        if (error) throw error;
-        
-        if (data && data.length > 0) {
-            // OPTIONALER FIX: Sofort manuell setzen für schnellere UI
-            const updatedDuel = data[0];
-            setActiveDuel(updatedDuel); 
-            setView('result_final'); 
-        } else {
-            throw new Error("Fehler beim Laden des Spielstatus");
-        }
+          // 3. Prüfen: Sind ALLE fertig?
+          // (Anzahl Einträge == max_players UND jeder hat status 'finished')
+          const allFinished = updatedParticipants.length >= freshDuel.max_players && 
+                              updatedParticipants.every(p => p.status === 'finished');
+
+          // 4. DB Update
+          await supabase
+            .from('duels')
+            .update({
+                participants: updatedParticipants,
+                status: allFinished ? 'finished' : 'open' // Nur beenden, wenn alle fertig
+            })
+            .eq('id', activeDuel.id);
+
+          alert(`Turnier-Runde beendet! Dein Score: ${finalScore}/12. Warte auf die anderen.`);
+
+      } 
+      // B) NORMALES DUELL (Deine alte Logik für 1vs1)
+      else {
+          if (role === 'creator') {
+             await supabase.from('duels').update({ creator_score: finalScore, creator_time: finalTime, status: 'open' }).eq('id', activeDuel.id); 
+          } else {
+             await supabase.from('duels').update({ challenger_score: finalScore, challenger_time: finalTime, status: 'finished' }).eq('id', activeDuel.id);
+          }
       }
-    } catch (e) {
-      console.error(e);
-      alert("Speicherfehler: " + (e.message || JSON.stringify(e)));
+
+      // Cleanup & Zurück zum Dashboard
+      setRole(null);
+      setActiveDuel(null);
+      setView('dashboard');
+      setDashboardView('history'); 
+
+    } catch (err) {
+      console.error(err);
+      alert("Fehler beim Speichern des Spiels.");
+    } finally {
       setIsProcessingGame(false);
     }
   };
