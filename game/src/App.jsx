@@ -1419,7 +1419,7 @@ if (view === 'dashboard') {
     }
 
 // ---------------------------------------------------------
-    // VIEW: HOME (Hauptmenü) - Orange & Grau
+    // VIEW: HOME (Hauptmenü) - Beide mit Plus-Icon
     // ---------------------------------------------------------
     if (dashboardView === 'home') {
       return (
@@ -1461,10 +1461,10 @@ if (view === 'dashboard') {
               </button>
             )}
 
-            {/* === ACTION BUTTONS (ORANGE & GRAU) === */}
+            {/* === ACTION BUTTONS (ORANGE & GRAU - BEIDE MIT PLUS) === */}
             <div className="grid grid-cols-2 gap-3 mb-2 relative z-10">
                 
-                {/* 1. NEUES DUELL (Orange - Leuchtend) */}
+                {/* 1. NEUES DUELL (Orange) */}
                 <button 
                   onClick={() => { playSound('click', isMuted); openCreateSetup(); }} 
                   className="bg-gradient-to-br from-orange-500 to-orange-600 p-4 rounded-2xl flex flex-col items-center justify-center gap-2 shadow-[0_0_20px_rgba(249,115,22,0.4)] hover:scale-[1.02] transition-transform border border-orange-400/30 group relative overflow-hidden"
@@ -1476,13 +1476,14 @@ if (view === 'dashboard') {
                   </span>
                 </button>
 
-                {/* 2. NEUES TURNIER (Dunkelgrau - Edel) */}
+                {/* 2. NEUES TURNIER (Dunkelgrau - Jetzt auch mit Plus) */}
                 <button 
                   onClick={() => { playSound('click', isMuted); setDashboardView('tournaments'); }} 
                   className="bg-neutral-800 p-4 rounded-2xl flex flex-col items-center justify-center gap-2 shadow-lg hover:bg-neutral-700 hover:scale-[1.02] transition-all border border-white/10 group relative overflow-hidden"
                 >
                   <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-5"></div>
-                  <Trophy size={28} className="text-neutral-400 group-hover:text-white transition-colors relative z-10"/>
+                  {/* HIER GEÄNDERT: Trophy -> Plus */}
+                  <Plus size={28} className="text-neutral-400 group-hover:text-white transition-colors relative z-10"/>
                   <span className="text-xs font-black text-neutral-400 group-hover:text-white transition-colors uppercase tracking-widest relative z-10 shadow-black drop-shadow-sm text-center">
                     {txt('dashboard_new_tournament')}
                   </span>
