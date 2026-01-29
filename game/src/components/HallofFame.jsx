@@ -8,7 +8,6 @@ export default function HallOfFame({ user, myDuels, onBack }) {
   let stats = { played: myDuels.length, wins: 0, sats: 0, perfect: 0 };
 
   myDuels.forEach(d => {
-     // Nur fertige Spiele zählen
      if (d.status !== 'finished') return;
 
      const isCreator = d.creator === user.name;
@@ -17,7 +16,6 @@ export default function HallOfFame({ user, myDuels, onBack }) {
      const myTime = isCreator ? d.creator_time : d.challenger_time;
      const opTime = isCreator ? d.challenger_time : d.creator_time;
      
-     // Gewinn-Logik (Punkte oder Zeit)
      const iWon = myScore > opScore || (myScore === opScore && myTime < opTime);
      
      if (iWon) {
@@ -25,7 +23,6 @@ export default function HallOfFame({ user, myDuels, onBack }) {
          stats.sats += (d.amount || 0);
      }
      
-     // Perfekte Runde (5/5)
      if (myScore === 5) {
          stats.perfect++;
      }
@@ -54,8 +51,6 @@ export default function HallOfFame({ user, myDuels, onBack }) {
   return (
     <Background>
       <div className="w-full max-w-md flex flex-col h-[95vh] gap-4 px-2">
-        
-        {/* Header */}
         <div className="flex items-center gap-4 py-4">
            <button onClick={onBack} className="bg-white/10 p-2 rounded-xl hover:bg-white/20 transition-colors">
               <ArrowLeft className="text-white"/>
@@ -66,28 +61,23 @@ export default function HallOfFame({ user, myDuels, onBack }) {
            </div>
         </div>
 
-        {/* Progress Bar */}
         <div className="w-full h-2 bg-neutral-800 rounded-full overflow-hidden mb-2">
             <div className="h-full bg-gradient-to-r from-yellow-600 to-yellow-400 transition-all duration-1000" style={{ width: `${progressPercent}%` }}></div>
         </div>
         
-        {/* Grid */}
         <div className="flex-1 overflow-y-auto custom-scrollbar pb-10">
           <div className="grid grid-cols-2 gap-3">
             {BADGES.map(badge => {
                const Icon = badge.icon;
                return (
                  <div key={badge.id} className={`relative p-4 rounded-xl border flex flex-col items-center gap-2 text-center transition-all ${badge.achieved ? 'bg-neutral-900/80 border-yellow-500/30 shadow-[0_0_15px_rgba(234,179,8,0.1)]' : 'bg-neutral-900/40 border-white/5 opacity-50 grayscale'}`}>
-                    
                     <div className={`w-12 h-12 rounded-full flex items-center justify-center bg-black border ${badge.achieved ? 'border-yellow-500/50' : 'border-white/10'}`}>
                         <Icon size={24} className={badge.achieved ? badge.color : 'text-neutral-600'} />
                     </div>
-
                     <div>
                         <h3 className={`font-black text-sm uppercase ${badge.achieved ? 'text-white' : 'text-neutral-500'}`}>{badge.name}</h3>
                         <p className="text-[10px] text-neutral-400 font-mono mt-1">{badge.desc}</p>
                     </div>
-
                     {!badge.achieved && <div className="absolute top-2 right-2 text-neutral-600"><Lock size={12} /></div>}
                     {badge.achieved && <div className="absolute top-2 right-2 text-green-500 animate-pulse"><CheckCircle size={14} /></div>}
                  </div>
