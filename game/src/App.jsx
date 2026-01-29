@@ -27,7 +27,7 @@ const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_KEY;
 const LNBITS_URL = import.meta.env.VITE_LNBITS_URL;
 const INVOICE_KEY = import.meta.env.VITE_INVOICE_KEY; 
 
-// 🔥 DEINE DOMAIN
+// ?? DEINE DOMAIN
 const MAIN_DOMAIN = "https://satoshiduell.vercel.app"; 
 
 // --- SUPABASE CLIENT ---
@@ -151,9 +151,6 @@ export default function App() {
   const [gameData, setGameData] = useState([]); 
   const [wager, setWager] = useState(''); 
   const [stats, setStats] = useState({ wins: 0, losses: 0, total: 0, satsWon: 0 });
-  // Füge das zu deinen anderen States hinzu:
-  const [tournamentPlayers, setTournamentPlayers] = useState(4); // Standard 4 Spieler
-  const [isLoading, setIsLoading] = useState(false); // Lade-Status für Buttons
   
   // Quiz
   const [currentQ, setCurrentQ] = useState(0);
@@ -376,7 +373,7 @@ export default function App() {
             if (Notification.permission === 'granted') {
                new Notification("SatoshiDuell", { body: msg, icon: '/logo.png' });
             }
-            alert(msg + " 🎉");
+            alert(msg + " ??");
             
             const ids = data.map(q => q.id);
             await supabase.from('questions').update({ user_notified: true }).in('id', ids);
@@ -823,79 +820,7 @@ const checkWithdrawStatus = async () => {
     } catch(e) { console.error(e); } 
   };
 
-  const handleManualCheck = async () => {
-    setManualCheckLoading(true);
-
-    try {
-        // 1. ZAHLUNG PRÜFEN
-        // Wir nutzen hier deine Sicherheits-Funktion von vorhin.
-        // Falls du 'checkPaymentStatus' nutzen willst, ersetze die Zeile unten.
-        console.log("Prüfe Zahlung für Hash:", invoice.hash);
-        
-        // WICHTIG: Hier muss true zurückkommen, sonst geht es nicht weiter.
-        // Wenn du 'verifyLightningPayment' noch nicht hast, nutze 'await checkPaymentStatus()'
-        const isPaid = await verifyLightningPayment(invoice.hash); 
-
-        if (!isPaid) {
-            throw new Error("Zahlung noch nicht vom Netzwerk bestätigt. Bitte kurz warten.");
-        }
-
-        // 2. LOGIK FÜR TURNIERE
-        if (activeDuel && activeDuel.type === 'tournament') {
-            
-            // A) Frische Daten aus der DB holen (Wichtig gegen Überschreiben!)
-            const { data: freshDuel, error } = await supabase
-                .from('duels')
-                .select('*')
-                .eq('id', activeDuel.id)
-                .single();
-
-            if (error || !freshDuel) throw new Error("Turnier nicht gefunden");
-
-            // B) Prüfen: Bin ich schon in der Liste?
-            const list = freshDuel.participants || [];
-            const alreadyIn = list.some(p => p.name === user.name);
-
-            if (!alreadyIn) {
-                // C) Mich als neuen Spieler definieren
-                const me = {
-                    name: user.name,
-                    avatar: user.avatar,
-                    score: 0,
-                    time: 0,
-                    status: 'playing' // Wichtig: Status ist 'playing'
-                };
-
-                // D) Pot berechnen (Alter Pot + Mein Einsatz)
-                const newPot = (freshDuel.current_pot || 0) + (freshDuel.amount || 0);
-
-                // E) Datenbank Update senden
-                const { error: updateError } = await supabase
-                    .from('duels')
-                    .update({ 
-                        participants: [...list, me], // Liste erweitern
-                        current_pot: newPot          // Pot erhöhen
-                    })
-                    .eq('id', activeDuel.id);
-
-                if (updateError) throw updateError;
-                
-                console.log("Erfolgreich zum Turnier hinzugefügt!");
-            }
-        }
-
-        // 3. ERFOLG -> INS SPIEL STARTEN
-        playSound('win', isMuted); // Sound abspielen
-        setManualCheckLoading(false);
-        setView('pre_game');       // "Bereit machen..." Screen
-        setTimeout(() => setView('game'), 3000); // Nach 3 Sek Spiel starten
-
-    } catch (err) {
-        console.error("Fehler beim Check:", err);
-        setManualCheckLoading(false);
-        alert(err.message || "Fehler beim Beitreten.");
-    }
-  };
+  const handleManualCheck = async () => { setManualCheckLoading(true); await checkPaymentStatus(); setTimeout(() => setManualCheckLoading(false), 1000); };
   
   const resetGameState = () => { 
     setWithdrawLink(''); setWithdrawId(''); setScore(0); setTotalTime(0); setCurrentQ(0); 
@@ -937,74 +862,6 @@ const checkWithdrawStatus = async () => {
     if (rawQuestions && typeof rawQuestions[0] === 'number') { safeGameData = rawQuestions.map(id => ({ id: id, order: [0, 1, 2, 3] })); } 
     else { safeGameData = rawQuestions; }
     setGameData(safeGameData); setRole('challenger'); await fetchInvoice(duel.amount); 
-  };
-
-const initTournament = async () => {
-    if (!user) return login();
-    const entryFee = parseInt(wager);
-    
-    if (isNaN(entryFee) || entryFee < 10) {
-      alert("Minimum 10 Sats Einsatz!");
-      return;
-    }
-
-    setIsLoading(true);
-
-    try {
-      // 1. Fragen vorbereiten (12 Stück für Turnier)
-      if (!allQuestions || allQuestions.length === 0) throw new Error("Keine Fragen geladen");
-
-      const tournamentQuestions = [];
-      for(let i=0; i<12; i++) {
-          const randIndex = Math.floor(Math.random() * allQuestions.length);
-          // Zufällige Antwortreihenfolge speichern
-          tournamentQuestions.push({ 
-              id: randIndex, 
-              order: [0, 1, 2, 3].sort(() => Math.random() - 0.5) 
-          });
-      }
-
-      // 2. Datenbank Objekt
-      const duelData = {
-        creator: user.name,
-        creator_avatar: user.avatar,
-        amount: entryFee,
-        status: 'open',
-        type: 'tournament',          // WICHTIG: Typ Turnier
-        max_players: tournamentPlayers,
-        questions: tournamentQuestions,
-        rounds: 12,
-        current_pot: entryFee,       // Start-Pot = Dein Einsatz
-        
-        // DICH ALS ERSTEN TEILNEHMER EINTRAGEN
-        participants: [{
-            name: user.name,
-            avatar: user.avatar,
-            score: 0,
-            time: 0,
-            status: 'playing' // Du fängst jetzt an zu spielen
-        }],
-        
-        created_at: new Date().toISOString()
-      };
-
-      const { data, error } = await supabase.from('duels').insert([duelData]).select().single();
-      if (error) throw error;
-
-      // 3. State setzen und zur Zahlung
-      setActiveDuel(data);
-      setRole('player'); // Im Turnier sind alle nur "player"
-      setGameData(tournamentQuestions); // Damit das Spiel weiß, welche Fragen kommen
-      
-      await fetchInvoice(entryFee); 
-      setView('payment'); 
-
-    } catch (err) {
-      console.error("Fehler:", err);
-      alert("Konnte Turnier nicht erstellen.");
-    } finally {
-      setIsLoading(false);
-    }
   };
 
  const handleRefund = async (duel) => {
@@ -1103,57 +960,61 @@ const handleAnswer = (displayIndex) => {
     }, 1500);
   };
 
-const finishGameLogic = async (finalScore) => {
+// 1. Wir nehmen 'finalTime' als zweites Argument an!
+  const finishGameLogic = async (finalScore, finalTime) => {
+    if (isProcessingGame) return; 
     setIsProcessingGame(true);
-    const finalTime = totalTime + (15 - timeLeft); 
+
+    // 2. FIX: Nimm die übergebene Zeit (finalTime). Falls die fehlt (Fallback), nimm totalTime.
+    // Das löst das Problem, dass die letzte Frage fehlte.
+    const rawTime = finalTime !== undefined ? finalTime : totalTime;
+    const cleanTime = parseFloat((rawTime || 0).toFixed(1));
 
     try {
-      // IST ES EIN TURNIER?
-      if (activeDuel.type === 'tournament') {
-          
-          // 1. Daten laden
-          const { data: freshDuel } = await supabase.from('duels').select('*').eq('id', activeDuel.id).single();
-          
-          // 2. Meinen Status auf 'finished' setzen und Score speichern
-          const updatedList = freshDuel.participants.map(p => {
-              if (p.name === user.name) {
-                  return { ...p, score: finalScore, time: finalTime, status: 'finished' };
-              }
-              return p;
-          });
-
-          // 3. Sind ALLE fertig?
-          // Wir prüfen: Haben wir MaxPlayers erreicht UND sind alle 'finished'?
-          const isFull = updatedList.length >= freshDuel.max_players;
-          const allDone = updatedList.every(p => p.status === 'finished');
-          const isTournamentOver = isFull && allDone;
-
-          // 4. Speichern
-          await supabase.from('duels')
-            .update({
-                participants: updatedList,
-                status: isTournamentOver ? 'finished' : 'open' // Nur schließen wenn alle fertig
-            })
-            .eq('id', activeDuel.id);
+      if (role === 'creator') {
+        // --- CREATOR LOGIK ---
+        const { error } = await supabase.from('duels').insert([{ 
+          creator: user.name, 
+          creator_score: finalScore, 
+          creator_time: cleanTime, // Hier die korrekte Zeit nutzen
+          questions: gameData, 
+          status: 'open', 
+          amount: invoice.amount, 
+          target_player: challengePlayer,
+          // WICHTIG: Avatare mitspeichern, damit wir sie in der Lobby sehen!
+          creator_avatar: user.avatar 
+        }]);
+        
+        if (error) throw error;
+        
+        // Nach Erstellen zurück zum Dashboard
+        setView('dashboard');
 
       } else {
-          // DEINE ALTE DUELL LOGIK (Creator/Challenger Score speichern)
-          if (role === 'creator') {
-             await supabase.from('duels').update({ creator_score: finalScore, creator_time: finalTime, status: 'open' }).eq('id', activeDuel.id); 
-          } else {
-             await supabase.from('duels').update({ challenger_score: finalScore, challenger_time: finalTime, status: 'finished' }).eq('id', activeDuel.id);
-          }
+        // --- CHALLENGER LOGIK ---
+        const { data, error } = await supabase.from('duels').update({ 
+            challenger: user.name, 
+            challenger_score: finalScore, 
+            challenger_time: cleanTime, // Hier die korrekte Zeit nutzen
+            status: 'finished',
+            // Auch hier Avatar speichern
+            challenger_avatar: user.avatar
+        }).eq('id', activeDuel.id).select();
+        
+        if (error) throw error;
+        
+        if (data && data.length > 0) {
+            // OPTIONALER FIX: Sofort manuell setzen für schnellere UI
+            const updatedDuel = data[0];
+            setActiveDuel(updatedDuel); 
+            setView('result_final'); 
+        } else {
+            throw new Error("Fehler beim Laden des Spielstatus");
+        }
       }
-
-      // Cleanup
-      setActiveDuel(null);
-      setGameData([]);
-      setView('dashboard');
-      setDashboardView('history');
-
-    } catch (err) {
-      console.error(err);
-    } finally {
+    } catch (e) {
+      console.error(e);
+      alert("Speicherfehler: " + (e.message || JSON.stringify(e)));
       setIsProcessingGame(false);
     }
   };
@@ -1246,7 +1107,7 @@ const finishGameLogic = async (finalScore) => {
       setUser(updatedUser);
       localStorage.setItem('satoshi_user', JSON.stringify(updatedUser));
       
-      alert("Profilbild erfolgreich aktualisiert! 📸");
+      alert("Profilbild erfolgreich aktualisiert! ??");
 
     } catch (error) {
       console.error(error);
@@ -1269,9 +1130,9 @@ const finishGameLogic = async (finalScore) => {
              <h1 className="text-4xl font-black text-white italic uppercase drop-shadow-md">SATOSHI<span className="text-orange-500">DUELL</span></h1>
           </div>
           <div className="flex gap-4 mb-2">
-            <button onClick={() => previewLanguage('de')} className={`text-3xl p-3 rounded-xl border transition-all ${lang === 'de' ? 'bg-orange-500/20 border-orange-500 scale-110' : 'bg-black/40 border-white/10 hover:bg-white/10'}`}>🇩🇪</button>
-            <button onClick={() => previewLanguage('en')} className={`text-3xl p-3 rounded-xl border transition-all ${lang === 'en' ? 'bg-orange-500/20 border-orange-500 scale-110' : 'bg-black/40 border-white/10 hover:bg-white/10'}`}>🇺🇸</button>
-            <button onClick={() => previewLanguage('es')} className={`text-3xl p-3 rounded-xl border transition-all ${lang === 'es' ? 'bg-orange-500/20 border-orange-500 scale-110' : 'bg-black/40 border-white/10 hover:bg-white/10'}`}>🇪🇸</button>
+            <button onClick={() => previewLanguage('de')} className={`text-3xl p-3 rounded-xl border transition-all ${lang === 'de' ? 'bg-orange-500/20 border-orange-500 scale-110' : 'bg-black/40 border-white/10 hover:bg-white/10'}`}>????</button>
+            <button onClick={() => previewLanguage('en')} className={`text-3xl p-3 rounded-xl border transition-all ${lang === 'en' ? 'bg-orange-500/20 border-orange-500 scale-110' : 'bg-black/40 border-white/10 hover:bg-white/10'}`}>????</button>
+            <button onClick={() => previewLanguage('es')} className={`text-3xl p-3 rounded-xl border transition-all ${lang === 'es' ? 'bg-orange-500/20 border-orange-500 scale-110' : 'bg-black/40 border-white/10 hover:bg-white/10'}`}>????</button>
           </div>
           <div className="bg-black/40 p-4 rounded-xl border border-white/10 backdrop-blur-sm"><h3 className="text-orange-500 font-bold uppercase text-xs mb-2 tracking-widest text-center">{txt('welcome_disclaimer')}</h3><p className="text-neutral-400 text-xs text-center leading-relaxed">{txt('welcome_text')}</p></div>
           <Button variant="primary" onClick={acceptDisclaimer}>{txt('btn_understood')}</Button>
@@ -1310,7 +1171,7 @@ const finishGameLogic = async (finalScore) => {
             </Button>
           </div>
           
-          <button onClick={() => setView('language_select')} className="text-neutral-500 text-xs uppercase font-bold mt-4 hover:text-white">Back / Zurück 🌐</button>
+          <button onClick={() => setView('language_select')} className="text-neutral-500 text-xs uppercase font-bold mt-4 hover:text-white">Back / Zurück ??</button>
         </div>
       </Background>
     );
@@ -1357,85 +1218,6 @@ const finishGameLogic = async (finalScore) => {
             <h2 className="text-2xl font-black text-white uppercase">{txt('nostr_setup_title')}</h2><p className="text-neutral-400 text-sm">{txt('nostr_setup_text')}</p>
             <form onSubmit={completeNostrRegistration} className="flex flex-col gap-4"><input type="text" placeholder="GAMERTAG" value={nostrSetupName} onChange={(e) => setNostrSetupName(e.target.value)} className="w-full p-4 rounded-xl bg-[#0a0a0a] border border-white/10 text-white outline-none focus:border-orange-500 font-bold uppercase text-center shadow-lg"/><Button variant="primary" onClick={completeNostrRegistration}>OK</Button><button onClick={() => setView('login')} className="text-xs text-neutral-600 uppercase font-bold">Zurück</button></form>
          </div>
-      </Background>
-    );
-  }
-
-  // ---------------------------------------------------------
-  // VIEW: TOURNAMENT SETUP
-  // ---------------------------------------------------------
-  if (view === 'create_tournament_setup') {
-    return (
-      <Background>
-        <div className="w-full max-w-md flex flex-col h-[95vh] justify-between px-4 py-6">
-          
-          {/* Header */}
-          <div className="flex items-center gap-4">
-             <button onClick={() => setView('dashboard')} className="bg-white/10 p-3 rounded-xl hover:bg-white/20 transition-colors">
-                <ArrowLeft className="text-white"/>
-             </button>
-             <div>
-                 <h2 className="text-xl font-black text-white uppercase tracking-widest text-neutral-400">Neues Turnier</h2>
-                 <p className="text-xs text-neutral-500 font-mono">12 Fragen • Winner takes all</p>
-             </div>
-          </div>
-
-          {/* Settings */}
-          <div className="flex-1 flex flex-col justify-center gap-6">
-             
-             {/* 1. EINSATZ */}
-             <div className="bg-neutral-900/80 p-6 rounded-3xl border border-white/10">
-                <label className="text-xs font-bold text-neutral-400 uppercase tracking-widest mb-4 block text-center">
-                    Einsatz pro Spieler
-                </label>
-                <div className="flex items-center justify-center gap-2 mb-6">
-                    <Coins className="text-yellow-500" size={28} />
-                    <input 
-                      type="number" 
-                      value={wager}
-                      onChange={(e) => setWager(e.target.value)}
-                      className="bg-transparent text-4xl font-black text-white text-center w-full focus:outline-none placeholder-neutral-700"
-                      placeholder="0"
-                    />
-                </div>
-                <div className="grid grid-cols-4 gap-2">
-                   {[100, 500, 1000, 5000].map(val => (
-                      <button key={val} onClick={() => setWager(val)} className="bg-white/5 hover:bg-white/10 py-2 rounded-lg text-xs font-mono text-neutral-300 transition-colors">{val}</button>
-                   ))}
-                </div>
-             </div>
-
-             {/* 2. SPIELERANZAHL */}
-             <div className="bg-neutral-900/80 p-6 rounded-3xl border border-white/10">
-                <div className="flex justify-between items-center mb-4">
-                    <label className="text-xs font-bold text-neutral-400 uppercase tracking-widest">Spieleranzahl</label>
-                    <span className="text-xl font-black text-red-500">{tournamentPlayers}</span>
-                </div>
-                <input 
-                  type="range" min="3" max="50" step="1"
-                  value={tournamentPlayers}
-                  onChange={(e) => setTournamentPlayers(parseInt(e.target.value))}
-                  className="w-full h-2 bg-neutral-700 rounded-lg appearance-none cursor-pointer accent-red-500 mb-6"
-                />
-                <div className="mt-4 pt-4 border-t border-white/5 flex justify-between items-center">
-                    <span className="text-xs text-neutral-500">Gesamter Preispool:</span>
-                    <span className="text-lg font-mono font-bold text-yellow-500">
-                        {(!isNaN(parseInt(wager)) ? (parseInt(wager) * tournamentPlayers).toLocaleString() : 0)} Sats
-                    </span>
-                </div>
-             </div>
-          </div>
-
-          {/* Start Button */}
-          <button 
-            onClick={initTournament} 
-            disabled={isLoading || !wager || parseInt(wager) < 10}
-            className="w-full py-5 bg-gradient-to-r from-red-600 to-red-500 rounded-2xl text-white font-black uppercase tracking-widest text-lg shadow-lg hover:scale-[1.02] transition-all flex items-center justify-center gap-3 disabled:opacity-50 disabled:grayscale"
-          >
-            {isLoading ? <Loader2 className="animate-spin"/> : <Rocket />}
-            Turnier Starten
-          </button>
-        </div>
       </Background>
     );
   }
@@ -1836,140 +1618,55 @@ if (view === 'dashboard') {
       );
     }
 
-// ---------------------------------------------------------
-  // VIEW: LOBBY (Intelligent: Turniere & Duelle)
-  // ---------------------------------------------------------
-  if (dashboardView === 'lobby') {
+   if (dashboardView === 'lobby') {
+      const list = publicDuels.filter(d => d.creator !== user.name);
       return (
         <Background>
           <div className="w-full max-w-md flex flex-col h-[95vh] gap-4 px-2">
-             
-             {/* Header */}
-             <div className="flex items-center gap-4 py-4">
-                <button onClick={() => setDashboardView('home')} className="bg-white/10 p-2 rounded-xl hover:bg-white/20 transition-colors">
-                   <ArrowLeft className="text-white"/>
-                </button>
-                <h2 className="text-xl font-black text-white uppercase tracking-widest text-orange-500">{txt('tile_lobby')}</h2>
-             </div>
+            
+            {/* Header */}
+            <div className="flex items-center gap-4 py-4">
+               <button onClick={() => setDashboardView('home')} className="bg-white/10 p-2 rounded-xl hover:bg-white/20 transition-colors">
+                  <ArrowLeft className="text-white"/>
+               </button>
+               <h2 className="text-xl font-black text-white uppercase tracking-widest">{txt('tile_lobby')}</h2>
+            </div>
+            
+            {/* Liste */}
+            <div className="flex-1 overflow-y-auto space-y-2 custom-scrollbar">
+              {list.length === 0 && (
+                 <div className="text-center py-20 text-neutral-600 italic">
+                    Keine offenen Duelle.<br/>Starte selbst eins!
+                 </div>
+              )}
+              
+              {list.map(d => (
+                <div key={d.id} className="bg-neutral-900/80 p-3 rounded-2xl flex justify-between items-center border border-white/5 hover:border-orange-500/50 transition-all group">
+                  <div className="flex items-center gap-3">
+                     
+                     {/* AVATAR BILD */}
+                     <div className="w-12 h-12 rounded-xl overflow-hidden border border-white/10 bg-black group-hover:scale-105 transition-transform">
+                        <img 
+                           src={d.creator_avatar || getRobotAvatar(d.creator)} 
+                           alt={d.creator} 
+                           className="w-full h-full object-cover"
+                        />
+                     </div>
 
-             {/* Liste */}
-             <div className="flex-1 overflow-y-auto custom-scrollbar flex flex-col gap-3 pb-4">
-                {publicDuels.length === 0 ? (
-                    <div className="text-center text-neutral-500 mt-10 flex flex-col items-center gap-2">
-                       <Swords size={48} className="opacity-20"/>
-                       <p className="text-xs uppercase tracking-widest">{txt('no_challenges')}</p>
-                    </div>
-                ) : (
-                    publicDuels.map(d => {
-                      // Check: Darf ich dieses Spiel löschen? (Bin ich Creator oder Admin?)
-                      const canDelete = d.creator === user.name || user.is_admin;
+                     <div className="flex flex-col">
+                        <span className="font-bold text-white text-sm uppercase">{formatName(d.creator)}</span>
+                        <span className="text-xs text-orange-400 font-mono flex items-center gap-1">
+                           <Zap size={10}/> {d.amount} sats
+                        </span>
+                     </div>
+                  </div>
 
-                      // -------------------------------------------
-                      // VARIANTE A: TURNIER (Graue Kachel)
-                      // -------------------------------------------
-                      if (d.type === 'tournament') {
-                          const currentPlayers = d.participants ? d.participants.length : 1;
-                          const maxPlayers = d.max_players || 4;
-                          // Bin ich schon in der Teilnehmerliste?
-                          const amIIn = d.participants && d.participants.some(p => p.name === user.name);
-                          
-                          return (
-                            <div key={d.id} className="bg-neutral-900 border border-white/10 p-4 rounded-2xl relative overflow-hidden group mb-1">
-                               {/* Grauer Hintergrund-Effekt */}
-                               <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-5"></div>
-                               
-                               <div className="relative z-10 flex justify-between items-center">
-                                  {/* Linke Seite: Icon & Info */}
-                                  <div className="flex items-center gap-3">
-                                     <div className="w-10 h-10 bg-neutral-800 rounded-lg flex items-center justify-center border border-white/5">
-                                        <Trophy size={20} className="text-neutral-400"/>
-                                     </div>
-                                     <div>
-                                        <h3 className="text-white font-black uppercase text-sm">Turnier</h3>
-                                        <p className="text-neutral-400 text-[10px] font-mono flex items-center gap-1">
-                                           <Users size={10}/> {currentPlayers} / {maxPlayers} Spieler
-                                        </p>
-                                     </div>
-                                  </div>
-                                  
-                                  {/* Rechte Seite: Preis & Buttons */}
-                                  <div className="flex flex-col items-end gap-1">
-                                     <p className="text-yellow-500 font-mono font-bold text-lg leading-none">{d.amount} <span className="text-[10px] text-neutral-500">SATS</span></p>
-                                     
-                                     <div className="flex gap-2 mt-1">
-                                         {/* LÖSCHEN (Nur sichtbar für Creator) */}
-                                         {canDelete && (
-                                             <button onClick={() => deleteDuel(d.id)} className="p-1.5 bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white rounded transition-colors" title="Löschen">
-                                                <Trash2 size={12}/>
-                                             </button>
-                                         )}
-
-                                         {/* STATUS BUTTONS */}
-                                         {amIIn ? (
-                                             <span className="px-3 py-1 bg-green-500/20 text-green-500 rounded text-[10px] font-black uppercase border border-green-500/30">Dabei</span>
-                                         ) : (
-                                             <button 
-                                               onClick={() => initJoinDuel(d)} 
-                                               disabled={currentPlayers >= maxPlayers}
-                                               className={`px-3 py-1 rounded text-[10px] font-black uppercase tracking-widest transition-all ${currentPlayers >= maxPlayers ? 'bg-neutral-800 text-neutral-600 cursor-not-allowed' : 'bg-white/5 hover:bg-white/10 border border-white/10 text-white'}`}
-                                             >
-                                                {currentPlayers >= maxPlayers ? 'Voll' : 'Beitreten'}
-                                             </button>
-                                         )}
-                                     </div>
-                                  </div>
-                               </div>
-                               
-                               {/* Progress Bar unten */}
-                               <div className="absolute bottom-0 left-0 h-1 bg-neutral-800 w-full">
-                                  <div className="h-full bg-yellow-500" style={{ width: `${(currentPlayers / maxPlayers) * 100}%` }}></div>
-                               </div>
-                            </div>
-                          );
-                      }
-                      
-                      // -------------------------------------------
-                      // VARIANTE B: NORMALES DUELL (Grüne Kachel)
-                      // -------------------------------------------
-                      return (
-                        <div key={d.id} className="bg-neutral-900 border border-green-500/30 p-4 rounded-2xl relative overflow-hidden group mb-1">
-                            <div className="absolute inset-0 bg-green-500/5 group-hover:bg-green-500/10 transition-colors"></div>
-                            
-                            <div className="relative z-10 flex justify-between items-center">
-                                {/* Linke Seite: Avatar */}
-                                <div className="flex items-center gap-3">
-                                    <div className="w-10 h-10 rounded-full border-2 border-green-500/50 overflow-hidden bg-black">
-                                        <img src={d.creator_avatar || getRobotAvatar(d.creator)} alt="Avatar" className="w-full h-full object-cover"/>
-                                    </div>
-                                    <div>
-                                        <h3 className="text-white font-bold uppercase text-xs tracking-wider">{d.creator}</h3>
-                                        <span className="text-[10px] bg-green-500/20 text-green-400 px-2 py-0.5 rounded font-black uppercase">{txt('lobby_wait')}</span>
-                                    </div>
-                                </div>
-
-                                {/* Rechte Seite: Preis & Kampf */}
-                                <div className="text-right">
-                                    <p className="text-yellow-500 font-mono font-black text-xl drop-shadow-md">{d.amount}</p>
-                                    
-                                    <div className="flex gap-2 justify-end mt-1">
-                                        {canDelete && (
-                                             <button onClick={() => deleteDuel(d.id)} className="p-1.5 bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white rounded-lg transition-colors z-20 relative"><Trash2 size={14}/></button>
-                                        )}
-                                        
-                                        {/* Im normalen Duell kann man sich nicht selbst herausfordern, außer zum Testen/Löschen */}
-                                        {d.creator !== user.name && (
-                                            <button onClick={() => initJoinDuel(d)} className="bg-green-500 hover:bg-green-400 text-black font-black text-[10px] uppercase px-3 py-1.5 rounded-lg transition-transform active:scale-95 shadow-[0_0_10px_rgba(34,197,94,0.4)] flex items-center gap-1">
-                                                <Swords size={12}/> {txt('lobby_fight')}
-                                            </button>
-                                        )}
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                      );
-                    })
-                )}
-             </div>
+                  <button onClick={() => initJoinDuel(d)} className="bg-white text-black px-5 py-2 rounded-xl text-xs font-black uppercase hover:bg-orange-500 transition-colors shadow-lg">
+                     {txt('lobby_fight')}
+                  </button>
+                </div>
+              ))}
+            </div>
           </div>
         </Background>
       );
