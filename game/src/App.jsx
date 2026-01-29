@@ -1155,9 +1155,14 @@ export default function App() {
     return (
       <Background>
         {/* --- HIER SIND DIE FLAGGEN JETZT AUCH! --- */}
+        {/* --- HIER SIND DIE FLAGGEN JETZT AUCH! --- */}
         <div className="absolute top-6 right-6 z-50 flex gap-4">
-            <button onClick={() => setLang('de')} className={`text-2xl transition-all ${lang === 'de' ? 'scale-125' : 'opacity-30'}`}>????</button>
-            <button onClick={() => setLang('en')} className={`text-2xl transition-all ${lang === 'en' ? 'scale-125' : 'opacity-30'}`}>????</button>
+            <button onClick={() => setLang('de')} className={`text-3xl transition-all duration-300 ${lang === 'de' ? 'scale-125 drop-shadow-[0_0_15px_rgba(255,255,255,0.6)]' : 'opacity-30 grayscale hover:opacity-100 hover:grayscale-0 hover:scale-110'}`} title="Deutsch">
+              🇩🇪
+            </button>
+            <button onClick={() => setLang('en')} className={`text-3xl transition-all duration-300 ${lang === 'en' ? 'scale-125 drop-shadow-[0_0_15px_rgba(255,255,255,0.6)]' : 'opacity-30 grayscale hover:opacity-100 hover:grayscale-0 hover:scale-110'}`} title="English">
+              🇬🇧
+            </button>
         </div>
 
         <div className="w-full max-w-sm flex flex-col gap-6 text-center px-4">
