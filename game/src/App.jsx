@@ -1254,35 +1254,21 @@ if (view === 'dashboard') {
     // Eigene offene Spiele
     const myOpenDuels = myDuels.filter(d => d.creator === user.name && d.status === 'open');
 
-   // ---------------------------------------------------------
-    // VIEW: BADGES / ERFOLGE (Hall of Fame) - ELITE EDITION
+// ---------------------------------------------------------
+    // VIEW: BADGES / ERFOLGE (Hall of Fame) - FINAL & CLEAN
     // ---------------------------------------------------------
     if (dashboardView === 'badges') {
       
       // 1. STATISTIK BERECHNEN
       let stats = { 
         played: myDuels.length, 
-        wins: 0, 
-        sats: 0, 
-        perfect: 0,
-        speedWin: false,    // < 12s
-        lightSpeed: false,  // < 8s (NEU)
-        highRoller: false,  // > 500 Sats
-        whaleBet: false,    // > 5000 Sats (NEU)
-        photoFinish: false, 
-        currentStreak: 0,
-        maxStreak: 0        // Wir merken uns den höchsten Streak aller Zeiten
+        wins: 0, sats: 0, perfect: 0,
+        speedWin: false, lightSpeed: false, highRoller: false, whaleBet: false, 
+        photoFinish: false, currentStreak: 0
       };
 
-      // Sortieren für Streak-Berechnung
       const sortedDuels = [...myDuels].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-
       let tempStreak = 0;
-      // Um den "Max Streak" historisch zu berechnen, müssten wir eigentlich chronologisch (aufsteigend) durchgehen.
-      // Der Einfachheit halber (und weil wir nur Status 'finished' haben), 
-      // berechnen wir hier den *aktuellen* Streak (von heute rückwärts).
-      // Für einen echten "All Time High Streak" bräuchte man eine komplexere Logik, 
-      // aber für den Anfang reicht der aktuelle Lauf.
       let streakActive = true;
 
       sortedDuels.forEach(d => {
@@ -1296,7 +1282,6 @@ if (view === 'dashboard') {
          
          const iWon = myScore > opScore || (myScore === opScore && myTime < opTime);
          
-         // Aktuellen Streak berechnen
          if (streakActive) {
             if (iWon) tempStreak++;
             else streakActive = false;
@@ -1305,80 +1290,95 @@ if (view === 'dashboard') {
          if (iWon) {
              stats.wins++;
              stats.sats += (d.amount || 0);
-
-             // Speed Checks
              if (myTime < 12.0) stats.speedWin = true;
              if (myTime < 8.0) stats.lightSpeed = true;
-
-             // Fotofinish
              if (myScore === opScore && myTime < opTime) stats.photoFinish = true;
          }
          
-         // Perfect Rounds
          if (myScore === 5) stats.perfect++;
-
-         // High Roller
          const amount = d.amount || 0;
          if (amount >= 500) stats.highRoller = true;
          if (amount >= 5000) stats.whaleBet = true;
       });
       stats.currentStreak = tempStreak;
 
-      // 2. ABZEICHEN DEFINITIONEN (Jetzt mit Hardcore Zielen)
+      // 2. ABZEICHEN DEFINITIONEN (Jetzt mit txt() Funktion!)
       const BADGES = [
-        // --- KATEGORIE: TREUE (Spiele) ---
-        { id: 'p1', name: 'Neuling', desc: '5 Spiele gespielt', icon: User, color: 'text-blue-400', achieved: stats.played >= 5 },
-        { id: 'p2', name: 'Stammgast', desc: '25 Spiele gespielt', icon: Users, color: 'text-blue-500', achieved: stats.played >= 25 },
-        { id: 'p3', name: 'Veteran', desc: '100 Spiele gespielt', icon: Globe, color: 'text-blue-600', achieved: stats.played >= 100 },
-        { id: 'p4', name: 'Süchtig', desc: '500 Spiele gespielt', icon: Zap, color: 'text-purple-500', achieved: stats.played >= 500 }, // HARD
-        { id: 'p5', name: 'Inventar', desc: '1.000 Spiele gespielt', icon: Crown, color: 'text-yellow-500', achieved: stats.played >= 1000 }, // VERY HARD
+        // TREUE
+        { id: 'p1', name: txt('badge_p1_name'), desc: txt('badge_p1_desc'), icon: User, color: 'text-blue-400', achieved: stats.played >= 5 },
+        { id: 'p2', name: txt('badge_p2_name'), desc: txt('badge_p2_desc'), icon: Users, color: 'text-blue-500', achieved: stats.played >= 25 },
+        { id: 'p3', name: txt('badge_p3_name'), desc: txt('badge_p3_desc'), icon: Globe, color: 'text-blue-600', achieved: stats.played >= 100 },
+        { id: 'p4', name: txt('badge_p4_name'), desc: txt('badge_p4_desc'), icon: Zap, color: 'text-purple-500', achieved: stats.played >= 500 },
+        { id: 'p5', name: txt('badge_p5_name'), desc: txt('badge_p5_desc'), icon: Crown, color: 'text-yellow-500', achieved: stats.played >= 1000 },
         
-        // --- KATEGORIE: DOMINANZ (Siege) ---
-        { id: 'w1', name: 'Gewinner', desc: '5 Siege errungen', icon: Trophy, color: 'text-yellow-400', achieved: stats.wins >= 5 },
-        { id: 'w2', name: 'Champion', desc: '25 Siege errungen', icon: Medal, color: 'text-yellow-500', achieved: stats.wins >= 25 },
-        { id: 'w3', name: 'Legende', desc: '100 Siege errungen', icon: Fingerprint, color: 'text-orange-500', achieved: stats.wins >= 100 }, // HARD
-        { id: 'w4', name: 'Imperator', desc: '500 Siege errungen', icon: Crown, color: 'text-red-500', achieved: stats.wins >= 500 }, // VERY HARD
+        // DOMINANZ
+        { id: 'w1', name: txt('badge_w1_name'), desc: txt('badge_w1_desc'), icon: Trophy, color: 'text-yellow-400', achieved: stats.wins >= 5 },
+        { id: 'w2', name: txt('badge_w2_name'), desc: txt('badge_w2_desc'), icon: Medal, color: 'text-yellow-500', achieved: stats.wins >= 25 },
+        { id: 'w3', name: txt('badge_w3_name'), desc: txt('badge_w3_desc'), icon: Fingerprint, color: 'text-orange-500', achieved: stats.wins >= 100 },
+        { id: 'w4', name: txt('badge_w4_name'), desc: txt('badge_w4_desc'), icon: Crown, color: 'text-red-500', achieved: stats.wins >= 500 },
 
-        // --- KATEGORIE: SERIE (Streak) ---
-        { id: 'st1', name: 'Heiß gelaufen', desc: '3 Siege in Folge', icon: Flame, color: 'text-orange-400', achieved: stats.currentStreak >= 3 },
-        { id: 'st2', name: 'On Fire', desc: '5 Siege in Folge', icon: TrendingUp, color: 'text-red-500', achieved: stats.currentStreak >= 5 },
-        { id: 'st3', name: 'Unbesiegbar', desc: '10 Siege in Folge', icon: Crown, color: 'text-purple-500', achieved: stats.currentStreak >= 10 }, // HARD
+        // SERIE
+        { id: 'st1', name: txt('badge_st1_name'), desc: txt('badge_st1_desc'), icon: Flame, color: 'text-orange-400', achieved: stats.currentStreak >= 3 },
+        { id: 'st2', name: txt('badge_st2_name'), desc: txt('badge_st2_desc'), icon: TrendingUp, color: 'text-red-500', achieved: stats.currentStreak >= 5 },
+        { id: 'st3', name: txt('badge_st3_name'), desc: txt('badge_st3_desc'), icon: Crown, color: 'text-purple-500', achieved: stats.currentStreak >= 10 },
 
-        // --- KATEGORIE: REICHTUM (Sats) ---
-        { id: 's1', name: 'Sparer', desc: '100 Sats gewonnen', icon: Coins, color: 'text-green-400', achieved: stats.sats >= 100 },
-        { id: 's2', name: 'Stacker', desc: '1.000 Sats gewonnen', icon: Coins, color: 'text-green-500', achieved: stats.sats >= 1000 },
-        { id: 's3', name: 'Whale', desc: '10.000 Sats gewonnen', icon: Coins, color: 'text-green-600', achieved: stats.sats >= 10000 },
-        { id: 's4', name: 'Baron', desc: '50.000 Sats gewonnen', icon: Gem, color: 'text-cyan-400', achieved: stats.sats >= 50000 }, // HARD
-        { id: 's5', name: 'Satoshi', desc: '100.000 Sats gewonnen', icon: Crown, color: 'text-yellow-400', achieved: stats.sats >= 100000 }, // VERY HARD
+        // REICHTUM
+        { id: 's1', name: txt('badge_s1_name'), desc: txt('badge_s1_desc'), icon: Coins, color: 'text-green-400', achieved: stats.sats >= 100 },
+        { id: 's2', name: txt('badge_s2_name'), desc: txt('badge_s2_desc'), icon: Coins, color: 'text-green-500', achieved: stats.sats >= 1000 },
+        { id: 's3', name: txt('badge_s3_name'), desc: txt('badge_s3_desc'), icon: Coins, color: 'text-green-600', achieved: stats.sats >= 10000 },
+        { id: 's4', name: txt('badge_s4_name'), desc: txt('badge_s4_desc'), icon: Gem, color: 'text-cyan-400', achieved: stats.sats >= 50000 },
+        { id: 's5', name: txt('badge_s5_name'), desc: txt('badge_s5_desc'), icon: Crown, color: 'text-yellow-400', achieved: stats.sats >= 100000 },
 
-        // --- KATEGORIE: SKILL & SPECIALS ---
-        { id: 'sk1', name: 'Scharfschütze', desc: '5x Perfekte Runde', icon: Star, color: 'text-cyan-400', achieved: stats.perfect >= 5 },
-        { id: 'sk2', name: 'Aimbot', desc: '25x Perfekte Runde', icon: Star, color: 'text-purple-400', achieved: stats.perfect >= 25 }, // HARD
-        { id: 'sk3', name: 'Das Orakel', desc: '100x Perfekte Runde', icon: Crown, color: 'text-pink-500', achieved: stats.perfect >= 100 }, // VERY HARD
+        // SKILL & SPECIALS
+        { id: 'sk1', name: txt('badge_sk1_name'), desc: txt('badge_sk1_desc'), icon: Star, color: 'text-cyan-400', achieved: stats.perfect >= 5 },
+        { id: 'sk2', name: txt('badge_sk2_name'), desc: txt('badge_sk2_desc'), icon: Star, color: 'text-purple-400', achieved: stats.perfect >= 25 },
+        { id: 'sk3', name: txt('badge_sk3_name'), desc: txt('badge_sk3_desc'), icon: Crown, color: 'text-pink-500', achieved: stats.perfect >= 100 },
         
-        { id: 'sp1', name: 'Der Blitz', desc: 'Sieg unter 12s', icon: Rocket, color: 'text-red-500', achieved: stats.speedWin },
-        { id: 'sp2', name: 'Lichtgeschwindigkeit', desc: 'Sieg unter 8s', icon: Zap, color: 'text-yellow-300', achieved: stats.lightSpeed }, // HARD
-        { id: 'sp3', name: 'High Roller', desc: 'Spiel um 500+ Sats', icon: Gem, color: 'text-purple-400', achieved: stats.highRoller },
-        { id: 'sp4', name: 'Fotofinish', desc: 'Knapper Zeitsieg', icon: Flag, color: 'text-pink-500', achieved: stats.photoFinish },
+        { id: 'sp1', name: txt('badge_sp1_name'), desc: txt('badge_sp1_desc'), icon: Rocket, color: 'text-red-500', achieved: stats.speedWin },
+        { id: 'sp2', name: txt('badge_sp2_name'), desc: txt('badge_sp2_desc'), icon: Zap, color: 'text-yellow-300', achieved: stats.lightSpeed },
+        { id: 'sp3', name: txt('badge_sp3_name'), desc: txt('badge_sp3_desc'), icon: Gem, color: 'text-purple-400', achieved: stats.highRoller },
+        { id: 'sp4', name: txt('badge_sp4_name'), desc: txt('badge_sp4_desc'), icon: Flag, color: 'text-pink-500', achieved: stats.photoFinish },
       ];
 
-      // Fortschritt
       const unlockedCount = BADGES.filter(b => b.achieved).length;
       const progressPercent = Math.round((unlockedCount / BADGES.length) * 100);
+
+      // --- SHARE FUNKTION ---
+      const shareStats = async () => {
+         const shareData = {
+            title: txt('share_title'),
+            text: `${txt('share_text_prefix')} ${unlockedCount} / ${BADGES.length} ${txt('share_text_suffix')}`,
+            url: window.location.href 
+         };
+
+         if (navigator.share) {
+             try { await navigator.share(shareData); } catch (err) { console.log('Share abgebrochen'); }
+         } else {
+             navigator.clipboard.writeText(`${shareData.title}\n${shareData.text}\n${shareData.url}`);
+             alert(txt('share_clipboard'));
+         }
+      };
 
       return (
         <Background>
           <div className="w-full max-w-md flex flex-col h-[95vh] gap-4 px-2">
             
             {/* Header */}
-            <div className="flex items-center gap-4 py-4">
-               <button onClick={() => setDashboardView('home')} className="bg-white/10 p-2 rounded-xl hover:bg-white/20 transition-colors">
-                  <ArrowLeft className="text-white"/>
-               </button>
-               <div className="flex flex-col">
-                   <h2 className="text-xl font-black text-white uppercase tracking-widest text-yellow-500">Hall of Fame</h2>
-                   <p className="text-xs text-neutral-400">{unlockedCount} / {BADGES.length} Freigeschaltet ({progressPercent}%)</p>
+            <div className="flex items-center justify-between py-4">
+               <div className="flex items-center gap-4">
+                   <button onClick={() => setDashboardView('home')} className="bg-white/10 p-2 rounded-xl hover:bg-white/20 transition-colors">
+                      <ArrowLeft className="text-white"/>
+                   </button>
+                   <div className="flex flex-col text-left">
+                       <h2 className="text-xl font-black text-white uppercase tracking-widest text-yellow-500">{txt('hof_title')}</h2>
+                       <p className="text-xs text-neutral-400">{unlockedCount} / {BADGES.length} {txt('hof_progress')} ({progressPercent}%)</p>
+                   </div>
                </div>
+               
+               {/* SHARE BUTTON */}
+               <button onClick={shareStats} className="bg-yellow-500/10 p-2 rounded-xl border border-yellow-500/30 text-yellow-500 hover:bg-yellow-500 hover:text-black transition-all shadow-[0_0_15px_rgba(234,179,8,0.1)]">
+                   <Share2 size={20} />
+               </button>
             </div>
 
             {/* Progress Bar */}
@@ -1391,35 +1391,22 @@ if (view === 'dashboard') {
               <div className="grid grid-cols-2 gap-3">
                 {BADGES.map(badge => {
                    const Icon = badge.icon;
-                   // Spezial-Effekt für "Crown" Icons (die richtig schweren)
                    const isElite = badge.icon === Crown; 
                    
                    return (
                      <div key={badge.id} className={`relative p-4 rounded-xl border flex flex-col items-center gap-2 text-center transition-all ${badge.achieved ? (isElite ? 'bg-gradient-to-br from-neutral-900 to-black border-yellow-500/50 shadow-[0_0_20px_rgba(234,179,8,0.2)]' : 'bg-neutral-900/80 border-yellow-500/30 shadow-[0_0_15px_rgba(234,179,8,0.1)]') : 'bg-neutral-900/40 border-white/5 opacity-50 grayscale'}`}>
                         
-                        {/* Icon Kreis */}
                         <div className={`w-12 h-12 rounded-full flex items-center justify-center bg-black border ${badge.achieved ? (isElite ? 'border-yellow-400 animate-pulse' : 'border-yellow-500/50') : 'border-white/10'}`}>
                             <Icon size={24} className={badge.achieved ? badge.color : 'text-neutral-600'} />
                         </div>
 
-                        {/* Text */}
                         <div>
                             <h3 className={`font-black text-sm uppercase ${badge.achieved ? 'text-white' : 'text-neutral-500'}`}>{badge.name}</h3>
                             <p className="text-[10px] text-neutral-400 font-mono mt-1">{badge.desc}</p>
                         </div>
 
-                        {/* Status */}
-                        {!badge.achieved && (
-                            <div className="absolute top-2 right-2 text-neutral-600">
-                                <Lock size={12} />
-                            </div>
-                        )}
-                        
-                        {badge.achieved && (
-                            <div className="absolute top-2 right-2 text-green-500 animate-pulse">
-                                <CheckCircle size={14} />
-                            </div>
-                        )}
+                        {!badge.achieved && <div className="absolute top-2 right-2 text-neutral-600"><Lock size={12} /></div>}
+                        {badge.achieved && <div className="absolute top-2 right-2 text-green-500 animate-pulse"><CheckCircle size={14} /></div>}
                      </div>
                    );
                 })}

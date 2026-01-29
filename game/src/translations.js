@@ -22,7 +22,7 @@ export const TRANSLATIONS = {
     tile_leaderboard: "Bestenliste",
     tile_history: "Historie",
     tile_settings: "Einstellungen",
-    tile_tournaments: "Turniere", // <--- NEU: HIER WAR DER FEHLER
+    tile_tournaments: "Turniere",
 
     // Login
     welcome_disclaimer: "Wichtiger Hinweis",
@@ -56,9 +56,52 @@ export const TRANSLATIONS = {
     refund_wait: "Wartezeit läuft...",
     share_nostr: "Auf Nostr teilen",
     
-    // Share Text
+    // Share Game Text
     share_content: "⚔️ SATOSHI DUELL ⚔️\n\nIch habe {amount} Sats auf mein Wissen gesetzt!\nNimmst du die Wette an?\n\nKlick den Link um zu kämpfen:\n{url}",
     share_success: "Link kopiert! Schicke ihn an deinen Gegner.",
+
+    // HALL OF FAME & BADGES (NEU)
+    hof_title: "Hall of Fame",
+    hof_progress: "Freigeschaltet",
+    share_title: "Meine Hall of Fame",
+    share_text_prefix: "🏆 Ich habe bereits",
+    share_text_suffix: "Erfolge im Bitcoin Duell freigeschaltet! Kannst du mich schlagen?",
+    share_clipboard: "Text in die Zwischenablage kopiert!",
+
+    // Kategorie: Treue
+    badge_p1_name: "Neuling", badge_p1_desc: "5 Spiele gespielt",
+    badge_p2_name: "Stammgast", badge_p2_desc: "25 Spiele gespielt",
+    badge_p3_name: "Veteran", badge_p3_desc: "100 Spiele gespielt",
+    badge_p4_name: "Süchtig", badge_p4_desc: "500 Spiele gespielt",
+    badge_p5_name: "Inventar", badge_p5_desc: "1.000 Spiele gespielt",
+
+    // Kategorie: Dominanz
+    badge_w1_name: "Gewinner", badge_w1_desc: "5 Siege errungen",
+    badge_w2_name: "Champion", badge_w2_desc: "25 Siege errungen",
+    badge_w3_name: "Legende", badge_w3_desc: "100 Siege errungen",
+    badge_w4_name: "Imperator", badge_w4_desc: "500 Siege errungen",
+
+    // Kategorie: Serie
+    badge_st1_name: "Heiß gelaufen", badge_st1_desc: "3 Siege in Folge",
+    badge_st2_name: "On Fire", badge_st2_desc: "5 Siege in Folge",
+    badge_st3_name: "Unbesiegbar", badge_st3_desc: "10 Siege in Folge",
+
+    // Kategorie: Reichtum
+    badge_s1_name: "Sparer", badge_s1_desc: "100 Sats gewonnen",
+    badge_s2_name: "Stacker", badge_s2_desc: "1.000 Sats gewonnen",
+    badge_s3_name: "Whale", badge_s3_desc: "10.000 Sats gewonnen",
+    badge_s4_name: "Baron", badge_s4_desc: "50.000 Sats gewonnen",
+    badge_s5_name: "Satoshi", badge_s5_desc: "100.000 Sats gewonnen",
+
+    // Kategorie: Skill & Special
+    badge_sk1_name: "Scharfschütze", badge_sk1_desc: "5x Perfekte Runde",
+    badge_sk2_name: "Aimbot", badge_sk2_desc: "25x Perfekte Runde",
+    badge_sk3_name: "Das Orakel", badge_sk3_desc: "100x Perfekte Runde",
+
+    badge_sp1_name: "Der Blitz", badge_sp1_desc: "Sieg unter 12s",
+    badge_sp2_name: "Lichtgeschw.", badge_sp2_desc: "Sieg unter 8s",
+    badge_sp3_name: "High Roller", badge_sp3_desc: "Spiel um 500+ Sats",
+    badge_sp4_name: "Fotofinish", badge_sp4_desc: "Knapper Zeitsieg",
 
     // Game Setup
     setup_title: "Duell erstellen",
@@ -76,7 +119,7 @@ export const TRANSLATIONS = {
     result_wait: "Warte auf Gegner...",
     result_win: "Gewonnen!",
     result_loss: "Verloren",
-    result_draw: "Unentschieden", // NEU für Remis
+    result_draw: "Unentschieden",
     refund_info: "Hier ist dein Refund-Code. Scanne ihn mit einer Lightning Wallet.",
 
     // Settings & Admin
@@ -126,7 +169,7 @@ export const TRANSLATIONS = {
     tile_leaderboard: "Leaderboard",
     tile_history: "History",
     tile_settings: "Settings",
-    tile_tournaments: "Tournaments", // <--- NEW
+    tile_tournaments: "Tournaments",
 
     welcome_disclaimer: "Important Notice",
     welcome_text: "SatoshiDuell is an alpha-stage custodial Lightning service. We accept no liability for software errors, server outages, or lost sats. Please only deposit amounts you are willing to lose. Have fun & don't be reckless!",
@@ -160,6 +203,49 @@ export const TRANSLATIONS = {
     share_content: "⚔️ SATOSHI DUELL ⚔️\n\nI bet {amount} Sats on my knowledge!\nDo you accept the bet?\n\nClick link to fight:\n{url}",
     share_success: "Link copied! Send it to your opponent.",
 
+    // HALL OF FAME & BADGES (NEW)
+    hof_title: "Hall of Fame",
+    hof_progress: "Unlocked",
+    share_title: "My Hall of Fame",
+    share_text_prefix: "🏆 I have unlocked",
+    share_text_suffix: "achievements in SatoshiDuell! Can you beat me?",
+    share_clipboard: "Copied to clipboard!",
+
+    // Category: Loyalty
+    badge_p1_name: "Newbie", badge_p1_desc: "Played 5 games",
+    badge_p2_name: "Regular", badge_p2_desc: "Played 25 games",
+    badge_p3_name: "Veteran", badge_p3_desc: "Played 100 games",
+    badge_p4_name: "Addict", badge_p4_desc: "Played 500 games",
+    badge_p5_name: "Inventory", badge_p5_desc: "Played 1,000 games",
+
+    // Category: Dominance
+    badge_w1_name: "Winner", badge_w1_desc: "Won 5 duels",
+    badge_w2_name: "Champion", badge_w2_desc: "Won 25 duels",
+    badge_w3_name: "Legend", badge_w3_desc: "Won 100 duels",
+    badge_w4_name: "Emperor", badge_w4_desc: "Won 500 duels",
+
+    // Category: Streak
+    badge_st1_name: "Heating Up", badge_st1_desc: "Won 3 in a row",
+    badge_st2_name: "On Fire", badge_st2_desc: "Won 5 in a row",
+    badge_st3_name: "Invincible", badge_st3_desc: "Won 10 in a row",
+
+    // Category: Wealth
+    badge_s1_name: "Saver", badge_s1_desc: "Won 100 sats",
+    badge_s2_name: "Stacker", badge_s2_desc: "Won 1,000 sats",
+    badge_s3_name: "Whale", badge_s3_desc: "Won 10,000 sats",
+    badge_s4_name: "Baron", badge_s4_desc: "Won 50,000 sats",
+    badge_s5_name: "Satoshi", badge_s5_desc: "Won 100,000 sats",
+
+    // Category: Skill & Special
+    badge_sk1_name: "Sharpshooter", badge_sk1_desc: "5x Perfect Round",
+    badge_sk2_name: "Aimbot", badge_sk2_desc: "25x Perfect Round",
+    badge_sk3_name: "The Oracle", badge_sk3_desc: "100x Perfect Round",
+
+    badge_sp1_name: "The Flash", badge_sp1_desc: "Win under 12s",
+    badge_sp2_name: "Lightspeed", badge_sp2_desc: "Win under 8s",
+    badge_sp3_name: "High Roller", badge_sp3_desc: "Bet 500+ Sats",
+    badge_sp4_name: "Photo Finish", badge_sp4_desc: "Close time win",
+
     setup_title: "Create Duel",
     setup_target: "Challenge to",
     setup_wager_label: "Wager (Sats)",
@@ -173,7 +259,7 @@ export const TRANSLATIONS = {
     result_wait: "Waiting for opponent...",
     result_win: "You Won!",
     result_loss: "You Lost",
-    result_draw: "Draw", // NEW
+    result_draw: "Draw",
     refund_info: "Here is your refund code. Scan with Lightning Wallet.",
 
     settings_notifications: "Notifications",
@@ -222,7 +308,7 @@ export const TRANSLATIONS = {
     tile_leaderboard: "Ranking",
     tile_history: "Historial",
     tile_settings: "Ajustes",
-    tile_tournaments: "Torneos", // <--- NUEVO
+    tile_tournaments: "Torneos",
 
     welcome_disclaimer: "Aviso Importante",
     welcome_text: "SatoshiDuell es un servicio Lightning de custodia en fase alfa. No asumimos responsabilidad por errores de software, cortes del servidor o sats perdidos. Por favor, deposita solo lo que estés dispuesto a perder. ¡Diviértete!",
@@ -256,6 +342,49 @@ export const TRANSLATIONS = {
     share_content: "⚔️ SATOSHI DUELL ⚔️\n\n¡Aposto {amount} Sats en mi conocimiento!\n¿Aceptas la apuesta?\n\nClic aquí para luchar:\n{url}",
     share_success: "¡Enlace copiado! Envíalo a tu oponente.",
 
+    // HALL OF FAME & BADGES (NUEVO)
+    hof_title: "Salón de la Fama",
+    hof_progress: "Desbloqueados",
+    share_title: "Mi Salón de la Fama",
+    share_text_prefix: "🏆 ¡He desbloqueado",
+    share_text_suffix: "logros en SatoshiDuell! ¿Puedes superarme?",
+    share_clipboard: "¡Copiado al portapapeles!",
+
+    // Categoría: Lealtad
+    badge_p1_name: "Novato", badge_p1_desc: "Jugaste 5 juegos",
+    badge_p2_name: "Habitual", badge_p2_desc: "Jugaste 25 juegos",
+    badge_p3_name: "Veterano", badge_p3_desc: "Jugaste 100 juegos",
+    badge_p4_name: "Adicto", badge_p4_desc: "Jugaste 500 juegos",
+    badge_p5_name: "Inventario", badge_p5_desc: "Jugaste 1.000 juegos",
+
+    // Categoría: Dominio
+    badge_w1_name: "Ganador", badge_w1_desc: "Ganaste 5 duelos",
+    badge_w2_name: "Campeón", badge_w2_desc: "Ganaste 25 duelos",
+    badge_w3_name: "Leyenda", badge_w3_desc: "Ganaste 100 duelos",
+    badge_w4_name: "Emperador", badge_w4_desc: "Ganaste 500 duelos",
+
+    // Categoría: Racha
+    badge_st1_name: "Calentando", badge_st1_desc: "3 seguidos ganados",
+    badge_st2_name: "En Racha", badge_st2_desc: "5 seguidos ganados",
+    badge_st3_name: "Invencible", badge_st3_desc: "10 seguidos ganados",
+
+    // Categoría: Riqueza
+    badge_s1_name: "Ahorrador", badge_s1_desc: "100 sats ganados",
+    badge_s2_name: "Stacker", badge_s2_desc: "1.000 sats ganados",
+    badge_s3_name: "Ballena", badge_s3_desc: "10.000 sats ganados",
+    badge_s4_name: "Barón", badge_s4_desc: "50.000 sats ganados",
+    badge_s5_name: "Satoshi", badge_s5_desc: "100.000 sats ganados",
+
+    // Categoría: Habilidad & Especial
+    badge_sk1_name: "Francotirador", badge_sk1_desc: "5x Ronda Perfecta",
+    badge_sk2_name: "Aimbot", badge_sk2_desc: "25x Ronda Perfecta",
+    badge_sk3_name: "El Oráculo", badge_sk3_desc: "100x Ronda Perfecta",
+
+    badge_sp1_name: "El Rayo", badge_sp1_desc: "Ganar en < 12s",
+    badge_sp2_name: "Vel. Luz", badge_sp2_desc: "Ganar en < 8s",
+    badge_sp3_name: "High Roller", badge_sp3_desc: "Apuesta 500+ Sats",
+    badge_sp4_name: "Foto Finish", badge_sp4_desc: "Victoria ajustada",
+
     setup_title: "Crear Duelo",
     setup_target: "Desafiar a",
     setup_wager_label: "Apuesta (Sats)",
@@ -269,7 +398,7 @@ export const TRANSLATIONS = {
     result_wait: "Esperando oponente...",
     result_win: "¡Ganaste!",
     result_loss: "Perdiste",
-    result_draw: "Empate", // NUEVO
+    result_draw: "Empate",
     refund_info: "Aquí tienes tu código de reembolso.",
 
     settings_notifications: "Notificaciones",
