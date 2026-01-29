@@ -1459,6 +1459,9 @@ if (dashboardView === 'home') {
                  const opScore = isCreator ? d.challenger_score : d.creator_score;
                  const opponent = isCreator ? (d.challenger || '?') : d.creator;
                  
+                 // NEU: Avatar des Gegners bestimmen
+                 const opponentAvatar = isCreator ? d.challenger_avatar : d.creator_avatar;
+                 
                  let resultStatus = 'running'; // Standard: läuft noch
                  let resultColor = 'text-neutral-500';
                  let borderColor = 'border-white/5';
@@ -1475,15 +1478,33 @@ if (dashboardView === 'home') {
                  }
 
                  return (
-                   <button key={d.id} onClick={() => openPastDuel(d)} className={`w-full bg-neutral-900/80 border ${borderColor} p-3 rounded-xl flex flex-col gap-2 hover:bg-neutral-800 transition-all`}>
+                   <button key={d.id} onClick={() => openPastDuel(d)} className={`w-full bg-neutral-900/80 border ${borderColor} p-3 rounded-xl flex flex-col gap-2 hover:bg-neutral-800 transition-all group`}>
+                      
+                      {/* OBERE REIHE: Avatar + Status/Name + Betrag */}
                       <div className="flex justify-between items-center w-full">
-                         <div className="flex items-center gap-2">
-                            <span className={`font-black text-sm ${resultColor}`}>{resultStatus}</span>
-                            <span className="text-neutral-400 text-xs">vs {formatName(opponent)}</span>
+                         
+                         <div className="flex items-center gap-3">
+                            {/* NEU: AVATAR */}
+                            <div className="w-10 h-10 rounded-lg overflow-hidden border border-white/10 bg-black shrink-0 group-hover:scale-105 transition-transform">
+                               <img 
+                                 src={opponentAvatar || getRobotAvatar(opponent)} 
+                                 alt={opponent} 
+                                 className="w-full h-full object-cover"
+                               />
+                            </div>
+
+                            {/* TEXT INFO */}
+                            <div className="flex flex-col items-start">
+                               <span className={`font-black text-sm ${resultColor}`}>{resultStatus}</span>
+                               <span className="text-neutral-400 text-xs">vs {formatName(opponent)}</span>
+                            </div>
                          </div>
-                         <span className="font-mono text-xs text-white">{d.amount} sats</span>
+
+                         <span className="font-mono text-xs text-white font-bold">{d.amount} sats</span>
                       </div>
-                      <div className="flex justify-between w-full text-[10px] text-neutral-500">
+                      
+                      {/* UNTERE REIHE: Datum + Score */}
+                      <div className="flex justify-between w-full text-[10px] text-neutral-500 pl-1">
                          <span>{new Date(d.created_at).toLocaleDateString()}</span>
                          <span>Score: {myScore ?? '-'} : {opScore ?? '-'}</span>
                       </div>
