@@ -2,12 +2,12 @@ import React, { useState, useEffect, useRef } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { 
   Zap, Trophy, Clock, User, Plus, Swords, RefreshCw, Copy, Check,
-  ExternalLink, AlertTriangle, Loader2, LogOut, Fingerprint, Flame, // <--- FLAME
+  ExternalLink, AlertTriangle, Loader2, LogOut, Fingerprint, Flame, 
   History, Coins, Lock, Medal, Share2, Globe, Settings, Save, Heart,
-  Github, CheckCircle, RefreshCcw, Rocket, // <--- ROCKET
-  ArrowLeft, Users, AlertCircle, Bell, Shield, Search, Link as LinkIcon, 
-  PlayCircle, Edit2, Volume2, VolumeX, Smartphone, Upload,
-  Flag, Gem // <--- FLAG, GEM
+  Github, CheckCircle, RefreshCcw, Rocket, ArrowLeft, Users, AlertCircle, 
+  Bell, Shield, Search, Link as LinkIcon, PlayCircle, Edit2, Volume2, 
+  VolumeX, Smartphone, Upload, Flag, Gem,
+  Crown, Star, TrendingUp // <--- NEU
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { QRCodeCanvas } from 'qrcode.react';
@@ -1254,11 +1254,8 @@ if (view === 'dashboard') {
     // Eigene offene Spiele
     const myOpenDuels = myDuels.filter(d => d.creator === user.name && d.status === 'open');
 
-    // ---------------------------------------------------------
-    // VIEW: BADGES / ERFOLGE (Hall of Fame)
-    // ---------------------------------------------------------
-    // ---------------------------------------------------------
-    // VIEW: BADGES / ERFOLGE (Hall of Fame) - ERWEITERT
+   // ---------------------------------------------------------
+    // VIEW: BADGES / ERFOLGE (Hall of Fame) - ELITE EDITION
     // ---------------------------------------------------------
     if (dashboardView === 'badges') {
       
@@ -1268,20 +1265,28 @@ if (view === 'dashboard') {
         wins: 0, 
         sats: 0, 
         perfect: 0,
-        speedWin: false,    // Für "Der Blitz"
-        highRoller: false,  // Für "High Roller"
-        photoFinish: false, // Für "Fotofinish"
-        currentStreak: 0    // Für "Streak"
+        speedWin: false,    // < 12s
+        lightSpeed: false,  // < 8s (NEU)
+        highRoller: false,  // > 500 Sats
+        whaleBet: false,    // > 5000 Sats (NEU)
+        photoFinish: false, 
+        currentStreak: 0,
+        maxStreak: 0        // Wir merken uns den höchsten Streak aller Zeiten
       };
 
-      // Zuerst sortieren wir die Spiele nach Datum (neueste zuerst), um den Streak zu berechnen
+      // Sortieren für Streak-Berechnung
       const sortedDuels = [...myDuels].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
 
-      // Streak Logik: Wir zählen solange, bis wir eine Niederlage finden
+      let tempStreak = 0;
+      // Um den "Max Streak" historisch zu berechnen, müssten wir eigentlich chronologisch (aufsteigend) durchgehen.
+      // Der Einfachheit halber (und weil wir nur Status 'finished' haben), 
+      // berechnen wir hier den *aktuellen* Streak (von heute rückwärts).
+      // Für einen echten "All Time High Streak" bräuchte man eine komplexere Logik, 
+      // aber für den Anfang reicht der aktuelle Lauf.
       let streakActive = true;
 
       sortedDuels.forEach(d => {
-         if (d.status !== 'finished') return; // Laufende Spiele ignorieren
+         if (d.status !== 'finished') return; 
 
          const isCreator = d.creator === user.name;
          const myScore = isCreator ? d.creator_score : d.challenger_score;
@@ -1291,61 +1296,73 @@ if (view === 'dashboard') {
          
          const iWon = myScore > opScore || (myScore === opScore && myTime < opTime);
          
-         // Streak berechnen (nur solange streakActive true ist)
+         // Aktuellen Streak berechnen
          if (streakActive) {
-            if (iWon) {
-                stats.currentStreak++;
-            } else {
-                streakActive = false; // Streak gerissen
-            }
+            if (iWon) tempStreak++;
+            else streakActive = false;
          }
 
          if (iWon) {
              stats.wins++;
              stats.sats += (d.amount || 0);
 
-             // Check: Blitz (Gewonnen in unter 12 Sekunden Gesamtzeit)
+             // Speed Checks
              if (myTime < 12.0) stats.speedWin = true;
+             if (myTime < 8.0) stats.lightSpeed = true;
 
-             // Check: Fotofinish (Punktegleichstand, aber durch Zeit gewonnen)
+             // Fotofinish
              if (myScore === opScore && myTime < opTime) stats.photoFinish = true;
          }
          
-         // Check: Perfekte Runde
+         // Perfect Rounds
          if (myScore === 5) stats.perfect++;
 
-         // Check: High Roller (Einsatz > 500 Sats)
-         if ((d.amount || 0) >= 500) stats.highRoller = true;
+         // High Roller
+         const amount = d.amount || 0;
+         if (amount >= 500) stats.highRoller = true;
+         if (amount >= 5000) stats.whaleBet = true;
       });
+      stats.currentStreak = tempStreak;
 
-      // 2. DIE ABZEICHEN DEFINIEREN
+      // 2. ABZEICHEN DEFINITIONEN (Jetzt mit Hardcore Zielen)
       const BADGES = [
-        // --- KATEGORIE: BASIS ---
+        // --- KATEGORIE: TREUE (Spiele) ---
         { id: 'p1', name: 'Neuling', desc: '5 Spiele gespielt', icon: User, color: 'text-blue-400', achieved: stats.played >= 5 },
         { id: 'p2', name: 'Stammgast', desc: '25 Spiele gespielt', icon: Users, color: 'text-blue-500', achieved: stats.played >= 25 },
-        { id: 'p3', name: 'Inventar', desc: '100 Spiele gespielt', icon: Globe, color: 'text-blue-600', achieved: stats.played >= 100 },
+        { id: 'p3', name: 'Veteran', desc: '100 Spiele gespielt', icon: Globe, color: 'text-blue-600', achieved: stats.played >= 100 },
+        { id: 'p4', name: 'Süchtig', desc: '500 Spiele gespielt', icon: Zap, color: 'text-purple-500', achieved: stats.played >= 500 }, // HARD
+        { id: 'p5', name: 'Inventar', desc: '1.000 Spiele gespielt', icon: Crown, color: 'text-yellow-500', achieved: stats.played >= 1000 }, // VERY HARD
         
-        // --- KATEGORIE: SIEGE ---
+        // --- KATEGORIE: DOMINANZ (Siege) ---
         { id: 'w1', name: 'Gewinner', desc: '5 Siege errungen', icon: Trophy, color: 'text-yellow-400', achieved: stats.wins >= 5 },
-        { id: 'w2', name: 'Champion', desc: '20 Siege errungen', icon: Medal, color: 'text-yellow-500', achieved: stats.wins >= 20 },
-        { id: 'w3', name: 'Legende', desc: '50 Siege errungen', icon: Fingerprint, color: 'text-yellow-600', achieved: stats.wins >= 50 },
+        { id: 'w2', name: 'Champion', desc: '25 Siege errungen', icon: Medal, color: 'text-yellow-500', achieved: stats.wins >= 25 },
+        { id: 'w3', name: 'Legende', desc: '100 Siege errungen', icon: Fingerprint, color: 'text-orange-500', achieved: stats.wins >= 100 }, // HARD
+        { id: 'w4', name: 'Imperator', desc: '500 Siege errungen', icon: Crown, color: 'text-red-500', achieved: stats.wins >= 500 }, // VERY HARD
 
-        // --- KATEGORIE: SPECIALS (NEU!) ---
-        { id: 'sp1', name: 'Der Blitz', desc: 'Sieg in unter 12s', icon: Rocket, color: 'text-red-500', achieved: stats.speedWin },
-        { id: 'sp2', name: 'Unaufhaltsam', desc: '3 Siege in Folge', icon: Flame, color: 'text-orange-500', achieved: stats.currentStreak >= 3 },
-        { id: 'sp3', name: 'High Roller', desc: 'Spiel um 500+ Sats', icon: Gem, color: 'text-purple-400', achieved: stats.highRoller },
-        { id: 'sp4', name: 'Fotofinish', desc: 'Knapper Zeitsieg', icon: Flag, color: 'text-pink-500', achieved: stats.photoFinish },
+        // --- KATEGORIE: SERIE (Streak) ---
+        { id: 'st1', name: 'Heiß gelaufen', desc: '3 Siege in Folge', icon: Flame, color: 'text-orange-400', achieved: stats.currentStreak >= 3 },
+        { id: 'st2', name: 'On Fire', desc: '5 Siege in Folge', icon: TrendingUp, color: 'text-red-500', achieved: stats.currentStreak >= 5 },
+        { id: 'st3', name: 'Unbesiegbar', desc: '10 Siege in Folge', icon: Crown, color: 'text-purple-500', achieved: stats.currentStreak >= 10 }, // HARD
 
-        // --- KATEGORIE: SATS ---
+        // --- KATEGORIE: REICHTUM (Sats) ---
         { id: 's1', name: 'Sparer', desc: '100 Sats gewonnen', icon: Coins, color: 'text-green-400', achieved: stats.sats >= 100 },
         { id: 's2', name: 'Stacker', desc: '1.000 Sats gewonnen', icon: Coins, color: 'text-green-500', achieved: stats.sats >= 1000 },
         { id: 's3', name: 'Whale', desc: '10.000 Sats gewonnen', icon: Coins, color: 'text-green-600', achieved: stats.sats >= 10000 },
+        { id: 's4', name: 'Baron', desc: '50.000 Sats gewonnen', icon: Gem, color: 'text-cyan-400', achieved: stats.sats >= 50000 }, // HARD
+        { id: 's5', name: 'Satoshi', desc: '100.000 Sats gewonnen', icon: Crown, color: 'text-yellow-400', achieved: stats.sats >= 100000 }, // VERY HARD
+
+        // --- KATEGORIE: SKILL & SPECIALS ---
+        { id: 'sk1', name: 'Scharfschütze', desc: '5x Perfekte Runde', icon: Star, color: 'text-cyan-400', achieved: stats.perfect >= 5 },
+        { id: 'sk2', name: 'Aimbot', desc: '25x Perfekte Runde', icon: Star, color: 'text-purple-400', achieved: stats.perfect >= 25 }, // HARD
+        { id: 'sk3', name: 'Das Orakel', desc: '100x Perfekte Runde', icon: Crown, color: 'text-pink-500', achieved: stats.perfect >= 100 }, // VERY HARD
         
-        // --- KATEGORIE: SKILL ---
-        { id: 'sk1', name: 'Scharfschütze', desc: '5x Perfekte Runde', icon: Zap, color: 'text-cyan-400', achieved: stats.perfect >= 5 },
+        { id: 'sp1', name: 'Der Blitz', desc: 'Sieg unter 12s', icon: Rocket, color: 'text-red-500', achieved: stats.speedWin },
+        { id: 'sp2', name: 'Lichtgeschwindigkeit', desc: 'Sieg unter 8s', icon: Zap, color: 'text-yellow-300', achieved: stats.lightSpeed }, // HARD
+        { id: 'sp3', name: 'High Roller', desc: 'Spiel um 500+ Sats', icon: Gem, color: 'text-purple-400', achieved: stats.highRoller },
+        { id: 'sp4', name: 'Fotofinish', desc: 'Knapper Zeitsieg', icon: Flag, color: 'text-pink-500', achieved: stats.photoFinish },
       ];
 
-      // Fortschritt berechnen
+      // Fortschritt
       const unlockedCount = BADGES.filter(b => b.achieved).length;
       const progressPercent = Math.round((unlockedCount / BADGES.length) * 100);
 
@@ -1374,11 +1391,14 @@ if (view === 'dashboard') {
               <div className="grid grid-cols-2 gap-3">
                 {BADGES.map(badge => {
                    const Icon = badge.icon;
+                   // Spezial-Effekt für "Crown" Icons (die richtig schweren)
+                   const isElite = badge.icon === Crown; 
+                   
                    return (
-                     <div key={badge.id} className={`relative p-4 rounded-xl border flex flex-col items-center gap-2 text-center transition-all ${badge.achieved ? 'bg-neutral-900/80 border-yellow-500/30 shadow-[0_0_15px_rgba(234,179,8,0.1)]' : 'bg-neutral-900/40 border-white/5 opacity-50 grayscale'}`}>
+                     <div key={badge.id} className={`relative p-4 rounded-xl border flex flex-col items-center gap-2 text-center transition-all ${badge.achieved ? (isElite ? 'bg-gradient-to-br from-neutral-900 to-black border-yellow-500/50 shadow-[0_0_20px_rgba(234,179,8,0.2)]' : 'bg-neutral-900/80 border-yellow-500/30 shadow-[0_0_15px_rgba(234,179,8,0.1)]') : 'bg-neutral-900/40 border-white/5 opacity-50 grayscale'}`}>
                         
                         {/* Icon Kreis */}
-                        <div className={`w-12 h-12 rounded-full flex items-center justify-center bg-black border ${badge.achieved ? 'border-yellow-500/50' : 'border-white/10'}`}>
+                        <div className={`w-12 h-12 rounded-full flex items-center justify-center bg-black border ${badge.achieved ? (isElite ? 'border-yellow-400 animate-pulse' : 'border-yellow-500/50') : 'border-white/10'}`}>
                             <Icon size={24} className={badge.achieved ? badge.color : 'text-neutral-600'} />
                         </div>
 
@@ -1388,7 +1408,7 @@ if (view === 'dashboard') {
                             <p className="text-[10px] text-neutral-400 font-mono mt-1">{badge.desc}</p>
                         </div>
 
-                        {/* Status Icons */}
+                        {/* Status */}
                         {!badge.achieved && (
                             <div className="absolute top-2 right-2 text-neutral-600">
                                 <Lock size={12} />
