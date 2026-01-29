@@ -1285,7 +1285,7 @@ const handleAnswer = (displayIndex) => {
   }
 
 // ---------------------------------------------------------
-  // VIEW: TOURNAMENT SETUP (FIX: wager statt amount)
+  // VIEW: TOURNAMENT SETUP (KORRIGIERT: wager statt amount)
   // ---------------------------------------------------------
   if (view === 'create_tournament_setup') {
     return (
@@ -1316,7 +1316,7 @@ const handleAnswer = (displayIndex) => {
                 
                 <div className="flex items-center justify-center gap-2 mb-6">
                     <Coins className="text-yellow-500 animate-pulse" size={32} />
-                    {/* HIER GEÄNDERT: wager statt amount */}
+                    {/* HIER WAR DER FEHLER: Jetzt 'wager' und 'setWager' */}
                     <input 
                       type="number" 
                       value={wager}
@@ -1329,7 +1329,6 @@ const handleAnswer = (displayIndex) => {
                 {/* Preset Buttons */}
                 <div className="grid grid-cols-4 gap-2">
                    {[100, 500, 1000, 5000].map(val => (
-                      /* HIER GEÄNDERT: setWager statt setAmount */
                       <button key={val} onClick={() => setWager(val)} className="bg-white/5 hover:bg-white/10 py-2 rounded-lg text-xs font-mono text-neutral-300 transition-colors">
                          {val}
                       </button>
@@ -1346,6 +1345,7 @@ const handleAnswer = (displayIndex) => {
                     <span className="text-xl font-black text-red-500">{tournamentPlayers}</span>
                 </div>
 
+                {/* Slider */}
                 <input 
                   type="range" 
                   min="3" 
@@ -1356,6 +1356,7 @@ const handleAnswer = (displayIndex) => {
                   className="w-full h-2 bg-neutral-700 rounded-lg appearance-none cursor-pointer accent-red-500 mb-6"
                 />
 
+                {/* Presets */}
                 <div className="grid grid-cols-5 gap-2">
                    {[4, 8, 16, 32, 50].map(p => (
                       <button 
@@ -1368,7 +1369,7 @@ const handleAnswer = (displayIndex) => {
                    ))}
                 </div>
                 
-                {/* Info Text Pot Berechnung - FIX: wager statt amount */}
+                {/* Info Text Pot Berechnung - AUCH HIER 'wager' statt 'amount' */}
                 <div className="mt-4 pt-4 border-t border-white/5 flex justify-between items-center">
                     <span className="text-xs text-neutral-500">Gesamter Preispool:</span>
                     <span className="text-lg font-mono font-bold text-yellow-500">
