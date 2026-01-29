@@ -1470,10 +1470,29 @@ if (dashboardView === 'home') {
               </button>
             )}
 
-            {/* NEW DUEL BUTTON */}
+           {/* NEW DUEL BUTTON (Blau - Vorhanden) */}
             <Button onClick={() => { playSound('click', isMuted); openCreateSetup(); }} className="py-5 text-lg animate-neon shadow-lg mb-2 relative z-10">
               <Plus size={24}/> {txt('dashboard_new_duel')}
             </Button>
+            
+            {/* === NEU: TURNIER BUTTON (Rot Leuchtend) === */}
+            {/* Aktuell leitet er zur 'tournaments' Ansicht weiter */}
+            <button 
+              onClick={() => { playSound('click', isMuted); setDashboardView('tournaments'); }} 
+              className="w-full py-5 mb-4 rounded-2xl flex items-center justify-center gap-3 relative overflow-hidden group transition-all hover:scale-[1.02] z-10 text-lg font-black uppercase tracking-widest text-white bg-gradient-to-r from-red-700 to-red-500 shadow-[0_0_25px_rgba(220,38,38,0.6)] border border-red-400/30"
+            >
+              {/* Hintergrund-Muster für coolen Effekt */}
+              <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10 group-hover:opacity-20 transition-opacity"></div>
+              
+              {/* Icon und Text */}
+              <Plus size={24} className="relative z-10"/>
+              <span className="relative z-10 shadow-black drop-shadow-sm">{txt('dashboard_new_tournament')}</span>
+            </button>
+            {/* ========================================== */}
+            
+            {/* 3. GRID MIT DEN KACHELN */}
+            <div className="grid grid-cols-2 gap-2 flex-1 overflow-y-auto pb-4 relative z-10 custom-scrollbar">
+               {/* ... der Rest des Grids ... */}
             
             {/* 3. DAS GRID MIT DEN KACHELN */}
             <div className="grid grid-cols-2 gap-2 flex-1 overflow-y-auto pb-4 relative z-10 custom-scrollbar">
@@ -1540,7 +1559,7 @@ if (dashboardView === 'home') {
                     {txt('tile_badges')}
                 </span>
               </button>
-              
+
             </div>
 
             {/* 4. SPENDEN BUTTON */}

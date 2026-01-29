@@ -43,6 +43,7 @@ export const TRANSLATIONS = {
     // Dashboard
     sats_won: "Sats gewonnen",
     dashboard_new_duel: "Neues Duell",
+    dashboard_new_tournament: "Neues Turnier",
     dashboard_donate: "Spenden",
     dash_unclaimed_title: "Gewinn verfügbar!",
     dash_unclaimed_text: "Du hast offene Gewinne",
@@ -189,6 +190,7 @@ export const TRANSLATIONS = {
 
     sats_won: "Sats won",
     dashboard_new_duel: "New Duel",
+    dashboard_new_tournament: "New Tournament",
     dashboard_donate: "Donate",
     dash_unclaimed_title: "Prize available!",
     dash_unclaimed_text: "You have unclaimed wins",
@@ -329,6 +331,7 @@ export const TRANSLATIONS = {
 
     sats_won: "Sats ganados",
     dashboard_new_duel: "Nuevo Duelo",
+    dashboard_new_tournament: "Nuevo Torneo",
     dashboard_donate: "Donar",
     dash_unclaimed_title: "¡Premio disponible!",
     dash_unclaimed_text: "Tienes ganancias pendientes",
