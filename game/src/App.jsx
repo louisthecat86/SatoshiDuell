@@ -1418,7 +1418,10 @@ if (view === 'dashboard') {
       );
     }
 
-if (dashboardView === 'home') {
+// ---------------------------------------------------------
+    // VIEW: HOME (Hauptmenü)
+    // ---------------------------------------------------------
+    if (dashboardView === 'home') {
       return (
         <Background>
           <div className="w-full max-w-md flex flex-col h-[95vh] gap-4 px-2 relative">
@@ -1445,19 +1448,19 @@ if (dashboardView === 'home') {
                 </div>
               </div>
 
-              {/* RECHTE SEITE: Buttons (Mute, Settings, Logout) */}
+              {/* RECHTE SEITE: Buttons */}
               <div className="flex gap-1">
-                {/* MUTE BUTTON */}
+                {/* Mute */}
                 <button onClick={toggleMute} className="p-2 text-neutral-500 hover:text-white transition-colors">
                   {isMuted ? <VolumeX size={18}/> : <Volume2 size={18}/>}
                 </button>
                 
-                {/* NEU: SETTINGS BUTTON (Oben) */}
+                {/* Settings */}
                 <button onClick={() => setDashboardView('settings')} className="p-2 text-neutral-500 hover:text-white transition-colors">
                    <Settings size={18}/>
                 </button>
 
-                {/* LOGOUT BUTTON */}
+                {/* Logout */}
                 <button onClick={handleLogout} className="p-2 text-neutral-500 hover:text-red-500 transition-colors"><LogOut size={18}/></button>
               </div>
             </Card>
@@ -1470,31 +1473,24 @@ if (dashboardView === 'home') {
               </button>
             )}
 
-           {/* NEW DUEL BUTTON (Blau - Vorhanden) */}
+            {/* === ACTION BUTTONS === */}
+            
+            {/* 1. NEUES DUELL (Blau) */}
             <Button onClick={() => { playSound('click', isMuted); openCreateSetup(); }} className="py-5 text-lg animate-neon shadow-lg mb-2 relative z-10">
               <Plus size={24}/> {txt('dashboard_new_duel')}
             </Button>
             
-            {/* === NEU: TURNIER BUTTON (Rot Leuchtend) === */}
-            {/* Aktuell leitet er zur 'tournaments' Ansicht weiter */}
+            {/* 2. NEUES TURNIER (Rot & Leuchtend) */}
             <button 
               onClick={() => { playSound('click', isMuted); setDashboardView('tournaments'); }} 
               className="w-full py-5 mb-4 rounded-2xl flex items-center justify-center gap-3 relative overflow-hidden group transition-all hover:scale-[1.02] z-10 text-lg font-black uppercase tracking-widest text-white bg-gradient-to-r from-red-700 to-red-500 shadow-[0_0_25px_rgba(220,38,38,0.6)] border border-red-400/30"
             >
-              {/* Hintergrund-Muster für coolen Effekt */}
               <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10 group-hover:opacity-20 transition-opacity"></div>
-              
-              {/* Icon und Text */}
               <Plus size={24} className="relative z-10"/>
               <span className="relative z-10 shadow-black drop-shadow-sm">{txt('dashboard_new_tournament')}</span>
             </button>
-            {/* ========================================== */}
             
             {/* 3. GRID MIT DEN KACHELN */}
-            <div className="grid grid-cols-2 gap-2 flex-1 overflow-y-auto pb-4 relative z-10 custom-scrollbar">
-               {/* ... der Rest des Grids ... */}
-            
-            {/* 3. DAS GRID MIT DEN KACHELN */}
             <div className="grid grid-cols-2 gap-2 flex-1 overflow-y-auto pb-4 relative z-10 custom-scrollbar">
               
               {/* LOBBY (Orange) */}
@@ -1551,13 +1547,10 @@ if (dashboardView === 'home') {
                 </div>
               </button>
 
-              {/* ERFOLGE / BADGES BUTTON */}
+              {/* ERFOLGE / BADGES */}
               <button onClick={() => setDashboardView('badges')} className="bg-neutral-900/60 border border-white/5 hover:border-yellow-500/50 hover:bg-neutral-800 p-4 rounded-2xl flex flex-col items-center justify-center gap-3 aspect-[4/3] transition-all group">
                 <Medal size={32} className="text-yellow-500 group-hover:scale-110 transition-transform"/>
-                {/* HIER WAR DER FEHLER: txt(...) hat gefehlt */}
-                <span className="text-sm font-black text-yellow-500 uppercase tracking-widest shadow-black drop-shadow-md">
-                    {txt('tile_badges')}
-                </span>
+                <span className="text-sm font-black text-yellow-500 uppercase tracking-widest shadow-black drop-shadow-md">{txt('tile_badges')}</span>
               </button>
 
             </div>
@@ -1570,6 +1563,14 @@ if (dashboardView === 'home') {
               <Heart size={16} className="text-orange-500 fill-orange-500 group-hover:scale-110 transition-transform"/> 
               {txt('dashboard_donate')}
             </button>
+            
+            {/* Admin Footer */}
+            {user.is_admin && (
+                <div className="pb-4">
+                    <button onClick={() => setView('admin')} className="w-full py-3 rounded-xl border border-dashed border-red-500/30 text-red-500/50 hover:text-red-400 hover:border-red-500/60 hover:bg-red-500/5 text-xs font-mono uppercase tracking-widest transition-all">ADMIN</button>
+                </div>
+            )}
+
           </div>
         </Background>
       );
