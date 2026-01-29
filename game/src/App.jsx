@@ -152,6 +152,8 @@ export default function App() {
   const [wager, setWager] = useState(''); 
   const [tournamentPlayers, setTournamentPlayers] = useState(4);
   const [stats, setStats] = useState({ wins: 0, losses: 0, total: 0, satsWon: 0 });
+  const [isLoading, setIsLoading] = useState(false);
+
   
   // Quiz
   const [currentQ, setCurrentQ] = useState(0);
@@ -859,14 +861,15 @@ const initTournament = async () => {
       return;
     }
 
-    setLoading(true);
+    // WICHTIG: Hier setIsLoading statt setLoading
+    setIsLoading(true);
 
     try {
       const questions = [];
       
       if (!allQuestions || allQuestions.length === 0) {
           alert("Fehler: Keine Fragen geladen.");
-          setLoading(false);
+          setIsLoading(false); // <--- Auch hier ändern
           return;
       }
 
@@ -905,7 +908,8 @@ const initTournament = async () => {
       console.error("Turnier Fehler:", err);
       alert("Fehler beim Erstellen.");
     } finally {
-      setLoading(false);
+      // WICHTIG: Hier setIsLoading statt setLoading
+      setIsLoading(false);
     }
   };
 
@@ -1285,7 +1289,7 @@ const handleAnswer = (displayIndex) => {
   }
 
 // ---------------------------------------------------------
-  // VIEW: TOURNAMENT SETUP (KORRIGIERT: wager statt amount)
+  // VIEW: TOURNAMENT SETUP (FIX: isLoading statt loading)
   // ---------------------------------------------------------
   if (view === 'create_tournament_setup') {
     return (
@@ -1316,7 +1320,6 @@ const handleAnswer = (displayIndex) => {
                 
                 <div className="flex items-center justify-center gap-2 mb-6">
                     <Coins className="text-yellow-500 animate-pulse" size={32} />
-                    {/* HIER WAR DER FEHLER: Jetzt 'wager' und 'setWager' */}
                     <input 
                       type="number" 
                       value={wager}
@@ -1369,7 +1372,7 @@ const handleAnswer = (displayIndex) => {
                    ))}
                 </div>
                 
-                {/* Info Text Pot Berechnung - AUCH HIER 'wager' statt 'amount' */}
+                {/* Info Text */}
                 <div className="mt-4 pt-4 border-t border-white/5 flex justify-between items-center">
                     <span className="text-xs text-neutral-500">Gesamter Preispool:</span>
                     <span className="text-lg font-mono font-bold text-yellow-500">
@@ -1380,13 +1383,13 @@ const handleAnswer = (displayIndex) => {
 
           </div>
 
-          {/* START BUTTON */}
+          {/* START BUTTON - HIER WAR DER FEHLER (loading -> isLoading) */}
           <button 
             onClick={initTournament} 
-            disabled={loading}
+            disabled={isLoading} 
             className="w-full py-5 bg-gradient-to-r from-red-600 to-red-500 rounded-2xl text-white font-black uppercase tracking-widest text-lg shadow-[0_0_20px_rgba(220,38,38,0.5)] hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {loading ? <Loader2 className="animate-spin"/> : <Rocket />}
+            {isLoading ? <Loader2 className="animate-spin"/> : <Rocket />}
             {txt('btn_create_tournament')}
           </button>
 
