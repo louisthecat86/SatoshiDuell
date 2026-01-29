@@ -1263,7 +1263,7 @@ if (dashboardView === 'home') {
                <img src="/logo.png" className="w-[90%] opacity-15" alt="Background" />
             </div>
 
-            {/* 2. USER CARD (Avatar, Name, Mute, Logout) */}
+            {/* 2. USER CARD (Avatar, Name, Mute, Settings, Logout) */}
             <Card className="flex justify-between items-center py-3 border-orange-500/20 bg-black/40 backdrop-blur-md relative z-10">
               {/* LINKE SEITE: Avatar & Name */}
               <div className="flex items-center gap-3">
@@ -1280,23 +1280,28 @@ if (dashboardView === 'home') {
                 </div>
               </div>
 
-              {/* RECHTE SEITE: Buttons */}
-              <div className="flex gap-2">
+              {/* RECHTE SEITE: Buttons (Mute, Settings, Logout) */}
+              <div className="flex gap-1">
                 {/* MUTE BUTTON */}
                 <button onClick={toggleMute} className="p-2 text-neutral-500 hover:text-white transition-colors">
                   {isMuted ? <VolumeX size={18}/> : <Volume2 size={18}/>}
                 </button>
                 
+                {/* NEU: SETTINGS BUTTON (Oben) */}
+                <button onClick={() => setDashboardView('settings')} className="p-2 text-neutral-500 hover:text-white transition-colors">
+                   <Settings size={18}/>
+                </button>
+
                 {/* LOGOUT BUTTON */}
-                <button onClick={handleLogout} className="p-2 text-neutral-500 hover:text-white"><LogOut size={18}/></button>
+                <button onClick={handleLogout} className="p-2 text-neutral-500 hover:text-red-500 transition-colors"><LogOut size={18}/></button>
               </div>
             </Card>
 
             {/* Unclaimed Win Button (Falls vorhanden) */}
             {unclaimedWin && (
               <button onClick={() => openPastDuel(unclaimedWin)} className="w-full bg-green-500 text-black p-4 rounded-2xl flex items-center justify-between font-black uppercase animate-bounce shadow-[0_0_20px_rgba(34,197,94,0.6)] relative z-10">
-                 <div className="flex items-center gap-3"><Trophy size={24}/> <div className="text-left"><p className="text-sm leading-none">{txt('dash_unclaimed_title')}</p><p className="text-[10px] opacity-75 font-normal normal-case">{txt('dash_unclaimed_text')}</p></div></div>
-                 <div className="bg-black/20 p-2 rounded-lg"><ArrowLeft className="rotate-180" size={16}/></div>
+                  <div className="flex items-center gap-3"><Trophy size={24}/> <div className="text-left"><p className="text-sm leading-none">{txt('dash_unclaimed_title')}</p><p className="text-[10px] opacity-75 font-normal normal-case">{txt('dash_unclaimed_text')}</p></div></div>
+                  <div className="bg-black/20 p-2 rounded-lg"><ArrowLeft className="rotate-180" size={16}/></div>
               </button>
             )}
 
@@ -1305,7 +1310,7 @@ if (dashboardView === 'home') {
               <Plus size={24}/> {txt('dashboard_new_duel')}
             </Button>
             
-            {/* 3. DAS GRID MIT DEN NEUEN KACHELN (Farbiger Text, Große Schrift) */}
+            {/* 3. DAS GRID MIT DEN KACHELN */}
             <div className="grid grid-cols-2 gap-2 flex-1 overflow-y-auto pb-4 relative z-10 custom-scrollbar">
               
               {/* LOBBY (Orange) */}
@@ -1337,44 +1342,40 @@ if (dashboardView === 'home') {
               
               {/* LEADERBOARD (Top 3 Liste) */}
               <button onClick={() => setDashboardView('leaderboard')} className="bg-neutral-900/60 border border-white/5 hover:border-yellow-500/50 hover:bg-neutral-800 p-3 rounded-2xl flex flex-col items-center justify-start gap-1 aspect-[4/3] relative overflow-hidden group">
-                
-                {/* HEADER: Titel Oben */}
                 <div className="flex items-center gap-2 mb-1 z-10">
                   <Trophy size={14} className="text-yellow-500" />
                   <span className="text-xs font-black text-yellow-500 uppercase tracking-widest shadow-black drop-shadow-md">{txt('tile_leaderboard')}</span>
                 </div>
-
-                {/* BODY: Top 3 Liste */}
                 <div className="w-full flex flex-col gap-1 z-10">
-                   {leaderboard.length > 0 ? (
-                      leaderboard.slice(0, 3).map((p, i) => {
-                         const rankColor = i === 0 ? "text-yellow-400" : i === 1 ? "text-gray-300" : "text-orange-600";
-                         const rowBg = i === 0 ? "bg-yellow-500/10 border border-yellow-500/20" : "bg-black/20";
-                         
-                         return (
-                           <div key={i} className={`flex justify-between items-center w-full px-2 py-1 rounded ${rowBg}`}>
+                    {leaderboard.length > 0 ? (
+                       leaderboard.slice(0, 3).map((p, i) => {
+                          const rankColor = i === 0 ? "text-yellow-400" : i === 1 ? "text-gray-300" : "text-orange-600";
+                          const rowBg = i === 0 ? "bg-yellow-500/10 border border-yellow-500/20" : "bg-black/20";
+                          return (
+                            <div key={i} className={`flex justify-between items-center w-full px-2 py-1 rounded ${rowBg}`}>
                               <div className="flex items-center gap-1.5 overflow-hidden">
                                  <span className={`text-[10px] font-black ${rankColor}`}>{i+1}.</span>
                                  <span className="text-[10px] font-bold text-white truncate max-w-[65px]">{formatName(p.name)}</span>
                               </div>
                               <span className={`text-[9px] font-mono ${rankColor}`}>{p.satsWon}</span>
-                           </div>
-                         )
-                      })
-                   ) : (
-                      <span className="text-[10px] text-neutral-500 text-center mt-4">Lade...</span>
-                   )}
+                            </div>
+                          )
+                       })
+                    ) : (
+                       <span className="text-[10px] text-neutral-500 text-center mt-4">Lade...</span>
+                    )}
                 </div>
               </button>
 
-              {/* SETTINGS (Neutral) */}
-              <button onClick={() => setDashboardView('settings')} className="bg-neutral-900/60 border border-white/5 hover:border-neutral-500 hover:bg-neutral-800 p-4 rounded-2xl flex flex-col items-center justify-center gap-3 aspect-[4/3] transition-all group">
-                <Settings size={32} className="text-neutral-400 group-hover:rotate-45 transition-transform"/>
-                <span className="text-sm font-black text-neutral-400 uppercase tracking-widest shadow-black drop-shadow-md">{txt('tile_settings')}</span>
+              {/* NEU: ERFOLGE / BADGES (Anstatt Settings) */}
+              <button onClick={() => setDashboardView('badges')} className="bg-neutral-900/60 border border-white/5 hover:border-yellow-500/50 hover:bg-neutral-800 p-4 rounded-2xl flex flex-col items-center justify-center gap-3 aspect-[4/3] transition-all group">
+                <Medal size={32} className="text-yellow-500 group-hover:scale-110 transition-transform"/>
+                <span className="text-sm font-black text-yellow-500 uppercase tracking-widest shadow-black drop-shadow-md">Erfolge</span>
               </button>
+
             </div>
 
-            {/* 4. SPENDEN BUTTON (Neu, Orange Herzen, größer) */}
+            {/* 4. SPENDEN BUTTON */}
             <button 
               onClick={openDonation} 
               className="w-full py-3 mt-2 mb-2 bg-neutral-900 border border-white/10 hover:border-orange-500/50 rounded-xl text-white text-xs font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all group shadow-lg relative z-10"
