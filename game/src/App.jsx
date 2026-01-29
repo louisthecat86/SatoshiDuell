@@ -1476,18 +1476,27 @@ if (view === 'dashboard') {
                   </span>
                 </button>
 
-                {/* 2. NEUES TURNIER (Dunkelgrau - Jetzt auch mit Plus) */}
-                <button 
-                  onClick={() => { playSound('click', isMuted); setDashboardView('tournaments'); }} 
-                  className="bg-neutral-800 p-4 rounded-2xl flex flex-col items-center justify-center gap-2 shadow-lg hover:bg-neutral-700 hover:scale-[1.02] transition-all border border-white/10 group relative overflow-hidden"
-                >
-                  <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-5"></div>
-                  {/* HIER GEÄNDERT: Trophy -> Plus */}
-                  <Plus size={28} className="text-neutral-400 group-hover:text-white transition-colors relative z-10"/>
-                  <span className="text-xs font-black text-neutral-400 group-hover:text-white transition-colors uppercase tracking-widest relative z-10 shadow-black drop-shadow-sm text-center">
-                    {txt('dashboard_new_tournament')}
-                  </span>
-                </button>
+               {/* 2. NEUES TURNIER (DISABLED / COMING SOON) */}
+               <button 
+                 disabled={true} // <--- WICHTIG: Deaktiviert Klicks
+                 className="relative bg-neutral-900 p-4 rounded-2xl flex flex-col items-center justify-center gap-2 border border-white/5 overflow-hidden opacity-60 grayscale cursor-not-allowed"
+               >
+                 {/* Hintergrund Muster (schwach) */}
+                 <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-5"></div>
+                 
+                 {/* Inhalt (ausgegraut) */}
+                 <Trophy size={28} className="text-neutral-500 mb-1"/>
+                 <span className="text-xs font-black text-neutral-500 uppercase tracking-widest text-center">
+                   {txt('dashboard_new_tournament')}
+                 </span>
+
+                 {/* COMING SOON OVERLAY (Der "Stempel") */}
+                 <div className="absolute inset-0 flex items-center justify-center bg-black/20 z-20">
+                    <span className="bg-neutral-800 text-neutral-300 border border-white/10 text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-widest shadow-xl transform -rotate-3">
+                        Coming Soon
+                    </span>
+                 </div>
+               </button>
 
             </div>
             
