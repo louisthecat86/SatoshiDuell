@@ -1532,12 +1532,15 @@ if (dashboardView === 'home') {
                 </div>
               </button>
 
-              {/* NEU: ERFOLGE / BADGES (Anstatt Settings) */}
+              {/* ERFOLGE / BADGES BUTTON */}
               <button onClick={() => setDashboardView('badges')} className="bg-neutral-900/60 border border-white/5 hover:border-yellow-500/50 hover:bg-neutral-800 p-4 rounded-2xl flex flex-col items-center justify-center gap-3 aspect-[4/3] transition-all group">
                 <Medal size={32} className="text-yellow-500 group-hover:scale-110 transition-transform"/>
-                <span className="text-sm font-black text-yellow-500 uppercase tracking-widest shadow-black drop-shadow-md">Erfolge</span>
+                {/* HIER WAR DER FEHLER: txt(...) hat gefehlt */}
+                <span className="text-sm font-black text-yellow-500 uppercase tracking-widest shadow-black drop-shadow-md">
+                    {txt('tile_badges')}
+                </span>
               </button>
-
+              
             </div>
 
             {/* 4. SPENDEN BUTTON */}
