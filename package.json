@@ -1,0 +1,26 @@
+{
+  "name": "satoshiduell",
+  "version": "1.0.0",
+  "description": "<img width=\"1024\" height=\"1024\" alt=\"logo\" src=\"https://github.com/user-attachments/assets/2a9be3c0-9787-4c57-a6ba-60f1d014de2a\" />",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/louisthecat86/SatoshiDuell.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/louisthecat86/SatoshiDuell/issues"
+  },
+  "homepage": "https://github.com/louisthecat86/SatoshiDuell#readme",
+  "dependencies": {
+    "@capacitor/android": "^8.0.2",
+    "@capacitor/cli": "^8.0.2",
+    "@capacitor/core": "^8.0.2"
+  }
+}
