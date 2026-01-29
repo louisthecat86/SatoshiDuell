@@ -1026,17 +1026,21 @@ const claimTournamentPot = async () => {
         // 1. DB Update: Markiere als abgeholt
         const { error } = await supabase
             .from('duels')
-            .update({ claimed: true }) // Du brauchst evtl. eine 'claimed' Spalte in der DB, oder wir nutzen metadata
+            .update({ claimed: true }) 
             .eq('id', activeDuel.id);
 
         if (error) throw error;
 
-        // 2. Feedback
-        confetti({ particleCount: 200, spread: 150 });
-        alert(`Glückwunsch! ${activeDuel.current_pot} Sats wurden gutgeschrieben (simuliert).`);
+        // 2. Withdraw-Link erzeugen (Hier muss dein Backend-Call hin!)
+        // SIMULATION: Wir erstellen einen Mock-LNURL Link
+        const mockLNURL = `lnurl1dp68gurn8ghj7mrww4exctt5dahkccn009jkgrfv...FAILED_TO_FETCH_REAL_LINK...AMOUNT_${activeDuel.current_pot}`;
         
-        // 3. Ansicht aktualisieren
-        setActiveDuel(prev => ({ ...prev, claimed: true }));
+        // WICHTIG: State setzen, damit der QR Code angezeigt wird
+        setWithdrawLink(mockLNURL);
+        
+        // 3. Feedback
+        confetti({ particleCount: 200, spread: 150 });
+        playSound('win', isMuted);
         
     } catch (err) {
         console.error(err);
@@ -1791,41 +1795,37 @@ if (view === 'dashboard') {
 
     // ---------------------------------------------------------
  // ---------------------------------------------------------
-  // VIEW: TOURNAMENT RESULTS (Mit Live-Daten Refresh)
+  // VIEW: TOURNAMENT RESULTS (Winner QR & Loser Screen)
   // ---------------------------------------------------------
   if (view === 'tournament_results') {
     
-    // Lokaler State für diese Ansicht, um frische Daten zu speichern
+    // Frische Daten holen
     const [resultsDuel, setResultsDuel] = useState(activeDuel);
     const [refreshing, setRefreshing] = useState(false);
 
-    // WICHTIG: Beim Öffnen sofort frische Daten holen!
     useEffect(() => {
         const fetchLatestResults = async () => {
             if (!activeDuel?.id) return;
             setRefreshing(true);
-            const { data } = await supabase
-                .from('duels')
-                .select('*')
-                .eq('id', activeDuel.id)
-                .single();
-            
+            const { data } = await supabase.from('duels').select('*').eq('id', activeDuel.id).single();
             if (data) setResultsDuel(data);
             setRefreshing(false);
         };
         fetchLatestResults();
-        
-        // Optional: Alle 5 Sekunden aktualisieren (Polling), falls noch wer spielt
-        const interval = setInterval(fetchLatestResults, 5000);
+        // Polling alle 3 Sekunden, damit Verlierer sehen, wenn es vorbei ist
+        const interval = setInterval(fetchLatestResults, 3000);
         return () => clearInterval(interval);
     }, [activeDuel?.id]);
 
-    // Rangliste auf Basis der FRISCHEN Daten berechnen
+    // Berechnungen
     const ranking = getTournamentRanking(resultsDuel?.participants || []);
     const winner = ranking[0];
     const isMeWinner = winner?.name === user.name;
-    // Prüfen ob 'claimed' true ist (DB Feld muss existieren!)
-    const isClaimed = resultsDuel?.claimed === true; 
+    const isTournamentFinished = resultsDuel?.status === 'finished';
+    
+    // Status für mich
+    const myEntry = resultsDuel?.participants?.find(p => p.name === user.name);
+    const amIFinished = myEntry?.status === 'finished';
 
     return (
       <Background>
@@ -1837,59 +1837,98 @@ if (view === 'dashboard') {
                  <ArrowLeft className="text-white"/>
               </button>
               <div className="flex flex-col">
-                  <h2 className="text-xl font-black text-white uppercase tracking-widest text-yellow-500">Ergebnis</h2>
+                  <h2 className="text-xl font-black text-white uppercase tracking-widest text-yellow-500">
+                      {isTournamentFinished ? "Turnier Beendet" : "Live Stand"}
+                  </h2>
                   {refreshing && <span className="text-[10px] text-neutral-500 animate-pulse">Aktualisiere...</span>}
               </div>
            </div>
 
-           {/* WINNER CARD */}
-           <div className="bg-gradient-to-br from-yellow-600/20 to-black border border-yellow-500/50 p-6 rounded-3xl text-center relative overflow-hidden shadow-[0_0_30px_rgba(234,179,8,0.2)]">
-               <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10"></div>
-               
-               <Crown size={48} className="text-yellow-500 mx-auto mb-2 animate-bounce"/>
-               <h3 className="text-white font-black text-2xl uppercase tracking-widest">{winner?.name || "?"}</h3>
-               <p className="text-yellow-200 text-xs font-mono mb-4">ist der Champion!</p>
+           {/* --- 1. GEWINNER ANSICHT (QR CODE) --- */}
+           {isMeWinner && isTournamentFinished && (
+               <div className="bg-gradient-to-br from-yellow-600/20 to-black border border-yellow-500/50 p-6 rounded-3xl text-center relative overflow-hidden shadow-[0_0_30px_rgba(234,179,8,0.2)]">
+                   <Crown size={48} className="text-yellow-500 mx-auto mb-2 animate-bounce"/>
+                   <h3 className="text-white font-black text-2xl uppercase tracking-widest">GLÜCKWUNSCH!</h3>
+                   <p className="text-yellow-200 text-xs font-mono mb-4">Du hast alle rasiert.</p>
 
-               <div className="bg-black/40 rounded-xl p-3 border border-yellow-500/20 inline-block">
-                   <p className="text-neutral-400 text-[10px] uppercase">Jackpot</p>
-                   <p className="text-3xl font-black text-yellow-500 font-mono">{resultsDuel?.current_pot || 0} <span className="text-sm">Sats</span></p>
-               </div>
-           </div>
-
-           {/* AUSZAHLUNG BUTTON (Nur für Gewinner & wenn noch nicht claimed) */}
-           {isMeWinner && !isClaimed && (
-               <div className="animate-in slide-in-from-bottom-5 fade-in duration-1000">
-                   <button 
-                     onClick={claimTournamentPot}
-                     disabled={isLoading}
-                     className="w-full py-4 bg-green-500 hover:bg-green-400 text-black font-black uppercase rounded-xl shadow-[0_0_20px_rgba(34,197,94,0.6)] flex items-center justify-center gap-2 transition-all active:scale-95"
-                   >
-                       {isLoading ? <Loader2 className="animate-spin"/> : <Gem size={20}/>}
-                       Gewinn auszahlen
-                   </button>
-                   <p className="text-center text-[10px] text-green-400 mt-2">Du hast gewonnen! Hol dir die Sats.</p>
+                   {/* A) QR CODE ZEIGEN WENN ABGEHOLT */}
+                   {withdrawLink ? (
+                       <div className="bg-white p-4 rounded-xl inline-block animate-in zoom-in">
+                           <img 
+                             src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${withdrawLink}`} 
+                             alt="Withdraw QR" 
+                             className="w-32 h-32"
+                           />
+                           <p className="text-black font-bold text-[10px] mt-2 uppercase">Scannen zum Auszahlen</p>
+                       </div>
+                   ) : (
+                       /* B) BUTTON ZEIGEN WENN NOCH NICHT ABGEHOLT */
+                       <div className="bg-black/40 rounded-xl p-4 border border-yellow-500/20">
+                           <p className="text-neutral-400 text-[10px] uppercase">Dein Gewinn</p>
+                           <p className="text-4xl font-black text-yellow-500 font-mono mb-4">{resultsDuel?.current_pot} <span className="text-sm">Sats</span></p>
+                           
+                           <button 
+                             onClick={claimTournamentPot}
+                             disabled={isLoading || resultsDuel.claimed}
+                             className="w-full py-3 bg-green-500 hover:bg-green-400 text-black font-black uppercase rounded-xl shadow-[0_0_20px_rgba(34,197,94,0.6)] flex items-center justify-center gap-2 transition-all active:scale-95 disabled:opacity-50 disabled:grayscale"
+                           >
+                               {isLoading ? <Loader2 className="animate-spin"/> : <Gem size={20}/>}
+                               {resultsDuel.claimed ? "Bereits beansprucht" : "Jetzt Auszahlen"}
+                           </button>
+                       </div>
+                   )}
                </div>
            )}
 
-           {isMeWinner && isClaimed && (
-               <div className="bg-green-500/10 border border-green-500/30 p-3 rounded-xl flex items-center justify-center gap-2 text-green-500 font-bold text-xs uppercase">
-                   <CheckCircle size={16}/> Gewinn abgeholt
+           {/* --- 2. VERLIERER ANSICHT --- */}
+           {!isMeWinner && isTournamentFinished && (
+               <div className="bg-neutral-900/80 border border-red-500/30 p-6 rounded-3xl text-center relative overflow-hidden">
+                   <div className="absolute inset-0 bg-red-500/5"></div>
+                   <Swords size={48} className="text-red-500 mx-auto mb-2"/>
+                   <h3 className="text-white font-black text-2xl uppercase tracking-widest">VERLOREN</h3>
+                   <p className="text-neutral-400 text-xs mb-4">
+                       Gewinner ist <span className="text-yellow-500 font-bold">{winner?.name}</span>
+                   </p>
+                   <div className="inline-block px-4 py-2 bg-black/40 rounded-lg border border-white/10">
+                       <span className="text-neutral-500 text-[10px] uppercase">Dein Rang: </span>
+                       <span className="text-white font-bold">#{ranking.findIndex(p => p.name === user.name) + 1}</span>
+                   </div>
                </div>
            )}
 
-           {/* RANGLISTE */}
-           <div className="flex-1 overflow-y-auto custom-scrollbar bg-neutral-900/50 rounded-2xl border border-white/5 p-4">
-               <h4 className="text-neutral-500 text-xs font-bold uppercase tracking-widest mb-4">Rangliste</h4>
+           {/* --- 3. WARTEN ANSICHT --- */}
+           {!isTournamentFinished && (
+               <div className="bg-neutral-900 border border-blue-500/30 p-6 rounded-3xl text-center relative overflow-hidden">
+                   <Loader2 size={32} className="text-blue-500 mx-auto mb-2 animate-spin"/>
+                   <h3 className="text-white font-black text-xl uppercase tracking-widest">Turnier läuft</h3>
+                   
+                   {amIFinished ? (
+                       <p className="text-green-400 text-xs font-bold mt-2">Du bist fertig! Warte auf die anderen...</p>
+                   ) : (
+                       <p className="text-neutral-400 text-xs mt-2">Andere spielen noch...</p>
+                   )}
+                   
+                   <div className="mt-4 flex justify-center gap-2">
+                       {resultsDuel.participants.map((p, i) => (
+                           <div key={i} title={p.name} className={`w-2 h-2 rounded-full ${p.status === 'finished' ? 'bg-green-500' : 'bg-neutral-600 animate-pulse'}`}></div>
+                       ))}
+                   </div>
+               </div>
+           )}
+
+           {/* RANGLISTE (Immer sichtbar) */}
+           <div className="flex-1 overflow-y-auto custom-scrollbar bg-neutral-900/50 rounded-2xl border border-white/5 p-4 mt-2">
+               <h4 className="text-neutral-500 text-xs font-bold uppercase tracking-widest mb-4">Live Ranking</h4>
                <div className="flex flex-col gap-2">
                    {ranking.map((p, index) => (
                        <div key={index} className={`flex items-center justify-between p-3 rounded-xl border ${p.name === user.name ? 'bg-white/10 border-white/20' : 'bg-black/20 border-white/5'}`}>
                            <div className="flex items-center gap-3">
-                               <span className={`font-black font-mono text-lg w-6 ${index === 0 ? 'text-yellow-500' : index === 1 ? 'text-gray-400' : index === 2 ? 'text-orange-700' : 'text-neutral-600'}`}>
-                                   #{index + 1}
-                               </span>
+                               <span className={`font-black font-mono text-lg w-6 ${index === 0 ? 'text-yellow-500' : 'text-neutral-600'}`}>#{index + 1}</span>
                                <div className="flex flex-col">
                                    <span className={`font-bold text-sm ${p.name === user.name ? 'text-white' : 'text-neutral-400'}`}>{p.name}</span>
-                                   <span className="text-[10px] text-neutral-600">{p.status === 'finished' ? 'Fertig' : 'Spielt noch...'}</span>
+                                   <span className={`text-[10px] ${p.status === 'finished' ? 'text-green-500' : 'text-yellow-600'}`}>
+                                       {p.status === 'finished' ? 'Fertig' : 'Spielt...'}
+                                   </span>
                                </div>
                            </div>
                            <div className="text-right">
@@ -1905,7 +1944,7 @@ if (view === 'dashboard') {
       </Background>
     );
   }
-  
+
 // ---------------------------------------------------------
     // VIEW: HOME (Hauptmenü) - Beide mit Plus-Icon
     // ---------------------------------------------------------
