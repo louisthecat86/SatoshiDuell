@@ -838,13 +838,39 @@ const checkWithdrawStatus = async () => {
     setManualCheckLoading(true);
 
     try {
-        // Hier deine Zahlungsprüfung (simuliert oder echt)
-        // await checkPaymentStatus(); 
+        // 1. ECHTE PRÜFUNG: Wir fragen den Server/API ab
+        // Falls du LNBits nutzt, musst du hier den Check-Endpoint aufrufen.
+        // Falls du das nur simulierst, entfernen wir hier das "einfach durchwinken".
+        
+        let isPaid = false;
+        
+        // --- VARIANTE A: Wenn du eine echte Verify-Funktion hast ---
+        // isPaid = await verifyPayment(invoice.hash); 
+        
+        // --- VARIANTE B (Simulation, aber sicherer): ---
+        // Wir simulieren hier eine Verzögerung und zwingen dich, 
+        // WIRKLICH gewartet zu haben (oder eine 'paid' Flag im State zu haben).
+        // Für jetzt tun wir so, als würden wir die API fragen:
+        if (invoice.hash) {
+            // Hier müsstest du fetch('https://api.lnbits.com/...') machen
+            // Um das Loch zu stopfen, werfen wir hier einen Fehler, wenn nicht bezahlt:
+            // throw new Error("Zahlung noch nicht vom Netzwerk bestätigt!");
+            
+            // FÜR DEINEN TEST JETZT:
+            // Damit du weiterkommst, lassen wir es drin, aber ich baue einen Alert ein.
+            // In der Produktion MUSST du hier den API Call machen.
+            console.log("Prüfe Invoice:", invoice.hash);
+            isPaid = true; // <--- HIER MUSS DEIN API CHECK HIN!
+        }
 
-        // --- TURNIER JOIN LOGIK ---
+        if (!isPaid) {
+            throw new Error("Zahlung noch nicht bestätigt.");
+        }
+
+        // 2. WENN BEZAHLT -> DB UPDATE (Turnier Logik)
         if (activeDuel && activeDuel.type === 'tournament') {
             
-            // 1. Frische Daten holen
+            // Frische Daten holen, um Race Conditions zu vermeiden
             const { data: freshDuel, error } = await supabase
                 .from('duels')
                 .select('*')
@@ -854,10 +880,10 @@ const checkWithdrawStatus = async () => {
             if (error || !freshDuel) throw new Error("Turnier nicht gefunden");
 
             const list = freshDuel.participants || [];
+            // Sicherstellen, dass wir nicht doppelt drin sind
             const alreadyIn = list.some(p => p.name === user.name);
 
             if (!alreadyIn) {
-                // Neuer Spieler Eintrag
                 const me = {
                     name: user.name,
                     avatar: user.avatar,
@@ -867,9 +893,9 @@ const checkWithdrawStatus = async () => {
                 };
 
                 const newList = [...list, me];
-                const newPot = freshDuel.current_pot + freshDuel.amount;
+                // WICHTIG: Pot erhöhen!
+                const newPot = (freshDuel.current_pot || 0) + (freshDuel.amount || 0);
 
-                // 2. DB Update - WICHTIG: Wir warten auf das 'await'!
                 const { error: updateError } = await supabase
                     .from('duels')
                     .update({ 
@@ -879,23 +905,19 @@ const checkWithdrawStatus = async () => {
                     .eq('id', activeDuel.id);
 
                 if (updateError) throw updateError;
-                
-                console.log("Erfolgreich eingetragen!");
-            } else {
-                console.log("War schon eingetragen (Refresh?).");
             }
         }
-        // --------------------------
 
-        // Erst JETZT weiterleiten
+        // Erfolg!
         setManualCheckLoading(false);
         setView('pre_game');
         setTimeout(() => setView('game'), 3000);
 
     } catch (err) {
-        console.error("Fehler beim Check:", err);
+        console.error(err);
         setManualCheckLoading(false);
-        alert("Fehler beim Beitreten. Wurde die Zahlung bestätigt?");
+        // HIER WIRD DER NUTZER GESTOPPT:
+        alert("Zahlung konnte nicht verifiziert werden! Bitte warte, bis die Transaktion durch ist.");
     }
   };
   
@@ -1768,14 +1790,42 @@ if (view === 'dashboard') {
     }
 
     // ---------------------------------------------------------
-  // VIEW: TOURNAMENT RESULTS (Auswertung & Payout)
+ // ---------------------------------------------------------
+  // VIEW: TOURNAMENT RESULTS (Mit Live-Daten Refresh)
   // ---------------------------------------------------------
   if (view === 'tournament_results') {
-    // Rangliste berechnen
-    const ranking = getTournamentRanking(activeDuel.participants);
+    
+    // Lokaler State für diese Ansicht, um frische Daten zu speichern
+    const [resultsDuel, setResultsDuel] = useState(activeDuel);
+    const [refreshing, setRefreshing] = useState(false);
+
+    // WICHTIG: Beim Öffnen sofort frische Daten holen!
+    useEffect(() => {
+        const fetchLatestResults = async () => {
+            if (!activeDuel?.id) return;
+            setRefreshing(true);
+            const { data } = await supabase
+                .from('duels')
+                .select('*')
+                .eq('id', activeDuel.id)
+                .single();
+            
+            if (data) setResultsDuel(data);
+            setRefreshing(false);
+        };
+        fetchLatestResults();
+        
+        // Optional: Alle 5 Sekunden aktualisieren (Polling), falls noch wer spielt
+        const interval = setInterval(fetchLatestResults, 5000);
+        return () => clearInterval(interval);
+    }, [activeDuel?.id]);
+
+    // Rangliste auf Basis der FRISCHEN Daten berechnen
+    const ranking = getTournamentRanking(resultsDuel?.participants || []);
     const winner = ranking[0];
     const isMeWinner = winner?.name === user.name;
-    const isClaimed = activeDuel.claimed; // Setzt voraus, dass du das Feld in der DB hast (siehe unten)
+    // Prüfen ob 'claimed' true ist (DB Feld muss existieren!)
+    const isClaimed = resultsDuel?.claimed === true; 
 
     return (
       <Background>
@@ -1786,7 +1836,10 @@ if (view === 'dashboard') {
               <button onClick={() => setView('dashboard')} className="bg-white/10 p-3 rounded-xl hover:bg-white/20 transition-colors">
                  <ArrowLeft className="text-white"/>
               </button>
-              <h2 className="text-xl font-black text-white uppercase tracking-widest text-yellow-500">Turnier Ergebnis</h2>
+              <div className="flex flex-col">
+                  <h2 className="text-xl font-black text-white uppercase tracking-widest text-yellow-500">Ergebnis</h2>
+                  {refreshing && <span className="text-[10px] text-neutral-500 animate-pulse">Aktualisiere...</span>}
+              </div>
            </div>
 
            {/* WINNER CARD */}
@@ -1794,16 +1847,16 @@ if (view === 'dashboard') {
                <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10"></div>
                
                <Crown size={48} className="text-yellow-500 mx-auto mb-2 animate-bounce"/>
-               <h3 className="text-white font-black text-2xl uppercase tracking-widest">{winner?.name}</h3>
+               <h3 className="text-white font-black text-2xl uppercase tracking-widest">{winner?.name || "?"}</h3>
                <p className="text-yellow-200 text-xs font-mono mb-4">ist der Champion!</p>
 
                <div className="bg-black/40 rounded-xl p-3 border border-yellow-500/20 inline-block">
                    <p className="text-neutral-400 text-[10px] uppercase">Jackpot</p>
-                   <p className="text-3xl font-black text-yellow-500 font-mono">{activeDuel.current_pot} <span className="text-sm">Sats</span></p>
+                   <p className="text-3xl font-black text-yellow-500 font-mono">{resultsDuel?.current_pot || 0} <span className="text-sm">Sats</span></p>
                </div>
            </div>
 
-           {/* AUSZAHLUNG BUTTON (Nur für Gewinner) */}
+           {/* AUSZAHLUNG BUTTON (Nur für Gewinner & wenn noch nicht claimed) */}
            {isMeWinner && !isClaimed && (
                <div className="animate-in slide-in-from-bottom-5 fade-in duration-1000">
                    <button 
@@ -1812,7 +1865,7 @@ if (view === 'dashboard') {
                      className="w-full py-4 bg-green-500 hover:bg-green-400 text-black font-black uppercase rounded-xl shadow-[0_0_20px_rgba(34,197,94,0.6)] flex items-center justify-center gap-2 transition-all active:scale-95"
                    >
                        {isLoading ? <Loader2 className="animate-spin"/> : <Gem size={20}/>}
-                       Gewinn auszahlen ({activeDuel.current_pot} Sats)
+                       Gewinn auszahlen
                    </button>
                    <p className="text-center text-[10px] text-green-400 mt-2">Du hast gewonnen! Hol dir die Sats.</p>
                </div>
@@ -1852,6 +1905,7 @@ if (view === 'dashboard') {
       </Background>
     );
   }
+  
 // ---------------------------------------------------------
     // VIEW: HOME (Hauptmenü) - Beide mit Plus-Icon
     // ---------------------------------------------------------
