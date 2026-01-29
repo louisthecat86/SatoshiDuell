@@ -1419,36 +1419,29 @@ if (view === 'dashboard') {
     }
 
 // ---------------------------------------------------------
-    // VIEW: HOME (Hauptmenü) - Buttons nebeneinander
+    // VIEW: HOME (Hauptmenü) - Orange & Grau
     // ---------------------------------------------------------
     if (dashboardView === 'home') {
       return (
         <Background>
           <div className="w-full max-w-md flex flex-col h-[95vh] gap-4 px-2 relative">
             
-            {/* 1. WASSERZEICHEN (Hintergrund) */}
+            {/* 1. WASSERZEICHEN */}
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-0">
                <img src="/logo.png" className="w-[90%] opacity-15" alt="Background" />
             </div>
 
-            {/* 2. USER CARD (Avatar, Name, Mute, Settings, Logout) */}
+            {/* 2. USER CARD */}
             <Card className="flex justify-between items-center py-3 border-orange-500/20 bg-black/40 backdrop-blur-md relative z-10">
-              {/* LINKE SEITE: Avatar & Name */}
               <div className="flex items-center gap-3">
                 <div className="w-12 h-12 rounded-xl overflow-hidden border-2 border-orange-500/50 shadow-[0_0_15px_rgba(249,115,22,0.3)] bg-black">
-                   <img 
-                     src={user.avatar || getRobotAvatar(user.name)} 
-                     alt="Avatar" 
-                     className="w-full h-full object-cover"
-                   />
+                   <img src={user.avatar || getRobotAvatar(user.name)} alt="Avatar" className="w-full h-full object-cover"/>
                 </div>
                 <div className="text-left">
                   <p className="font-black text-white text-xl uppercase tracking-wider">{formatName(user.name)}</p>
                   <p className="text-[10px] text-orange-400 font-mono">{stats.satsWon.toLocaleString()} {txt('sats_won')}</p>
                 </div>
               </div>
-
-              {/* RECHTE SEITE: Buttons */}
               <div className="flex gap-1">
                 <button onClick={toggleMute} className="p-2 text-neutral-500 hover:text-white transition-colors">
                   {isMuted ? <VolumeX size={18}/> : <Volume2 size={18}/>}
@@ -1460,7 +1453,7 @@ if (view === 'dashboard') {
               </div>
             </Card>
 
-            {/* Unclaimed Win Button (Falls vorhanden) */}
+            {/* Unclaimed Win Button */}
             {unclaimedWin && (
               <button onClick={() => openPastDuel(unclaimedWin)} className="w-full bg-green-500 text-black p-4 rounded-2xl flex items-center justify-between font-black uppercase animate-bounce shadow-[0_0_20px_rgba(34,197,94,0.6)] relative z-10">
                   <div className="flex items-center gap-3"><Trophy size={24}/> <div className="text-left"><p className="text-sm leading-none">{txt('dash_unclaimed_title')}</p><p className="text-[10px] opacity-75 font-normal normal-case">{txt('dash_unclaimed_text')}</p></div></div>
@@ -1468,13 +1461,13 @@ if (view === 'dashboard') {
               </button>
             )}
 
-            {/* === ACTION BUTTONS (NEU: NEBENEINANDER) === */}
+            {/* === ACTION BUTTONS (ORANGE & GRAU) === */}
             <div className="grid grid-cols-2 gap-3 mb-2 relative z-10">
                 
-                {/* 1. NEUES DUELL (Blau) */}
+                {/* 1. NEUES DUELL (Orange - Leuchtend) */}
                 <button 
                   onClick={() => { playSound('click', isMuted); openCreateSetup(); }} 
-                  className="bg-gradient-to-br from-blue-600 to-blue-500 p-4 rounded-2xl flex flex-col items-center justify-center gap-2 shadow-[0_0_20px_rgba(37,99,235,0.4)] hover:scale-[1.02] transition-transform border border-blue-400/30 group relative overflow-hidden"
+                  className="bg-gradient-to-br from-orange-500 to-orange-600 p-4 rounded-2xl flex flex-col items-center justify-center gap-2 shadow-[0_0_20px_rgba(249,115,22,0.4)] hover:scale-[1.02] transition-transform border border-orange-400/30 group relative overflow-hidden"
                 >
                   <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10"></div>
                   <Plus size={28} className="text-white relative z-10"/>
@@ -1483,14 +1476,14 @@ if (view === 'dashboard') {
                   </span>
                 </button>
 
-                {/* 2. NEUES TURNIER (Rot & Leuchtend) */}
+                {/* 2. NEUES TURNIER (Dunkelgrau - Edel) */}
                 <button 
                   onClick={() => { playSound('click', isMuted); setDashboardView('tournaments'); }} 
-                  className="bg-gradient-to-br from-red-600 to-red-500 p-4 rounded-2xl flex flex-col items-center justify-center gap-2 shadow-[0_0_20px_rgba(220,38,38,0.4)] hover:scale-[1.02] transition-transform border border-red-400/30 group relative overflow-hidden"
+                  className="bg-neutral-800 p-4 rounded-2xl flex flex-col items-center justify-center gap-2 shadow-lg hover:bg-neutral-700 hover:scale-[1.02] transition-all border border-white/10 group relative overflow-hidden"
                 >
-                  <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10"></div>
-                  <Plus size={28} className="text-white relative z-10"/>
-                  <span className="text-xs font-black text-white uppercase tracking-widest relative z-10 shadow-black drop-shadow-sm text-center">
+                  <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-5"></div>
+                  <Trophy size={28} className="text-neutral-400 group-hover:text-white transition-colors relative z-10"/>
+                  <span className="text-xs font-black text-neutral-400 group-hover:text-white transition-colors uppercase tracking-widest relative z-10 shadow-black drop-shadow-sm text-center">
                     {txt('dashboard_new_tournament')}
                   </span>
                 </button>
@@ -1500,34 +1493,34 @@ if (view === 'dashboard') {
             {/* 3. GRID MIT DEN KACHELN */}
             <div className="grid grid-cols-2 gap-2 flex-1 overflow-y-auto pb-4 relative z-10 custom-scrollbar">
               
-              {/* LOBBY (Orange) */}
+              {/* LOBBY */}
               <button onClick={() => setDashboardView('lobby')} className="bg-neutral-900/60 border border-white/5 hover:border-orange-500/50 hover:bg-neutral-800 p-4 rounded-2xl flex flex-col items-center justify-center gap-3 aspect-[4/3] relative group">
                 <Users size={32} className="text-orange-500 group-hover:scale-110 transition-transform"/>
                 <span className="text-sm font-black text-orange-500 uppercase tracking-widest shadow-black drop-shadow-md">{txt('tile_lobby')}</span>
                 {publicCount > 0 && <span className="absolute top-2 right-2 bg-orange-500 text-black text-[10px] font-black w-6 h-6 rounded-full flex items-center justify-center shadow-lg border border-white/20">{publicCount}</span>}
               </button>
 
-              {/* CHALLENGES (Purple) */}
+              {/* CHALLENGES */}
               <button onClick={() => setDashboardView('challenges')} className="bg-neutral-900/60 border border-white/5 hover:border-purple-500/50 hover:bg-neutral-800 p-4 rounded-2xl flex flex-col items-center justify-center gap-3 aspect-[4/3] relative group">
                 <Swords size={32} className="text-purple-500 group-hover:scale-110 transition-transform"/>
                 <span className="text-sm font-black text-purple-500 uppercase tracking-widest shadow-black drop-shadow-md">{txt('tile_challenges')}</span>
                 {challengeCount > 0 && <span className="absolute top-2 right-2 bg-purple-500 text-white text-[10px] font-black w-6 h-6 rounded-full flex items-center justify-center shadow-lg border border-white/20">{challengeCount}</span>}
               </button>
 
-              {/* ACTIVE GAMES (Green) */}
+              {/* ACTIVE GAMES */}
               <button onClick={() => setDashboardView('active_games')} className="bg-neutral-900/60 border border-white/5 hover:border-green-500/50 hover:bg-neutral-800 p-4 rounded-2xl flex flex-col items-center justify-center gap-3 aspect-[4/3] relative group">
                 <PlayCircle size={32} className="text-green-500 group-hover:scale-110 transition-transform"/>
                 <span className="text-sm font-black text-green-500 uppercase tracking-widest shadow-black drop-shadow-md">{txt('tile_active_games')}</span>
                 {myOpenDuels.length > 0 && <span className="absolute top-2 right-2 bg-green-500 text-black text-[10px] font-black w-6 h-6 rounded-full flex items-center justify-center shadow-lg border border-white/20">{myOpenDuels.length}</span>}
               </button>
 
-              {/* HISTORY (Blue) */}
+              {/* HISTORY */}
               <button onClick={() => setDashboardView('history')} className="bg-neutral-900/60 border border-white/5 hover:border-blue-500/50 hover:bg-neutral-800 p-4 rounded-2xl flex flex-col items-center justify-center gap-3 aspect-[4/3] transition-all group">
                 <History size={32} className="text-blue-500 group-hover:scale-110 transition-transform"/>
                 <span className="text-sm font-black text-blue-500 uppercase tracking-widest shadow-black drop-shadow-md">{txt('tile_history')}</span>
               </button>
               
-              {/* LEADERBOARD (Top 3 Liste) */}
+              {/* LEADERBOARD */}
               <button onClick={() => setDashboardView('leaderboard')} className="bg-neutral-900/60 border border-white/5 hover:border-yellow-500/50 hover:bg-neutral-800 p-3 rounded-2xl flex flex-col items-center justify-start gap-1 aspect-[4/3] relative overflow-hidden group">
                 <div className="flex items-center gap-2 mb-1 z-10">
                   <Trophy size={14} className="text-yellow-500" />
