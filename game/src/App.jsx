@@ -1488,13 +1488,13 @@ if (dashboardView === 'home') {
                       <div className="flex flex-col items-start gap-2">
                          {/* Avatar Gruppe (Überlappend) */}
                          <div className="flex items-center pl-1">
-                             {/* Mein Avatar (Vordergrund) */}
-                             <div className="w-10 h-10 rounded-full border-2 border-neutral-900 bg-neutral-800 z-20 shadow-lg relative group-hover:scale-105 transition-transform">
-                                 <img src={myAvatar || getRobotAvatar(myName)} alt="Me" className="w-full h-full object-cover rounded-full"/>
+                             {/* Mein Avatar (Vordergrund) - JETZT ECKIG (rounded-xl) */}
+                             <div className="w-10 h-10 rounded-xl border-2 border-neutral-900 bg-neutral-800 z-20 shadow-lg relative group-hover:scale-105 transition-transform">
+                                 <img src={myAvatar || getRobotAvatar(myName)} alt="Me" className="w-full h-full object-cover rounded-xl"/>
                              </div>
-                             {/* Gegner Avatar (Hintergrund, leicht versetzt) */}
-                             <div className="w-10 h-10 rounded-full border-2 border-neutral-900 bg-neutral-800 z-10 -ml-4 opacity-80 group-hover:opacity-100 group-hover:translate-x-1 transition-all">
-                                 <img src={opAvatar || getRobotAvatar(opName)} alt="Opponent" className="w-full h-full object-cover rounded-full"/>
+                             {/* Gegner Avatar (Hintergrund, leicht versetzt) - JETZT ECKIG (rounded-xl) */}
+                             <div className="w-10 h-10 rounded-xl border-2 border-neutral-900 bg-neutral-800 z-10 -ml-4 opacity-80 group-hover:opacity-100 group-hover:translate-x-1 transition-all">
+                                 <img src={opAvatar || getRobotAvatar(opName)} alt="Opponent" className="w-full h-full object-cover rounded-xl"/>
                              </div>
                          </div>
                          
