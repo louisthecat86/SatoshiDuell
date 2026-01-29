@@ -851,8 +851,8 @@ const checkWithdrawStatus = async () => {
 const initTournament = async () => {
     if (!user) return login();
     
-    // 1. Validierung (Wir nutzen 'amount', da das im Turnier-Setup so benannt war)
-    const entryFee = parseInt(amount);
+    // KORREKTUR: Wir nutzen 'wager' statt 'amount'
+    const entryFee = parseInt(wager);
     
     if (isNaN(entryFee) || entryFee < 10) {
       alert("Minimum 10 Sats!");
@@ -862,37 +862,32 @@ const initTournament = async () => {
     setLoading(true);
 
     try {
-      // 2. 12 Fragen aus deinem echten Pool (allQuestions) generieren
       const questions = [];
       
-      // Sicherheitscheck: Haben wir Fragen?
       if (!allQuestions || allQuestions.length === 0) {
           alert("Fehler: Keine Fragen geladen.");
           setLoading(false);
           return;
       }
 
-      // 12 Zufällige Fragen auswählen
       for(let i=0; i<12; i++) {
           const q = allQuestions[Math.floor(Math.random() * allQuestions.length)];
           questions.push(q);
       }
 
-      // 3. Datenbank Objekt vorbereiten
       const duelData = {
         creator: user.name,
         creator_avatar: user.avatar,
         amount: entryFee,
         status: 'open',
-        type: 'tournament',             // WICHTIG: Typ Turnier
-        max_players: tournamentPlayers, // WICHTIG: Anzahl Spieler
+        type: 'tournament',
+        max_players: tournamentPlayers,
         questions: questions,
-        rounds: 12,                     // 12 Runden
-        current_pot: entryFee,          // Start-Topf = Einsatz des Erstellers
+        rounds: 12,
+        current_pot: entryFee,
         created_at: new Date().toISOString()
       };
 
-      // 4. In Supabase speichern
       const { data, error } = await supabase
         .from('duels')
         .insert([duelData])
@@ -901,19 +896,14 @@ const initTournament = async () => {
 
       if (error) throw error;
 
-      // 5. Spielstatus setzen und Invoice holen
       setActiveDuel(data);
-      setRole('creator'); // Du bist der Ersteller
-      
-      // Invoice generieren (nutzt deine existierende Funktion)
+      setRole('creator');
       await fetchInvoice(entryFee); 
-      
-      // 6. Weiterleitung zur Bezahl-Ansicht (heißt bei dir 'payment')
       setView('payment'); 
 
     } catch (err) {
       console.error("Turnier Fehler:", err);
-      alert("Fehler beim Erstellen des Turniers.");
+      alert("Fehler beim Erstellen.");
     } finally {
       setLoading(false);
     }
@@ -1294,8 +1284,8 @@ const handleAnswer = (displayIndex) => {
     );
   }
 
-      // ---------------------------------------------------------
-  // VIEW: TOURNAMENT SETUP (Hier kommt die neue Ansicht hin)
+// ---------------------------------------------------------
+  // VIEW: TOURNAMENT SETUP (FIX: wager statt amount)
   // ---------------------------------------------------------
   if (view === 'create_tournament_setup') {
     return (
@@ -1326,10 +1316,11 @@ const handleAnswer = (displayIndex) => {
                 
                 <div className="flex items-center justify-center gap-2 mb-6">
                     <Coins className="text-yellow-500 animate-pulse" size={32} />
+                    {/* HIER GEÄNDERT: wager statt amount */}
                     <input 
                       type="number" 
-                      value={amount}
-                      onChange={(e) => setAmount(e.target.value)}
+                      value={wager}
+                      onChange={(e) => setWager(e.target.value)}
                       className="bg-transparent text-5xl font-black text-white text-center w-full focus:outline-none placeholder-neutral-700"
                       placeholder="0"
                     />
@@ -1338,14 +1329,15 @@ const handleAnswer = (displayIndex) => {
                 {/* Preset Buttons */}
                 <div className="grid grid-cols-4 gap-2">
                    {[100, 500, 1000, 5000].map(val => (
-                      <button key={val} onClick={() => setAmount(val)} className="bg-white/5 hover:bg-white/10 py-2 rounded-lg text-xs font-mono text-neutral-300 transition-colors">
+                      /* HIER GEÄNDERT: setWager statt setAmount */
+                      <button key={val} onClick={() => setWager(val)} className="bg-white/5 hover:bg-white/10 py-2 rounded-lg text-xs font-mono text-neutral-300 transition-colors">
                          {val}
                       </button>
                    ))}
                 </div>
              </div>
 
-             {/* 2. SPIELERANZAHL WÄHLEN (Neu) */}
+             {/* 2. SPIELERANZAHL WÄHLEN */}
              <div className="bg-neutral-900/80 p-6 rounded-3xl border border-white/5">
                 <div className="flex justify-between items-center mb-4">
                     <label className="text-xs font-bold text-neutral-400 uppercase tracking-widest">
@@ -1354,7 +1346,6 @@ const handleAnswer = (displayIndex) => {
                     <span className="text-xl font-black text-red-500">{tournamentPlayers}</span>
                 </div>
 
-                {/* Slider für Spieler */}
                 <input 
                   type="range" 
                   min="3" 
@@ -1365,7 +1356,6 @@ const handleAnswer = (displayIndex) => {
                   className="w-full h-2 bg-neutral-700 rounded-lg appearance-none cursor-pointer accent-red-500 mb-6"
                 />
 
-                {/* Presets für Spieler */}
                 <div className="grid grid-cols-5 gap-2">
                    {[4, 8, 16, 32, 50].map(p => (
                       <button 
@@ -1378,18 +1368,18 @@ const handleAnswer = (displayIndex) => {
                    ))}
                 </div>
                 
-                {/* Info Text Pot Berechnung */}
+                {/* Info Text Pot Berechnung - FIX: wager statt amount */}
                 <div className="mt-4 pt-4 border-t border-white/5 flex justify-between items-center">
                     <span className="text-xs text-neutral-500">Gesamter Preispool:</span>
                     <span className="text-lg font-mono font-bold text-yellow-500">
-                        {(!isNaN(parseInt(amount)) ? (parseInt(amount) * tournamentPlayers).toLocaleString() : 0)} Sats
+                        {(!isNaN(parseInt(wager)) ? (parseInt(wager) * tournamentPlayers).toLocaleString() : 0)} Sats
                     </span>
                 </div>
              </div>
 
           </div>
 
-          {/* CREATE BUTTON */}
+          {/* START BUTTON */}
           <button 
             onClick={initTournament} 
             disabled={loading}
