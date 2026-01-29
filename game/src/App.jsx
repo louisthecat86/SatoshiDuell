@@ -1213,15 +1213,31 @@ const handleAnswer = (displayIndex) => {
     );
   }
 
-  // --- DASHBOARD ---
-  if (view === 'dashboard') {
+if (view === 'dashboard') {
     
-    const unclaimedWin = myDuels.find(d => 
-      d.status === 'finished' && 
-      !d.claimed && 
-      ( (d.creator === user.name && d.creator_score > d.challenger_score) || 
-        (d.challenger === user.name && d.challenger_score > d.creator_score) )
-    );
+    // FIX: Gewinner-Logik (Punkte ODER Zeit)
+    const unclaimedWin = myDuels.find(d => {
+      // 1. Nur beendete und nicht abgeholte Spiele
+      if (d.status !== 'finished' || d.claimed) return false;
+
+      // 2. Daten holen
+      const isCreator = d.creator === user.name;
+      
+      const myScore = isCreator ? d.creator_score : d.challenger_score;
+      const opScore = isCreator ? d.challenger_score : d.creator_score;
+      
+      const myTime = isCreator ? d.creator_time : d.challenger_time;
+      const opTime = isCreator ? d.challenger_time : d.creator_time;
+
+      // 3. Wer hat gewonnen?
+      // Mehr Punkte?
+      if (myScore > opScore) return true;
+      
+      // Gleiche Punkte UND schneller (weniger Zeit)?
+      if (myScore === opScore && myTime < opTime) return true;
+
+      return false;
+    }); // <--- Hier wird die .find() Funktion geschlossen
 
     const publicCount = publicDuels.filter(d => d.creator !== user.name).length;
     const challengeCount = targetedDuels.length;
