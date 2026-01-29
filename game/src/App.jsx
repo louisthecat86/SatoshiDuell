@@ -19,6 +19,7 @@ import Card from './components/Card';
 import Background from './components/Background';
 import AdminQuestionManager from './components/AdminQuestionManager';
 import SubmitQuestion from './components/SubmitQuestion';
+import HallOfFame from './components/HallOfFame';
 
 // --- KONFIGURATION ---
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
@@ -1253,6 +1254,11 @@ if (view === 'dashboard') {
     // Eigene offene Spiele
     const myOpenDuels = myDuels.filter(d => d.creator === user.name && d.status === 'open');
 
+    // --- NEU: Hall of Fame ---
+if (dashboardView === 'badges') {
+      return <HallOfFame user={user} myDuels={myDuels} onBack={() => setDashboardView('home')} />;
+}
+
 if (dashboardView === 'home') {
       return (
         <Background>
@@ -1365,6 +1371,11 @@ if (dashboardView === 'home') {
                       <span className="text-[10px] text-neutral-500 text-center mt-4">Lade...</span>
                    )}
                 </div>
+              </button>
+
+              <button onClick={() => setDashboardView('badges')} className="bg-neutral-800 p-4 rounded-2xl flex flex-col items-center gap-2 hover:bg-neutral-700 transition-all border border-white/5 group">
+                <div className="bg-yellow-500/20 p-3 rounded-xl group-hover:scale-110 transition-transform"><Medal className="text-yellow-500" size={24}/></div>
+                <span className="text-xs font-bold text-neutral-400 uppercase tracking-wider">Erfolge</span>
               </button>
 
               {/* SETTINGS (Neutral) */}
