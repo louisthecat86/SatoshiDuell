@@ -182,6 +182,17 @@ export default function App() {
   // Helper
   const txt = (key) => TRANSLATIONS[lang]?.[key] || key;
 
+  // Helper: Gewinner ermitteln (Sortiert nach Score DESC, dann Time ASC)
+  const getTournamentRanking = (participants) => {
+    if (!participants) return [];
+    return [...participants].sort((a, b) => {
+      // 1. Nach Punkten (höher ist besser)
+      if (b.score !== a.score) return b.score - a.score;
+      // 2. Bei Gleichstand: Nach Zeit (niedriger ist besser)
+      return a.time - b.time;
+    });
+  };
+
   // Generator
   const generateGameData = (questionsSource) => {
     if (!questionsSource || questionsSource.length === 0) return [];
@@ -987,6 +998,32 @@ const initTournament = async () => {
     }
   };
 
+const claimTournamentPot = async () => {
+    setIsLoading(true);
+    try {
+        // 1. DB Update: Markiere als abgeholt
+        const { error } = await supabase
+            .from('duels')
+            .update({ claimed: true }) // Du brauchst evtl. eine 'claimed' Spalte in der DB, oder wir nutzen metadata
+            .eq('id', activeDuel.id);
+
+        if (error) throw error;
+
+        // 2. Feedback
+        confetti({ particleCount: 200, spread: 150 });
+        alert(`Glückwunsch! ${activeDuel.current_pot} Sats wurden gutgeschrieben (simuliert).`);
+        
+        // 3. Ansicht aktualisieren
+        setActiveDuel(prev => ({ ...prev, claimed: true }));
+        
+    } catch (err) {
+        console.error(err);
+        alert("Fehler beim Abholen.");
+    } finally {
+        setIsLoading(false);
+    }
+  };
+
   const submitCreateDuel = async () => { 
     const val = Number(wager);
     if (!wager || val <= 0) { alert("Bitte einen Einsatz wählen!"); return; }
@@ -1205,7 +1242,23 @@ const finishGameLogic = async (finalScore) => {
     }
   };
 
-  const openPastDuel = (duel) => { setActiveDuel(duel); const myRole = duel.creator === user.name ? 'creator' : 'challenger'; setRole(myRole); const myS = myRole === 'creator' ? duel.creator_score : duel.challenger_score; const myT = myRole === 'creator' ? duel.creator_time : duel.challenger_time; determineWinner(duel, myRole, myS, myT); };
+  const openPastDuel = (duel) => {
+    setActiveDuel(duel);
+    
+    if (duel.type === 'tournament') {
+        setView('tournament_results'); // <--- NEU: Eigene Ansicht für Turniere
+    } else {
+        // Alte Logik für normale Duelle
+        if (duel.status === 'finished') {
+             // ... deine alte Logik ...
+             // Falls du hier Logik hattest, lass sie so.
+             // Im Zweifel:
+             setView('result'); 
+        } else {
+             setView('lobby');
+        }
+    }
+  };
   
   const determineWinner = async (duel, myRole, myScore, myTime) => { 
     if (duel.status === 'refunded') { setView('result_final'); return; }
@@ -1714,6 +1767,91 @@ if (view === 'dashboard') {
       );
     }
 
+    // ---------------------------------------------------------
+  // VIEW: TOURNAMENT RESULTS (Auswertung & Payout)
+  // ---------------------------------------------------------
+  if (view === 'tournament_results') {
+    // Rangliste berechnen
+    const ranking = getTournamentRanking(activeDuel.participants);
+    const winner = ranking[0];
+    const isMeWinner = winner?.name === user.name;
+    const isClaimed = activeDuel.claimed; // Setzt voraus, dass du das Feld in der DB hast (siehe unten)
+
+    return (
+      <Background>
+        <div className="w-full max-w-md flex flex-col h-[95vh] gap-4 px-4 py-6">
+           
+           {/* Header */}
+           <div className="flex items-center gap-4">
+              <button onClick={() => setView('dashboard')} className="bg-white/10 p-3 rounded-xl hover:bg-white/20 transition-colors">
+                 <ArrowLeft className="text-white"/>
+              </button>
+              <h2 className="text-xl font-black text-white uppercase tracking-widest text-yellow-500">Turnier Ergebnis</h2>
+           </div>
+
+           {/* WINNER CARD */}
+           <div className="bg-gradient-to-br from-yellow-600/20 to-black border border-yellow-500/50 p-6 rounded-3xl text-center relative overflow-hidden shadow-[0_0_30px_rgba(234,179,8,0.2)]">
+               <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10"></div>
+               
+               <Crown size={48} className="text-yellow-500 mx-auto mb-2 animate-bounce"/>
+               <h3 className="text-white font-black text-2xl uppercase tracking-widest">{winner?.name}</h3>
+               <p className="text-yellow-200 text-xs font-mono mb-4">ist der Champion!</p>
+
+               <div className="bg-black/40 rounded-xl p-3 border border-yellow-500/20 inline-block">
+                   <p className="text-neutral-400 text-[10px] uppercase">Jackpot</p>
+                   <p className="text-3xl font-black text-yellow-500 font-mono">{activeDuel.current_pot} <span className="text-sm">Sats</span></p>
+               </div>
+           </div>
+
+           {/* AUSZAHLUNG BUTTON (Nur für Gewinner) */}
+           {isMeWinner && !isClaimed && (
+               <div className="animate-in slide-in-from-bottom-5 fade-in duration-1000">
+                   <button 
+                     onClick={claimTournamentPot}
+                     disabled={isLoading}
+                     className="w-full py-4 bg-green-500 hover:bg-green-400 text-black font-black uppercase rounded-xl shadow-[0_0_20px_rgba(34,197,94,0.6)] flex items-center justify-center gap-2 transition-all active:scale-95"
+                   >
+                       {isLoading ? <Loader2 className="animate-spin"/> : <Gem size={20}/>}
+                       Gewinn auszahlen ({activeDuel.current_pot} Sats)
+                   </button>
+                   <p className="text-center text-[10px] text-green-400 mt-2">Du hast gewonnen! Hol dir die Sats.</p>
+               </div>
+           )}
+
+           {isMeWinner && isClaimed && (
+               <div className="bg-green-500/10 border border-green-500/30 p-3 rounded-xl flex items-center justify-center gap-2 text-green-500 font-bold text-xs uppercase">
+                   <CheckCircle size={16}/> Gewinn abgeholt
+               </div>
+           )}
+
+           {/* RANGLISTE */}
+           <div className="flex-1 overflow-y-auto custom-scrollbar bg-neutral-900/50 rounded-2xl border border-white/5 p-4">
+               <h4 className="text-neutral-500 text-xs font-bold uppercase tracking-widest mb-4">Rangliste</h4>
+               <div className="flex flex-col gap-2">
+                   {ranking.map((p, index) => (
+                       <div key={index} className={`flex items-center justify-between p-3 rounded-xl border ${p.name === user.name ? 'bg-white/10 border-white/20' : 'bg-black/20 border-white/5'}`}>
+                           <div className="flex items-center gap-3">
+                               <span className={`font-black font-mono text-lg w-6 ${index === 0 ? 'text-yellow-500' : index === 1 ? 'text-gray-400' : index === 2 ? 'text-orange-700' : 'text-neutral-600'}`}>
+                                   #{index + 1}
+                               </span>
+                               <div className="flex flex-col">
+                                   <span className={`font-bold text-sm ${p.name === user.name ? 'text-white' : 'text-neutral-400'}`}>{p.name}</span>
+                                   <span className="text-[10px] text-neutral-600">{p.status === 'finished' ? 'Fertig' : 'Spielt noch...'}</span>
+                               </div>
+                           </div>
+                           <div className="text-right">
+                               <p className="text-white font-mono font-bold">{p.score} <span className="text-xs text-neutral-500">Pkt</span></p>
+                               <p className="text-[10px] text-neutral-500">{p.time.toFixed(1)}s</p>
+                           </div>
+                       </div>
+                   ))}
+               </div>
+           </div>
+
+        </div>
+      </Background>
+    );
+  }
 // ---------------------------------------------------------
     // VIEW: HOME (Hauptmenü) - Beide mit Plus-Icon
     // ---------------------------------------------------------
