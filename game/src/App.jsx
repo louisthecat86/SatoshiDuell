@@ -7,11 +7,11 @@ import {
   Github, CheckCircle, RefreshCcw, Rocket, ArrowLeft, Users, AlertCircle, 
   Bell, Shield, Search, Link as LinkIcon, PlayCircle, Edit2, Volume2, 
   VolumeX, Smartphone, Upload, Flag, Gem,
-  Crown, Star, TrendingUp // <--- NEU
+  Crown, Star, TrendingUp, Trash2 // <--- Trash2 hinzugefügt
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { QRCodeCanvas } from 'qrcode.react';
-import { nip19 } from 'nostr-tools'; // <--- WICHTIG: nip19 für Key-Erkennung
+import { nip19 } from 'nostr-tools';
 
 // --- EIGENE IMPORTS ---
 import { TRANSLATIONS } from './translations'; 
@@ -27,7 +27,6 @@ const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_KEY;
 const LNBITS_URL = import.meta.env.VITE_LNBITS_URL;
 const INVOICE_KEY = import.meta.env.VITE_INVOICE_KEY; 
 
-// ?? DEINE DOMAIN
 const MAIN_DOMAIN = "https://satoshiduell.vercel.app"; 
 
 // --- SUPABASE CLIENT ---
@@ -35,7 +34,7 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 // --- KONSTANTEN ---
 const REFUND_TIMEOUT_MS = 3 * 24 * 60 * 60 * 1000;
-const MAX_TIME = 15; // <--- HIER EINGEFÜGT: Maximale Zeit pro Frage 
+const MAX_TIME = 15;
 
 // --- HELPER FUNKTIONEN ---
 
@@ -47,7 +46,6 @@ async function hashPin(pin) {
   return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
-// Formatiert Namen
 const formatName = (name) => {
   if (!name) return '';
   if (name.length <= 14) return name.toUpperCase();
@@ -55,7 +53,6 @@ const formatName = (name) => {
 };
 
 // --- AVATAR HELPER ---
-
 const fetchNostrImage = async (pubkey) => {
   if (!pubkey) return null;
   try {
@@ -98,7 +95,6 @@ const playSound = (type, muted = false) => {
 // --- HAUPT APP ---
 
 export default function App() {
-  // --- STATE MANAGEMENT ---
   const tickRef = useRef(null); 
   
   const [view, setView] = useState('loading_data'); 
@@ -175,6 +171,10 @@ export default function App() {
   const [donationInvoice, setDonationInvoice] = useState('');
   const [isDonationLoading, setIsDonationLoading] = useState(false);
   const [isDonationSuccess, setIsDonationSuccess] = useState(false);
+
+  // Tournament Setup State
+  const [tournamentPlayers, setTournamentPlayers] = useState(4); 
+  const [isLoading, setIsLoading] = useState(false);
 
   // Helper
   const txt = (key) => TRANSLATIONS[lang]?.[key] || key;
@@ -278,10 +278,7 @@ export default function App() {
 
     const fetchQuestions = async () => {
       try {
-        const { data, error } = await supabase
-          .from('questions')
-          .select('*')
-          .eq('is_active', true);
+        const { data, error } = await supabase.from('questions').select('*').eq('is_active', true);
 
         if (error) throw error;
 
@@ -410,19 +407,17 @@ export default function App() {
     }
   }, [view, user]);
 
-  // --- TIMER LOGIK (Verbessert: 0.1s Schritte) ---
+  // --- TIMER LOGIK ---
   useEffect(() => {
     let timer;
     if (view === 'game' && timeLeft > 0 && selectedAnswer === null) {
       timer = setInterval(() => {
         setTimeLeft(t => {
-          // Wir ziehen 0.1 Sekunden ab statt 1
-          // toFixed(1) verhindert krumme Zahlen wie 14.90000002
           return Math.max(0, parseFloat((t - 0.1).toFixed(1))); 
         });
-      }, 100); // Alle 100ms feuern
+      }, 100); 
     } else if (view === 'game' && timeLeft <= 0 && selectedAnswer === null) {
-      handleAnswer(-1); // Zeit abgelaufen
+      handleAnswer(-1); 
     }
     return () => clearInterval(timer);
   }, [view, timeLeft, selectedAnswer]);
@@ -467,13 +462,11 @@ export default function App() {
     }
   };
 
-// --- REPARIERTER SMART LOGIN (MIT AVATAR CHECK) ---
   const handleSmartLogin = async (e) => {
     if (e) e.preventDefault(); 
     setLoginError(''); 
     setIsLoginLoading(true);
 
-    // 1. Input putzen
     let input = loginInput.trim();
     if (input.startsWith('nostr:')) {
         input = input.replace('nostr:', '');
@@ -488,7 +481,6 @@ export default function App() {
         return; 
     }
 
-    // --- SCHLÜSSEL ERKENNUNG ---
     if (input.startsWith('npub1')) {
       try { 
           const { type, data } = nip19.decode(input); 
@@ -524,7 +516,6 @@ export default function App() {
       const { data: existingUser } = await query.single();
 
       if (existingUser) {
-        // User existiert schon
         if (nameFromInput && existingUser.pubkey) { 
             setLoginError("Dieser Name gehört zu einem Nostr-Account. Bitte Key nutzen."); 
             setIsLoginLoading(false); 
@@ -532,26 +523,16 @@ export default function App() {
         }
         
         if (existingUser.pin === hashedPin) { 
-            // --- FIX START: Erst DB prüfen, dann Nostr ---
-            
-            // 1. Wir nehmen das Bild aus der Datenbank (dein Upload)
             let finalAvatar = existingUser.avatar;
-
-            // 2. Nur wenn KEIN Bild in der DB ist UND wir einen Key haben, suchen wir bei Nostr
             if (!finalAvatar && pubkeyFromInput) {
                  finalAvatar = await fetchNostrImage(pubkeyFromInput);
             }
-
-            // 3. Wir loggen ein mit dem gefundenen Bild (oder null -> Roboter)
             finishLogin(existingUser.name, existingUser.pubkey, existingUser.is_admin, finalAvatar); 
-            
-            // --- FIX ENDE ---
         } else { 
             setLoginError(txt('login_error_wrong_pin')); 
         }
 
       } else {
-        // User ist NEU
         if (pubkeyFromInput) { 
             localStorage.setItem('temp_nostr_pin', hashedPin); 
             
@@ -610,12 +591,10 @@ export default function App() {
     } catch (e) { console.error(e); } 
   };
 
-  // --- AMBER LOGIN (COPY MODE - SICHER) ---
   const handleAmberLogin = () => {
     setLoginError("");
     setLoginInput(""); 
 
-    // Wir nutzen Intent ohne Callback -> Zwingt Amber zum Kopieren
     const intentUrl = "intent:#Intent;scheme=nostrsigner;package=com.greenart7c3.nostrsigner;S.type=get_public_key;end";
     
     window.location.href = intentUrl;
@@ -709,70 +688,97 @@ export default function App() {
   
   const fetchAllLobbyData = async () => {
     if (!user) return;
+    
+    // 1. STATS INKL. TURNIERE
     const { data: finishedDuels } = await supabase.from('duels').select('*').eq('status', 'finished');
     if (finishedDuels) {
       const playerStats = {};
       let myWins = 0, mySats = 0;
       finishedDuels.forEach(d => {
-        const p1Won = d.creator_score > d.challenger_score || (d.creator_score === d.challenger_score && d.creator_time < d.challenger_time);
-        const winner = p1Won ? d.creator : d.challenger;
-        [d.creator, d.challenger].forEach(p => { 
-          if (!playerStats[p]) playerStats[p] = { name: p, wins: 0, satsWon: 0 }; 
-          if (p === winner) { playerStats[p].wins++; playerStats[p].satsWon += d.amount; } 
-        });
-        if (d.creator === user.name || d.challenger === user.name) {
-          const amICreator = d.creator === user.name;
-          const iWon = (amICreator && p1Won) || (!amICreator && !p1Won);
-          if (iWon) { myWins++; mySats += d.amount; }
+        let winnerName = null;
+        let prize = 0;
+
+        if (d.type === 'tournament') {
+            const sorted = d.participants ? [...d.participants].sort((a, b) => {
+                if (b.score !== a.score) return b.score - a.score;
+                return a.time - b.time;
+            }) : [];
+            if (sorted.length > 0) {
+                winnerName = sorted[0].name;
+                prize = d.current_pot || 0;
+            }
+        } else {
+            const p1Won = d.creator_score > d.challenger_score || (d.creator_score === d.challenger_score && d.creator_time < d.challenger_time);
+            winnerName = p1Won ? d.creator : d.challenger;
+            prize = d.amount || 0;
+        }
+
+        if (winnerName) {
+            if (!playerStats[winnerName]) playerStats[winnerName] = { name: winnerName, wins: 0, satsWon: 0 };
+            playerStats[winnerName].wins++;
+            playerStats[winnerName].satsWon += prize;
+            if (winnerName === user.name) {
+                myWins++;
+                mySats += prize;
+            }
         }
       });
       setLeaderboard(Object.values(playerStats).sort((a, b) => b.satsWon - a.satsWon).slice(0, 10));
       setStats(prev => ({ ...prev, wins: myWins, satsWon: mySats }));
     }
-// ... (vorheriger Code für finishedDuels bleibt gleich) ...
 
-    // 1. Offene Duelle laden
+    // 2. OFFENE DUELLE
     const { data: allOpen } = await supabase.from('duels').select('*').eq('status', 'open').order('created_at', { ascending: false });
     
     if (allOpen) {
-      // 2. NEU: Wir sammeln alle Namen der Ersteller
       const uniqueCreators = [...new Set(allOpen.map(d => d.creator))];
-      
-      // 3. NEU: Wir laden die Avatare dieser Spieler aus der Players-Tabelle
-      const { data: creatorProfiles } = await supabase
-        .from('players')
-        .select('name, avatar')
-        .in('name', uniqueCreators);
+      const { data: creatorProfiles } = await supabase.from('players').select('name, avatar').in('name', uniqueCreators);
 
-      // 4. NEU: Wir bauen eine schnelle "Landkarte" (Map) für die Bilder
-      // z.B. { "stefan": "url_zum_bild.jpg", "louis": "..." }
       const avatarMap = {};
       if (creatorProfiles) {
          creatorProfiles.forEach(p => { avatarMap[p.name] = p.avatar; });
       }
 
-      // 5. Wir kleben das Bild an das Duell-Objekt dran
       const enrichedDuels = allOpen.map(d => ({
          ...d,
-         creator_avatar: avatarMap[d.creator] // Das ist das neue Feld!
+         creator_avatar: avatarMap[d.creator]
       }));
 
-      // Ab hier wie vorher, aber mit den "enrichedDuels" (angereicherten Duellen)
       const publicData = enrichedDuels.filter(d => !d.target_player || d.target_player.trim() === '');
       setPublicDuels(publicData);
       
       const targetData = enrichedDuels.filter(d => d.target_player === user.name);
       setTargetedDuels(targetData);
     }
-    // ... (nachfolgender Code für myHistory bleibt gleich) ...
+    
+    // 3. HISTORY
     const { data: myHistory } = await supabase
       .from('duels')
       .select('*')
       .or(`creator.eq.${user.name},challenger.eq.${user.name}`)
       .order('created_at', { ascending: false });
-    if (myHistory) {
-      setMyDuels(myHistory);
-      const finishedCount = myHistory.filter(d => d.status === 'finished').length;
+      
+    // FIX: Auch Turniere laden, wo ich nur Teilnehmer bin
+    const { data: tournaments } = await supabase
+        .from('duels')
+        .select('*')
+        .eq('type', 'tournament')
+        .order('created_at', { ascending: false });
+
+    if (myHistory || tournaments) {
+      let combined = myHistory || [];
+      if(tournaments) {
+          const myTournaments = tournaments.filter(t => t.participants && t.participants.some(p => p.name === user.name));
+          // Duplikate vermeiden (falls ich Creator war, ist es schon in myHistory)
+          myTournaments.forEach(t => {
+              if(!combined.find(c => c.id === t.id)) combined.push(t);
+          });
+      }
+      
+      combined.sort((a,b) => new Date(b.created_at) - new Date(a.created_at));
+      setMyDuels(combined);
+
+      const finishedCount = combined.filter(d => d.status === 'finished').length;
       setStats(prev => ({ ...prev, total: finishedCount, losses: finishedCount - prev.wins }));
     }
   };
@@ -790,26 +796,21 @@ export default function App() {
     } catch(e) {} 
   };
 
-const checkWithdrawStatus = async () => { 
+  const checkWithdrawStatus = async () => { 
     if (!withdrawId) return; 
     
     try { 
-      // Wir fragen LNbits: Wurde das Geld abgeholt?
       const res = await fetch(`${LNBITS_URL}/withdraw/api/v1/links/${withdrawId}`, { headers: { 'X-Api-Key': INVOICE_KEY } }); 
       const data = await res.json(); 
       
-      // Wenn 'used' >= 1 ist, wurde das Geld erfolgreich ausgezahlt
       if (data.used >= 1) { 
         confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } }); 
         
-        // JETZT markieren wir es als erledigt, weil der Nutzer gescannt hat
         if (activeDuel && !activeDuel.claimed) {
             await supabase.from('duels').update({ claimed: true }).eq('id', activeDuel.id);
-            // Das sorgt dafür, dass der QR-Code verschwindet und der grüne Haken kommt:
             setActiveDuel(prev => ({ ...prev, claimed: true }));
         }
 
-        // Nach 3 Sekunden aufräumen
         setTimeout(() => { 
            setWithdrawLink(''); 
            setWithdrawId(''); 
@@ -820,7 +821,30 @@ const checkWithdrawStatus = async () => {
     } catch(e) { console.error(e); } 
   };
 
-  const handleManualCheck = async () => { setManualCheckLoading(true); await checkPaymentStatus(); setTimeout(() => setManualCheckLoading(false), 1000); };
+  // --- REPARIERTER MANUAL CHECK ---
+  const handleManualCheck = async () => { 
+    setManualCheckLoading(true); 
+    
+    // TODO: HIER 'verifyLightningPayment' EINBAUEN WENN API KEY VORHANDEN
+    // Aktuell: Simuliert Erfolg
+    await checkPaymentStatus(); 
+
+    if (activeDuel && activeDuel.type === 'tournament') {
+        const { data: freshDuel } = await supabase.from('duels').select('*').eq('id', activeDuel.id).single();
+        if(freshDuel) {
+             const list = freshDuel.participants || [];
+             if(!list.some(p => p.name === user.name)) {
+                 const me = { name: user.name, avatar: user.avatar, score: 0, time: 0, status: 'playing' };
+                 await supabase.from('duels').update({ 
+                     participants: [...list, me],
+                     current_pot: (freshDuel.current_pot || 0) + (freshDuel.amount || 0)
+                 }).eq('id', activeDuel.id);
+             }
+        }
+    }
+
+    setTimeout(() => setManualCheckLoading(false), 1000); 
+  };
   
   const resetGameState = () => { 
     setWithdrawLink(''); setWithdrawId(''); setScore(0); setTotalTime(0); setCurrentQ(0); 
@@ -859,12 +883,25 @@ const checkWithdrawStatus = async () => {
     resetGameState(); setActiveDuel(duel); 
     const rawQuestions = duel.questions;
     let safeGameData = [];
-    if (rawQuestions && typeof rawQuestions[0] === 'number') { safeGameData = rawQuestions.map(id => ({ id: id, order: [0, 1, 2, 3] })); } 
-    else { safeGameData = rawQuestions; }
-    setGameData(safeGameData); setRole('challenger'); await fetchInvoice(duel.amount); 
+
+    // Turnier hat die Fragen direkt als Objekte
+    if (duel.type === 'tournament') {
+        safeGameData = rawQuestions;
+        setRole('player');
+    } else {
+        // Altes Duell: IDs
+        if (rawQuestions && typeof rawQuestions[0] === 'number') { 
+            safeGameData = rawQuestions.map(id => ({ id: id, order: [0, 1, 2, 3] })); 
+        } else { 
+            safeGameData = rawQuestions; 
+        }
+        setRole('challenger');
+    }
+
+    setGameData(safeGameData); await fetchInvoice(duel.amount); 
   };
 
- const handleRefund = async (duel) => {
+  const handleRefund = async (duel) => {
     if (!confirm("Einsatz wirklich zurückfordern?")) return;
     try {
       const res = await fetch('/api/refund', {
@@ -878,15 +915,12 @@ const checkWithdrawStatus = async () => {
         setWithdrawLink(data.lnurl);
         setWithdrawId(data.id);
         
-        // WICHTIG: Wir speichern den Link jetzt in der DB!
         await supabase.from('duels').update({ 
             status: 'refunded',
-            withdraw_link: data.lnurl  // <--- NEU
+            withdraw_link: data.lnurl 
         }).eq('id', duel.id);
         
-        // Wir aktualisieren auch das lokale Objekt, damit es sofort sichtbar ist
         setActiveDuel({...duel, status: 'refunded', withdraw_link: data.lnurl});
-        
         setView('result_final');
       } else { 
           alert("Fehler beim Erstellen des Refunds."); 
@@ -903,33 +937,21 @@ const checkWithdrawStatus = async () => {
 
   const startGame = () => { setCurrentQ(0); setScore(0); setTotalTime(0); setTimeLeft(15.0); setSelectedAnswer(null); setIsProcessingGame(false); setView('game'); };
 
-const handleAnswer = (displayIndex) => {
+  const handleAnswer = (displayIndex) => {
     if (selectedAnswer !== null && displayIndex !== -1) return;
     
     const roundConfig = gameData[currentQ];
-    if (!allQuestions[roundConfig.id]) {
-        console.error("Frage fehlt in DB!");
-        return;
-    }
+    if (!allQuestions[roundConfig.id]) { console.error("Frage fehlt!"); return; }
 
     setSelectedAnswer(displayIndex);
 
-    // 1. ZEIT BERECHNEN
     let timeTaken;
-    if (displayIndex === -1) {
-      timeTaken = MAX_TIME;
-    } else {
-      timeTaken = parseFloat((MAX_TIME - timeLeft).toFixed(1));
-    }
+    if (displayIndex === -1) { timeTaken = MAX_TIME; } 
+    else { timeTaken = parseFloat((MAX_TIME - timeLeft).toFixed(1)); }
     
-    // WICHTIG: Wir berechnen die NEUE Gesamtzeit hier sofort in einer Variable!
-    // "totalTime" ist hier noch der alte Wert (Summe von 1-4).
     const newTotalTime = parseFloat((totalTime + timeTaken).toFixed(1));
-    
-    // State updaten (für die Anzeige)
     setTotalTime(newTotalTime);
 
-    // 2. PRÜFEN OB RICHTIG
     let isCorrect = false;
     if (displayIndex !== -1) {
         const originalOptionIndex = roundConfig.order[displayIndex];
@@ -937,7 +959,6 @@ const handleAnswer = (displayIndex) => {
         isCorrect = originalOptionIndex === correctIndex;
     }
 
-    // 3. SCORE
     let newScore = score;
     if (isCorrect) {
         playSound('correct', isMuted);
@@ -947,66 +968,78 @@ const handleAnswer = (displayIndex) => {
         playSound('wrong', isMuted);
     }
 
-    // 4. WEITERLEITEN
     setTimeout(() => {
-        if (currentQ < 4) {
+        // DYNAMISCH: Prüft gegen gameData.length (5 oder 12)
+        if (currentQ + 1 < gameData.length) {
             setCurrentQ(prev => prev + 1);
             setSelectedAnswer(null);
             setTimeLeft(MAX_TIME);
         } else {
-            // FIX: Wir übergeben jetzt Score UND die fertige Zeit direkt!
             finishGameLogic(newScore, newTotalTime);
         }
     }, 1500);
   };
 
-// 1. Wir nehmen 'finalTime' als zweites Argument an!
   const finishGameLogic = async (finalScore, finalTime) => {
     if (isProcessingGame) return; 
     setIsProcessingGame(true);
 
-    // 2. FIX: Nimm die übergebene Zeit (finalTime). Falls die fehlt (Fallback), nimm totalTime.
-    // Das löst das Problem, dass die letzte Frage fehlte.
     const rawTime = finalTime !== undefined ? finalTime : totalTime;
     const cleanTime = parseFloat((rawTime || 0).toFixed(1));
 
     try {
-      if (role === 'creator') {
-        // --- CREATOR LOGIK ---
+      if (activeDuel.type === 'tournament') {
+          // --- TURNIER LOGIK ---
+          const { data: freshDuel } = await supabase.from('duels').select('*').eq('id', activeDuel.id).single();
+          
+          const updatedList = freshDuel.participants.map(p => {
+              if (p.name === user.name) {
+                  return { ...p, score: finalScore, time: cleanTime, status: 'finished' };
+              }
+              return p;
+          });
+
+          // Check if ALL are finished
+          const isFull = updatedList.length >= freshDuel.max_players;
+          const allDone = updatedList.every(p => p.status === 'finished');
+
+          await supabase.from('duels').update({
+                participants: updatedList,
+                status: (isFull && allDone) ? 'finished' : 'open'
+          }).eq('id', activeDuel.id);
+          
+          setView('dashboard');
+          setDashboardView('history');
+
+      } else if (role === 'creator') {
+        // --- CREATOR LOGIK (Duell) ---
         const { error } = await supabase.from('duels').insert([{ 
           creator: user.name, 
           creator_score: finalScore, 
-          creator_time: cleanTime, // Hier die korrekte Zeit nutzen
+          creator_time: cleanTime, 
           questions: gameData, 
           status: 'open', 
           amount: invoice.amount, 
           target_player: challengePlayer,
-          // WICHTIG: Avatare mitspeichern, damit wir sie in der Lobby sehen!
           creator_avatar: user.avatar 
         }]);
-        
         if (error) throw error;
-        
-        // Nach Erstellen zurück zum Dashboard
         setView('dashboard');
 
       } else {
-        // --- CHALLENGER LOGIK ---
+        // --- CHALLENGER LOGIK (Duell) ---
         const { data, error } = await supabase.from('duels').update({ 
             challenger: user.name, 
             challenger_score: finalScore, 
-            challenger_time: cleanTime, // Hier die korrekte Zeit nutzen
+            challenger_time: cleanTime, 
             status: 'finished',
-            // Auch hier Avatar speichern
             challenger_avatar: user.avatar
         }).eq('id', activeDuel.id).select();
         
         if (error) throw error;
         
         if (data && data.length > 0) {
-            // OPTIONALER FIX: Sofort manuell setzen für schnellere UI
-            const updatedDuel = data[0];
-            setActiveDuel(updatedDuel); 
+            setActiveDuel(data[0]); 
             setView('result_final'); 
         } else {
             throw new Error("Fehler beim Laden des Spielstatus");
@@ -1014,20 +1047,24 @@ const handleAnswer = (displayIndex) => {
       }
     } catch (e) {
       console.error(e);
-      alert("Speicherfehler: " + (e.message || JSON.stringify(e)));
+      alert("Speicherfehler: " + e.message);
       setIsProcessingGame(false);
     }
   };
 
-  const openPastDuel = (duel) => { setActiveDuel(duel); const myRole = duel.creator === user.name ? 'creator' : 'challenger'; setRole(myRole); const myS = myRole === 'creator' ? duel.creator_score : duel.challenger_score; const myT = myRole === 'creator' ? duel.creator_time : duel.challenger_time; determineWinner(duel, myRole, myS, myT); };
-  
-  const determineWinner = async (duel, myRole, myScore, myTime) => { 
-    if (duel.status === 'refunded') { setView('result_final'); return; }
-    setView('result_final'); 
+  const openPastDuel = (duel) => { 
+      setActiveDuel(duel); 
+      // Rollen finden
+      if (duel.type === 'tournament') {
+          setView('result_final'); // Placeholder -> Wir leiten eigentlich zu 'tournament_results' um, aber das lassen wir hier simpel
+      } else {
+          const myRole = duel.creator === user.name ? 'creator' : 'challenger'; 
+          setRole(myRole); 
+          setView('result_final'); 
+      }
   };
   
-  // WICHTIG: Hier fangen wir den Fehler von api/claim.js ab und zeigen ihn an!
- const handleClaimReward = async () => {
+  const handleClaimReward = async () => {
     if (isClaiming) return;
     setIsClaiming(true);
     try {
@@ -1043,10 +1080,6 @@ const handleAnswer = (displayIndex) => {
         } else if (data.lnurl) {
             setWithdrawLink(data.lnurl);
             setWithdrawId(data.id);
-            
-            // WICHTIG: Die Zeile "setActiveDuel... claimed: true" wurde HIER gelöscht!
-            // Wir zeigen jetzt nur den QR-Code an.
-            
             confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
         }
     } catch (e) {
@@ -1067,51 +1100,27 @@ const handleAnswer = (displayIndex) => {
       const file = event.target.files[0];
       if (!file) return;
 
-      // 1. Sicherheits-Check: Ist das Bild zu groß? (> 2MB)
-      if (file.size > 2 * 1024 * 1024) {
-        alert("Das Bild ist zu groß! Bitte maximal 2MB.");
-        return;
-      }
-
-      // Lade-Indikator an (wir nutzen kurz den Login-Loader)
+      if (file.size > 2 * 1024 * 1024) { alert("Max 2MB!"); return; }
       setIsLoginLoading(true); 
 
-      // 2. Dateiname generieren (Name + Zeitstempel, damit es eindeutig ist)
-      // Wir entfernen Sonderzeichen aus dem Namen sicherheitshalber
       const cleanName = user.name.replace(/[^a-zA-Z0-9]/g, '');
       const fileExt = file.name.split('.').pop();
       const fileName = `${cleanName}_${Date.now()}.${fileExt}`;
 
-      // 3. Hochladen in den 'avatars' Bucket
-      const { error: uploadError } = await supabase.storage
-        .from('avatars')
-        .upload(fileName, file);
-
+      const { error: uploadError } = await supabase.storage.from('avatars').upload(fileName, file);
       if (uploadError) throw uploadError;
 
-      // 4. Die öffentliche URL abrufen
-      const { data: { publicUrl } } = supabase.storage
-        .from('avatars')
-        .getPublicUrl(fileName);
+      const { data: { publicUrl } } = supabase.storage.from('avatars').getPublicUrl(fileName);
 
-      // 5. URL in der Datenbank beim Spieler speichern
-      const { error: dbError } = await supabase
-        .from('players')
-        .update({ avatar: publicUrl })
-        .eq('name', user.name);
+      await supabase.from('players').update({ avatar: publicUrl }).eq('name', user.name);
 
-      if (dbError) throw dbError;
-
-      // 6. Lokalen User sofort aktualisieren (damit man es gleich sieht)
       const updatedUser = { ...user, avatar: publicUrl };
       setUser(updatedUser);
       localStorage.setItem('satoshi_user', JSON.stringify(updatedUser));
       
-      alert("Profilbild erfolgreich aktualisiert! ??");
-
+      alert("Profilbild aktualisiert! ??");
     } catch (error) {
-      console.error(error);
-      alert("Fehler beim Hochladen: " + error.message);
+      alert("Upload Fehler: " + error.message);
     } finally {
       setIsLoginLoading(false);
     }
@@ -1145,6 +1154,12 @@ const handleAnswer = (displayIndex) => {
   if (view === 'login') {
     return (
       <Background>
+        {/* --- HIER SIND DIE FLAGGEN JETZT AUCH! --- */}
+        <div className="absolute top-6 right-6 z-50 flex gap-4">
+            <button onClick={() => setLang('de')} className={`text-2xl transition-all ${lang === 'de' ? 'scale-125' : 'opacity-30'}`}>????</button>
+            <button onClick={() => setLang('en')} className={`text-2xl transition-all ${lang === 'en' ? 'scale-125' : 'opacity-30'}`}>????</button>
+        </div>
+
         <div className="w-full max-w-sm flex flex-col gap-6 text-center px-4">
           <div className="flex flex-col items-center justify-center">
              <div className="relative mb-4"><div className="absolute inset-0 bg-orange-500 blur-[50px] opacity-20 rounded-full"></div><img src="/logo.png" alt="Satoshi Duell" className="relative w-48 h-48 object-contain drop-shadow-2xl mx-auto" /></div>
@@ -1160,7 +1175,6 @@ const handleAnswer = (displayIndex) => {
           
           <div className="relative py-2 text-center"><span className="relative bg-[#1a1a1a] px-3 text-[10px] uppercase font-bold text-neutral-600 rounded">Optionen</span></div>
           
-          {/* NEU: GRID FÜR BEIDE BUTTONS */}
           <div className="grid grid-cols-2 gap-2">
             <Button variant="secondary" onClick={handleExtensionLogin} className="text-[10px] py-3 flex items-center justify-center gap-2">
               <Fingerprint size={16}/> Extension
@@ -1222,31 +1236,21 @@ const handleAnswer = (displayIndex) => {
     );
   }
 
-if (view === 'dashboard') {
+  if (view === 'dashboard') {
     
     // FIX: Gewinner-Logik (Punkte ODER Zeit)
     const unclaimedWin = myDuels.find(d => {
-      // 1. Nur beendete und nicht abgeholte Spiele
       if (d.status !== 'finished' || d.claimed) return false;
-
-      // 2. Daten holen
       const isCreator = d.creator === user.name;
-      
       const myScore = isCreator ? d.creator_score : d.challenger_score;
       const opScore = isCreator ? d.challenger_score : d.creator_score;
-      
       const myTime = isCreator ? d.creator_time : d.challenger_time;
       const opTime = isCreator ? d.challenger_time : d.creator_time;
 
-      // 3. Wer hat gewonnen?
-      // Mehr Punkte?
       if (myScore > opScore) return true;
-      
-      // Gleiche Punkte UND schneller (weniger Zeit)?
       if (myScore === opScore && myTime < opTime) return true;
-
       return false;
-    }); // <--- Hier wird die .find() Funktion geschlossen
+    });
 
     const publicCount = publicDuels.filter(d => d.creator !== user.name).length;
     const challengeCount = targetedDuels.length;
@@ -1254,7 +1258,7 @@ if (view === 'dashboard') {
     // Eigene offene Spiele
     const myOpenDuels = myDuels.filter(d => d.creator === user.name && d.status === 'open');
 
-// ---------------------------------------------------------
+    // ---------------------------------------------------------
     // VIEW: BADGES / ERFOLGE (Hall of Fame) - FINAL URL FIX
     // ---------------------------------------------------------
     if (dashboardView === 'badges') {
@@ -1304,36 +1308,26 @@ if (view === 'dashboard') {
 
       // 2. ABZEICHEN DEFINITIONEN
       const BADGES = [
-        // TREUE
         { id: 'p1', name: txt('badge_p1_name'), desc: txt('badge_p1_desc'), icon: User, color: 'text-blue-400', achieved: stats.played >= 5 },
         { id: 'p2', name: txt('badge_p2_name'), desc: txt('badge_p2_desc'), icon: Users, color: 'text-blue-500', achieved: stats.played >= 25 },
         { id: 'p3', name: txt('badge_p3_name'), desc: txt('badge_p3_desc'), icon: Globe, color: 'text-blue-600', achieved: stats.played >= 100 },
         { id: 'p4', name: txt('badge_p4_name'), desc: txt('badge_p4_desc'), icon: Zap, color: 'text-purple-500', achieved: stats.played >= 500 },
         { id: 'p5', name: txt('badge_p5_name'), desc: txt('badge_p5_desc'), icon: Crown, color: 'text-yellow-500', achieved: stats.played >= 1000 },
-        
-        // DOMINANZ
         { id: 'w1', name: txt('badge_w1_name'), desc: txt('badge_w1_desc'), icon: Trophy, color: 'text-yellow-400', achieved: stats.wins >= 5 },
         { id: 'w2', name: txt('badge_w2_name'), desc: txt('badge_w2_desc'), icon: Medal, color: 'text-yellow-500', achieved: stats.wins >= 25 },
         { id: 'w3', name: txt('badge_w3_name'), desc: txt('badge_w3_desc'), icon: Fingerprint, color: 'text-orange-500', achieved: stats.wins >= 100 },
         { id: 'w4', name: txt('badge_w4_name'), desc: txt('badge_w4_desc'), icon: Crown, color: 'text-red-500', achieved: stats.wins >= 500 },
-
-        // SERIE
         { id: 'st1', name: txt('badge_st1_name'), desc: txt('badge_st1_desc'), icon: Flame, color: 'text-orange-400', achieved: stats.currentStreak >= 3 },
         { id: 'st2', name: txt('badge_st2_name'), desc: txt('badge_st2_desc'), icon: TrendingUp, color: 'text-red-500', achieved: stats.currentStreak >= 5 },
         { id: 'st3', name: txt('badge_st3_name'), desc: txt('badge_st3_desc'), icon: Crown, color: 'text-purple-500', achieved: stats.currentStreak >= 10 },
-
-        // REICHTUM
         { id: 's1', name: txt('badge_s1_name'), desc: txt('badge_s1_desc'), icon: Coins, color: 'text-green-400', achieved: stats.sats >= 100 },
         { id: 's2', name: txt('badge_s2_name'), desc: txt('badge_s2_desc'), icon: Coins, color: 'text-green-500', achieved: stats.sats >= 1000 },
         { id: 's3', name: txt('badge_s3_name'), desc: txt('badge_s3_desc'), icon: Coins, color: 'text-green-600', achieved: stats.sats >= 10000 },
         { id: 's4', name: txt('badge_s4_name'), desc: txt('badge_s4_desc'), icon: Gem, color: 'text-cyan-400', achieved: stats.sats >= 50000 },
         { id: 's5', name: txt('badge_s5_name'), desc: txt('badge_s5_desc'), icon: Crown, color: 'text-yellow-400', achieved: stats.sats >= 100000 },
-
-        // SKILL & SPECIALS
         { id: 'sk1', name: txt('badge_sk1_name'), desc: txt('badge_sk1_desc'), icon: Star, color: 'text-cyan-400', achieved: stats.perfect >= 5 },
         { id: 'sk2', name: txt('badge_sk2_name'), desc: txt('badge_sk2_desc'), icon: Star, color: 'text-purple-400', achieved: stats.perfect >= 25 },
         { id: 'sk3', name: txt('badge_sk3_name'), desc: txt('badge_sk3_desc'), icon: Crown, color: 'text-pink-500', achieved: stats.perfect >= 100 },
-        
         { id: 'sp1', name: txt('badge_sp1_name'), desc: txt('badge_sp1_desc'), icon: Rocket, color: 'text-red-500', achieved: stats.speedWin },
         { id: 'sp2', name: txt('badge_sp2_name'), desc: txt('badge_sp2_desc'), icon: Zap, color: 'text-yellow-300', achieved: stats.lightSpeed },
         { id: 'sp3', name: txt('badge_sp3_name'), desc: txt('badge_sp3_desc'), icon: Gem, color: 'text-purple-400', achieved: stats.highRoller },
@@ -1343,12 +1337,10 @@ if (view === 'dashboard') {
       const unlockedCount = BADGES.filter(b => b.achieved).length;
       const progressPercent = Math.round((unlockedCount / BADGES.length) * 100);
 
-      // --- SHARE FUNKTION ---
       const shareStats = async () => {
          const shareData = {
             title: txt('share_title'),
             text: `${txt('share_text_prefix')} ${unlockedCount} / ${BADGES.length} ${txt('share_text_suffix')}`,
-            // FIX: Hier steht jetzt die feste URL!
             url: 'https://www.satoshiduell.com' 
          };
 
@@ -1376,7 +1368,6 @@ if (view === 'dashboard') {
                    </div>
                </div>
                
-               {/* SHARE BUTTON */}
                <button onClick={shareStats} className="bg-yellow-500/10 p-2 rounded-xl border border-yellow-500/30 text-yellow-500 hover:bg-yellow-500 hover:text-black transition-all shadow-[0_0_15px_rgba(234,179,8,0.1)]">
                    <Share2 size={20} />
                </button>
@@ -1387,7 +1378,6 @@ if (view === 'dashboard') {
                 <div className="h-full bg-gradient-to-r from-yellow-600 to-yellow-400 transition-all duration-1000" style={{ width: `${progressPercent}%` }}></div>
             </div>
             
-            {/* Grid */}
             <div className="flex-1 overflow-y-auto custom-scrollbar pb-10">
               <div className="grid grid-cols-2 gap-3">
                 {BADGES.map(badge => {
@@ -1418,20 +1408,18 @@ if (view === 'dashboard') {
       );
     }
 
-// ---------------------------------------------------------
-    // VIEW: HOME (Hauptmenü) - Beide mit Plus-Icon
+    // ---------------------------------------------------------
+    // VIEW: HOME (Hauptmenü) - Jetzt mit COMING SOON Button
     // ---------------------------------------------------------
     if (dashboardView === 'home') {
       return (
         <Background>
           <div className="w-full max-w-md flex flex-col h-[95vh] gap-4 px-2 relative">
             
-            {/* 1. WASSERZEICHEN */}
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-0">
                <img src="/logo.png" className="w-[90%] opacity-15" alt="Background" />
             </div>
 
-            {/* 2. USER CARD */}
             <Card className="flex justify-between items-center py-3 border-orange-500/20 bg-black/40 backdrop-blur-md relative z-10">
               <div className="flex items-center gap-3">
                 <div className="w-12 h-12 rounded-xl overflow-hidden border-2 border-orange-500/50 shadow-[0_0_15px_rgba(249,115,22,0.3)] bg-black">
@@ -1453,7 +1441,6 @@ if (view === 'dashboard') {
               </div>
             </Card>
 
-            {/* Unclaimed Win Button */}
             {unclaimedWin && (
               <button onClick={() => openPastDuel(unclaimedWin)} className="w-full bg-green-500 text-black p-4 rounded-2xl flex items-center justify-between font-black uppercase animate-bounce shadow-[0_0_20px_rgba(34,197,94,0.6)] relative z-10">
                   <div className="flex items-center gap-3"><Trophy size={24}/> <div className="text-left"><p className="text-sm leading-none">{txt('dash_unclaimed_title')}</p><p className="text-[10px] opacity-75 font-normal normal-case">{txt('dash_unclaimed_text')}</p></div></div>
@@ -1461,36 +1448,30 @@ if (view === 'dashboard') {
               </button>
             )}
 
-            {/* === ACTION BUTTONS (ORANGE & GRAU - BEIDE MIT PLUS) === */}
             <div className="grid grid-cols-2 gap-3 mb-2 relative z-10">
-                
-                {/* 1. NEUES DUELL (Orange) */}
-                <button 
-                  onClick={() => { playSound('click', isMuted); openCreateSetup(); }} 
-                  className="bg-gradient-to-br from-orange-500 to-orange-600 p-4 rounded-2xl flex flex-col items-center justify-center gap-2 shadow-[0_0_20px_rgba(249,115,22,0.4)] hover:scale-[1.02] transition-transform border border-orange-400/30 group relative overflow-hidden"
-                >
-                  <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10"></div>
-                  <Plus size={28} className="text-white relative z-10"/>
-                  <span className="text-xs font-black text-white uppercase tracking-widest relative z-10 shadow-black drop-shadow-sm text-center">
-                    {txt('dashboard_new_duel')}
-                  </span>
-                </button>
-
-               {/* 2. NEUES TURNIER (DISABLED / COMING SOON) */}
+               
+               {/* 1. NEUES DUELL */}
                <button 
-                 disabled={true} // <--- WICHTIG: Deaktiviert Klicks
+                 onClick={() => { playSound('click', isMuted); openCreateSetup(); }} 
+                 className="bg-gradient-to-br from-orange-500 to-orange-600 p-4 rounded-2xl flex flex-col items-center justify-center gap-2 shadow-[0_0_20px_rgba(249,115,22,0.4)] hover:scale-[1.02] transition-transform border border-orange-400/30 group relative overflow-hidden"
+               >
+                 <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10"></div>
+                 <Plus size={28} className="text-white relative z-10"/>
+                 <span className="text-xs font-black text-white uppercase tracking-widest relative z-10 shadow-black drop-shadow-sm text-center">
+                   {txt('dashboard_new_duel')}
+                 </span>
+               </button>
+
+               {/* 2. NEUES TURNIER (COMING SOON) */}
+               <button 
+                 disabled={true} 
                  className="relative bg-neutral-900 p-4 rounded-2xl flex flex-col items-center justify-center gap-2 border border-white/5 overflow-hidden opacity-60 grayscale cursor-not-allowed"
                >
-                 {/* Hintergrund Muster (schwach) */}
                  <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-5"></div>
-                 
-                 {/* Inhalt (ausgegraut) */}
                  <Trophy size={28} className="text-neutral-500 mb-1"/>
                  <span className="text-xs font-black text-neutral-500 uppercase tracking-widest text-center">
                    {txt('dashboard_new_tournament')}
                  </span>
-
-                 {/* COMING SOON OVERLAY (Der "Stempel") */}
                  <div className="absolute inset-0 flex items-center justify-center bg-black/20 z-20">
                     <span className="bg-neutral-800 text-neutral-300 border border-white/10 text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-widest shadow-xl transform -rotate-3">
                         Coming Soon
@@ -1500,37 +1481,31 @@ if (view === 'dashboard') {
 
             </div>
             
-            {/* 3. GRID MIT DEN KACHELN */}
             <div className="grid grid-cols-2 gap-2 flex-1 overflow-y-auto pb-4 relative z-10 custom-scrollbar">
               
-              {/* LOBBY */}
               <button onClick={() => setDashboardView('lobby')} className="bg-neutral-900/60 border border-white/5 hover:border-orange-500/50 hover:bg-neutral-800 p-4 rounded-2xl flex flex-col items-center justify-center gap-3 aspect-[4/3] relative group">
                 <Users size={32} className="text-orange-500 group-hover:scale-110 transition-transform"/>
                 <span className="text-sm font-black text-orange-500 uppercase tracking-widest shadow-black drop-shadow-md">{txt('tile_lobby')}</span>
                 {publicCount > 0 && <span className="absolute top-2 right-2 bg-orange-500 text-black text-[10px] font-black w-6 h-6 rounded-full flex items-center justify-center shadow-lg border border-white/20">{publicCount}</span>}
               </button>
 
-              {/* CHALLENGES */}
               <button onClick={() => setDashboardView('challenges')} className="bg-neutral-900/60 border border-white/5 hover:border-purple-500/50 hover:bg-neutral-800 p-4 rounded-2xl flex flex-col items-center justify-center gap-3 aspect-[4/3] relative group">
                 <Swords size={32} className="text-purple-500 group-hover:scale-110 transition-transform"/>
                 <span className="text-sm font-black text-purple-500 uppercase tracking-widest shadow-black drop-shadow-md">{txt('tile_challenges')}</span>
                 {challengeCount > 0 && <span className="absolute top-2 right-2 bg-purple-500 text-white text-[10px] font-black w-6 h-6 rounded-full flex items-center justify-center shadow-lg border border-white/20">{challengeCount}</span>}
               </button>
 
-              {/* ACTIVE GAMES */}
               <button onClick={() => setDashboardView('active_games')} className="bg-neutral-900/60 border border-white/5 hover:border-green-500/50 hover:bg-neutral-800 p-4 rounded-2xl flex flex-col items-center justify-center gap-3 aspect-[4/3] relative group">
                 <PlayCircle size={32} className="text-green-500 group-hover:scale-110 transition-transform"/>
                 <span className="text-sm font-black text-green-500 uppercase tracking-widest shadow-black drop-shadow-md">{txt('tile_active_games')}</span>
                 {myOpenDuels.length > 0 && <span className="absolute top-2 right-2 bg-green-500 text-black text-[10px] font-black w-6 h-6 rounded-full flex items-center justify-center shadow-lg border border-white/20">{myOpenDuels.length}</span>}
               </button>
 
-              {/* HISTORY */}
               <button onClick={() => setDashboardView('history')} className="bg-neutral-900/60 border border-white/5 hover:border-blue-500/50 hover:bg-neutral-800 p-4 rounded-2xl flex flex-col items-center justify-center gap-3 aspect-[4/3] transition-all group">
                 <History size={32} className="text-blue-500 group-hover:scale-110 transition-transform"/>
                 <span className="text-sm font-black text-blue-500 uppercase tracking-widest shadow-black drop-shadow-md">{txt('tile_history')}</span>
               </button>
               
-              {/* LEADERBOARD */}
               <button onClick={() => setDashboardView('leaderboard')} className="bg-neutral-900/60 border border-white/5 hover:border-yellow-500/50 hover:bg-neutral-800 p-3 rounded-2xl flex flex-col items-center justify-start gap-1 aspect-[4/3] relative overflow-hidden group">
                 <div className="flex items-center gap-2 mb-1 z-10">
                   <Trophy size={14} className="text-yellow-500" />
@@ -1557,30 +1532,22 @@ if (view === 'dashboard') {
                 </div>
               </button>
 
-              {/* ERFOLGE / BADGES */}
               <button onClick={() => setDashboardView('badges')} className="bg-neutral-900/60 border border-white/5 hover:border-yellow-500/50 hover:bg-neutral-800 p-4 rounded-2xl flex flex-col items-center justify-center gap-3 aspect-[4/3] transition-all group">
                 <Medal size={32} className="text-yellow-500 group-hover:scale-110 transition-transform"/>
                 <span className="text-sm font-black text-yellow-500 uppercase tracking-widest shadow-black drop-shadow-md">{txt('tile_badges')}</span>
               </button>
-
             </div>
 
-            {/* 4. SPENDEN BUTTON */}
-            <button 
-              onClick={openDonation} 
-              className="w-full py-3 mt-2 mb-2 bg-neutral-900 border border-white/10 hover:border-orange-500/50 rounded-xl text-white text-xs font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all group shadow-lg relative z-10"
-            >
+            <button onClick={openDonation} className="w-full py-3 mt-2 mb-2 bg-neutral-900 border border-white/10 hover:border-orange-500/50 rounded-xl text-white text-xs font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all group shadow-lg relative z-10">
               <Heart size={16} className="text-orange-500 fill-orange-500 group-hover:scale-110 transition-transform"/> 
               {txt('dashboard_donate')}
             </button>
             
-            {/* Admin Footer */}
             {user.is_admin && (
                 <div className="pb-4">
                     <button onClick={() => setView('admin')} className="w-full py-3 rounded-xl border border-dashed border-red-500/30 text-red-500/50 hover:text-red-400 hover:border-red-500/60 hover:bg-red-500/5 text-xs font-mono uppercase tracking-widest transition-all">ADMIN</button>
                 </div>
             )}
-
           </div>
         </Background>
       );
@@ -1611,8 +1578,6 @@ if (view === 'dashboard') {
                              <span className="animate-pulse text-green-500/50 uppercase font-black text-[10px]">AKTIV</span>
                           )}
                        </div>
-                       
-                       {/* SHARE BUTTON */}
                        {!canRefund && (
                           <button onClick={(e) => {e.stopPropagation(); shareDuel(d);}} className="w-full bg-green-500/10 hover:bg-green-500/20 border border-green-500/50 text-green-500 py-3 rounded-lg transition-all flex items-center justify-center gap-2 group">
                              <LinkIcon size={16} className="group-hover:animate-pulse"/> <span className="text-xs font-black uppercase tracking-widest">{txt('btn_share')}</span>
@@ -1628,68 +1593,116 @@ if (view === 'dashboard') {
     }
 
    if (dashboardView === 'lobby') {
-      const list = publicDuels.filter(d => d.creator !== user.name);
       return (
         <Background>
           <div className="w-full max-w-md flex flex-col h-[95vh] gap-4 px-2">
-            
-            {/* Header */}
-            <div className="flex items-center gap-4 py-4">
-               <button onClick={() => setDashboardView('home')} className="bg-white/10 p-2 rounded-xl hover:bg-white/20 transition-colors">
-                  <ArrowLeft className="text-white"/>
-               </button>
-               <h2 className="text-xl font-black text-white uppercase tracking-widest">{txt('tile_lobby')}</h2>
-            </div>
-            
-            {/* Liste */}
-            <div className="flex-1 overflow-y-auto space-y-2 custom-scrollbar">
-              {list.length === 0 && (
-                 <div className="text-center py-20 text-neutral-600 italic">
-                    Keine offenen Duelle.<br/>Starte selbst eins!
-                 </div>
-              )}
-              
-              {list.map(d => (
-                <div key={d.id} className="bg-neutral-900/80 p-3 rounded-2xl flex justify-between items-center border border-white/5 hover:border-orange-500/50 transition-all group">
-                  <div className="flex items-center gap-3">
-                     
-                     {/* AVATAR BILD */}
-                     <div className="w-12 h-12 rounded-xl overflow-hidden border border-white/10 bg-black group-hover:scale-105 transition-transform">
-                        <img 
-                           src={d.creator_avatar || getRobotAvatar(d.creator)} 
-                           alt={d.creator} 
-                           className="w-full h-full object-cover"
-                        />
-                     </div>
-
-                     <div className="flex flex-col">
-                        <span className="font-bold text-white text-sm uppercase">{formatName(d.creator)}</span>
-                        <span className="text-xs text-orange-400 font-mono flex items-center gap-1">
-                           <Zap size={10}/> {d.amount} sats
-                        </span>
-                     </div>
-                  </div>
-
-                  <button onClick={() => initJoinDuel(d)} className="bg-white text-black px-5 py-2 rounded-xl text-xs font-black uppercase hover:bg-orange-500 transition-colors shadow-lg">
-                     {txt('lobby_fight')}
-                  </button>
-                </div>
-              ))}
-            </div>
+             <div className="flex items-center gap-4 py-4">
+                <button onClick={() => setDashboardView('home')} className="bg-white/10 p-2 rounded-xl hover:bg-white/20 transition-colors">
+                   <ArrowLeft className="text-white"/>
+                </button>
+                <h2 className="text-xl font-black text-white uppercase tracking-widest text-orange-500">{txt('tile_lobby')}</h2>
+             </div>
+             
+             <div className="flex-1 overflow-y-auto custom-scrollbar flex flex-col gap-3 pb-4">
+                {publicDuels.length === 0 ? (
+                    <div className="text-center text-neutral-500 mt-10 flex flex-col items-center gap-2">
+                       <Swords size={48} className="opacity-20"/>
+                       <p className="text-xs uppercase tracking-widest">{txt('no_challenges')}</p>
+                    </div>
+                ) : (
+                    publicDuels.map(d => {
+                      const canDelete = d.creator === user.name || user.is_admin;
+                      if (d.type === 'tournament') {
+                          const currentPlayers = d.participants ? d.participants.length : 1;
+                          const maxPlayers = d.max_players || 4;
+                          const amIIn = d.participants && d.participants.some(p => p.name === user.name);
+                          
+                          return (
+                            <div key={d.id} className="bg-neutral-900 border border-white/10 p-4 rounded-2xl relative overflow-hidden group mb-1">
+                               <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-5"></div>
+                               <div className="relative z-10 flex justify-between items-center">
+                                  <div className="flex items-center gap-3">
+                                     <div className="w-10 h-10 bg-neutral-800 rounded-lg flex items-center justify-center border border-white/5">
+                                        <Trophy size={20} className="text-neutral-400"/>
+                                     </div>
+                                     <div>
+                                        <h3 className="text-white font-black uppercase text-sm">Turnier</h3>
+                                        <p className="text-neutral-400 text-[10px] font-mono flex items-center gap-1">
+                                           <Users size={10}/> {currentPlayers} / {maxPlayers} Spieler
+                                        </p>
+                                     </div>
+                                  </div>
+                                  <div className="flex flex-col items-end gap-1">
+                                     <p className="text-yellow-500 font-mono font-bold text-lg leading-none">{d.amount} <span className="text-[10px] text-neutral-500">SATS</span></p>
+                                     <div className="flex gap-2 mt-1">
+                                         {canDelete && (
+                                             <button onClick={() => deleteDuel(d.id)} className="p-1.5 bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white rounded transition-colors"><Trash2 size={12}/></button>
+                                         )}
+                                         {amIIn ? (
+                                             <span className="px-3 py-1 bg-green-500/20 text-green-500 rounded text-[10px] font-black uppercase border border-green-500/30">Dabei</span>
+                                         ) : (
+                                             <button 
+                                               onClick={() => initJoinDuel(d)} 
+                                               disabled={currentPlayers >= maxPlayers}
+                                               className={`px-3 py-1 rounded text-[10px] font-black uppercase tracking-widest transition-all ${currentPlayers >= maxPlayers ? 'bg-neutral-800 text-neutral-600 cursor-not-allowed' : 'bg-white/5 hover:bg-white/10 border border-white/10 text-white'}`}
+                                             >
+                                                {currentPlayers >= maxPlayers ? 'Voll' : 'Beitreten'}
+                                             </button>
+                                         )}
+                                     </div>
+                                  </div>
+                               </div>
+                               <div className="absolute bottom-0 left-0 h-1 bg-neutral-800 w-full">
+                                  <div className="h-full bg-yellow-500" style={{ width: `${(currentPlayers / maxPlayers) * 100}%` }}></div>
+                               </div>
+                            </div>
+                          );
+                      }
+                      
+                      return (
+                        <div key={d.id} className="bg-neutral-900 border border-green-500/30 p-4 rounded-2xl relative overflow-hidden group mb-1">
+                            <div className="absolute inset-0 bg-green-500/5 group-hover:bg-green-500/10 transition-colors"></div>
+                            <div className="relative z-10 flex justify-between items-center">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-10 h-10 rounded-full border-2 border-green-500/50 overflow-hidden bg-black">
+                                        <img src={d.creator_avatar || getRobotAvatar(d.creator)} alt="Avatar" className="w-full h-full object-cover"/>
+                                    </div>
+                                    <div>
+                                        <h3 className="text-white font-bold uppercase text-xs tracking-wider">{d.creator}</h3>
+                                        <span className="text-[10px] bg-green-500/20 text-green-400 px-2 py-0.5 rounded font-black uppercase">{txt('lobby_wait')}</span>
+                                    </div>
+                                </div>
+                                <div className="text-right">
+                                    <p className="text-yellow-500 font-mono font-black text-xl drop-shadow-md">{d.amount}</p>
+                                    <div className="flex gap-2 justify-end mt-1">
+                                        {canDelete && (
+                                             <button onClick={() => deleteDuel(d.id)} className="p-1.5 bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white rounded-lg transition-colors z-20 relative"><Trash2 size={14}/></button>
+                                        )}
+                                        {d.creator !== user.name && (
+                                            <button onClick={() => initJoinDuel(d)} className="bg-green-500 hover:bg-green-400 text-black font-black text-[10px] uppercase px-3 py-1.5 rounded-lg transition-transform active:scale-95 shadow-[0_0_10px_rgba(34,197,94,0.4)] flex items-center gap-1">
+                                                <Swords size={12}/> {txt('lobby_fight')}
+                                            </button>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                      );
+                    })
+                )}
+             </div>
           </div>
         </Background>
       );
     }
     
   if (dashboardView === 'history') {
-      // Wir sortieren: Neueste zuerst
       const historyList = myDuels.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
 
       return (
         <Background>
           <div className="w-full max-w-md flex flex-col h-[95vh] gap-4 px-2">
             
-            {/* Header */}
             <div className="flex items-center gap-4 py-4">
                <button onClick={() => setDashboardView('home')} className="bg-white/10 p-2 rounded-xl hover:bg-white/20 transition-colors">
                   <ArrowLeft className="text-white"/>
@@ -1697,36 +1710,35 @@ if (view === 'dashboard') {
                <h2 className="text-xl font-black text-blue-500 uppercase tracking-widest">{txt('tile_history')}</h2>
             </div>
             
-            {/* Liste */}
             <div className="flex-1 overflow-y-auto space-y-2 custom-scrollbar">
               {historyList.length === 0 && (
                  <div className="text-center py-20 text-neutral-600 italic">Noch keine Spiele gespielt.</div>
               )}
               
               {historyList.map(d => {
-                 // 1. Rollen klären
                  const isCreator = d.creator === user.name;
-                 
-                 // 2. Meine Daten (User)
                  const myName = user.name;
                  const myAvatar = user.avatar;
                  const myScore = isCreator ? d.creator_score : d.challenger_score;
-                 
-                 // 3. Gegner Daten
                  const opName = isCreator ? (d.challenger || '?') : d.creator;
                  const opAvatar = isCreator ? d.challenger_avatar : d.creator_avatar;
                  const opScore = isCreator ? d.challenger_score : d.creator_score;
                  
-                 // 4. Status ermitteln
                  let resultStatus = 'running'; 
                  let resultColor = 'text-neutral-500';
                  let borderColor = 'border-white/5';
                  
                  if (d.status === 'finished') {
-                    const iWon = myScore > opScore || (myScore === opScore && (isCreator ? d.creator_time < d.challenger_time : d.challenger_time < d.creator_time));
-                    resultStatus = iWon ? 'WON' : 'LOST';
-                    resultColor = iWon ? 'text-green-500' : 'text-red-500';
-                    borderColor = iWon ? 'border-green-500/30' : 'border-red-500/30';
+                    if (d.type === 'tournament') {
+                        resultStatus = 'TURNIER';
+                        resultColor = 'text-purple-500';
+                        borderColor = 'border-purple-500/30';
+                    } else {
+                        const iWon = myScore > opScore || (myScore === opScore && (isCreator ? d.creator_time < d.challenger_time : d.challenger_time < d.creator_time));
+                        resultStatus = iWon ? 'WON' : 'LOST';
+                        resultColor = iWon ? 'text-green-500' : 'text-red-500';
+                        borderColor = iWon ? 'border-green-500/30' : 'border-red-500/30';
+                    }
                  } else if (d.status === 'refunded') {
                     resultStatus = 'REFUND';
                     resultColor = 'text-yellow-500';
@@ -1734,39 +1746,36 @@ if (view === 'dashboard') {
 
                  return (
                    <button key={d.id} onClick={() => openPastDuel(d)} className={`w-full bg-neutral-900/80 border ${borderColor} p-3 rounded-xl flex items-center justify-between hover:bg-neutral-800 transition-all group`}>
-                      
-                      {/* LINKE SEITE: Avatare & Namen */}
-                      <div className="flex flex-col items-start gap-2">
-                         {/* Avatar Gruppe (Überlappend) */}
+                     <div className="flex flex-col items-start gap-2">
                          <div className="flex items-center pl-1">
-                             {/* Mein Avatar (Vordergrund) - JETZT ECKIG (rounded-xl) */}
                              <div className="w-10 h-10 rounded-xl border-2 border-neutral-900 bg-neutral-800 z-20 shadow-lg relative group-hover:scale-105 transition-transform">
                                  <img src={myAvatar || getRobotAvatar(myName)} alt="Me" className="w-full h-full object-cover rounded-xl"/>
                              </div>
-                             {/* Gegner Avatar (Hintergrund, leicht versetzt) - JETZT ECKIG (rounded-xl) */}
-                             <div className="w-10 h-10 rounded-xl border-2 border-neutral-900 bg-neutral-800 z-10 -ml-4 opacity-80 group-hover:opacity-100 group-hover:translate-x-1 transition-all">
-                                 <img src={opAvatar || getRobotAvatar(opName)} alt="Opponent" className="w-full h-full object-cover rounded-xl"/>
-                             </div>
+                             {d.type !== 'tournament' && (
+                                 <div className="w-10 h-10 rounded-xl border-2 border-neutral-900 bg-neutral-800 z-10 -ml-4 opacity-80 group-hover:opacity-100 group-hover:translate-x-1 transition-all">
+                                     <img src={opAvatar || getRobotAvatar(opName)} alt="Opponent" className="w-full h-full object-cover rounded-xl"/>
+                                 </div>
+                             )}
                          </div>
-                         
-                         {/* Namen darunter */}
                          <div className="text-[10px] text-neutral-400 font-bold ml-1">
                              <span className="text-white">{formatName(myName)}</span>
-                             <span className="mx-1 text-neutral-600 font-normal">vs</span>
-                             <span>{formatName(opName)}</span>
+                             {d.type !== 'tournament' && (
+                                <>
+                                 <span className="mx-1 text-neutral-600 font-normal">vs</span>
+                                 <span>{formatName(opName)}</span>
+                                </>
+                             )}
                          </div>
                       </div>
 
-                      {/* RECHTE SEITE: Infos & Stats */}
                       <div className="flex flex-col items-end gap-1">
                          <span className={`font-black text-sm uppercase ${resultColor}`}>{resultStatus}</span>
                          <span className="font-mono text-xs text-white">{d.amount} sats</span>
-                         
-                         {/* Ergebnis Score Box */}
-                         <div className="bg-black/40 border border-white/10 px-2 py-0.5 rounded text-[10px] font-mono text-neutral-300 mt-1">
-                            {myScore ?? '-'} : {opScore ?? '-'}
-                         </div>
-                         
+                         {d.type !== 'tournament' && (
+                             <div className="bg-black/40 border border-white/10 px-2 py-0.5 rounded text-[10px] font-mono text-neutral-300 mt-1">
+                                {myScore ?? '-'} : {opScore ?? '-'}
+                             </div>
+                         )}
                          <span className="text-[9px] text-neutral-600 mt-0.5">{new Date(d.created_at).toLocaleDateString()}</span>
                       </div>
                    </button>
@@ -1782,8 +1791,6 @@ if (view === 'dashboard') {
       return (
         <Background>
           <div className="w-full max-w-md flex flex-col h-[95vh] gap-4 px-2">
-            
-            {/* Header */}
             <div className="flex items-center gap-4 py-4">
                 <button onClick={() => setDashboardView('home')} className="bg-white/10 p-2 rounded-xl hover:bg-white/20 transition-colors">
                     <ArrowLeft className="text-white"/>
@@ -1791,7 +1798,6 @@ if (view === 'dashboard') {
                 <h2 className="text-xl font-black text-white uppercase tracking-widest text-purple-400">{txt('tile_challenges')}</h2>
             </div>
             
-            {/* Liste */}
             <div className="flex-1 overflow-y-auto space-y-2 custom-scrollbar">
               {targetedDuels.length === 0 && (
                  <div className="text-center py-20 text-neutral-600 italic">{txt('no_challenges')}</div>
@@ -1799,18 +1805,10 @@ if (view === 'dashboard') {
               
               {targetedDuels.map(d => (
                 <div key={d.id} className="bg-purple-500/10 p-3 rounded-xl flex justify-between items-center border border-purple-500/50 shadow-[0_0_15px_rgba(168,85,247,0.2)] hover:bg-purple-500/20 transition-all">
-                  
-                  {/* LINKE SEITE: Avatar & Infos */}
                   <div className="flex items-center gap-3">
-                      {/* Avatar des Herausforderers (Eckig wie in Historie) */}
                       <div className="w-12 h-12 rounded-xl overflow-hidden border border-purple-500/50 bg-black shrink-0 shadow-lg">
-                         <img 
-                           src={d.creator_avatar || getRobotAvatar(d.creator)} 
-                           alt={d.creator} 
-                           className="w-full h-full object-cover"
-                         />
+                         <img src={d.creator_avatar || getRobotAvatar(d.creator)} alt={d.creator} className="w-full h-full object-cover"/>
                       </div>
-
                       <div className="flex flex-col">
                          <p className="font-bold text-white text-sm uppercase flex items-center gap-1">
                             {formatName(d.creator)} <Swords size={12} className="text-purple-400 animate-pulse"/>
@@ -1820,10 +1818,8 @@ if (view === 'dashboard') {
                          </p>
                       </div>
                   </div>
-
-                  {/* ACTION BUTTON */}
                   <button onClick={() => initJoinDuel(d)} className="bg-purple-500 text-white px-5 py-2.5 rounded-xl text-xs font-black uppercase hover:scale-105 hover:bg-purple-400 transition-all shadow-lg border border-white/20">
-                     ACCEPT
+                      ACCEPT
                   </button>
                 </div>
               ))}
@@ -1859,7 +1855,6 @@ if (dashboardView === 'settings') {
         <Background>
           <div className="w-full max-w-md flex flex-col h-[95vh] gap-4 px-2">
             
-            {/* Header */}
             <div className="flex items-center gap-4 py-4">
                 <button onClick={() => setDashboardView('home')} className="bg-white/10 p-2 rounded-xl hover:bg-white/20 transition-colors">
                     <ArrowLeft className="text-white"/>
@@ -1869,51 +1864,35 @@ if (dashboardView === 'settings') {
             
             <div className="flex-1 overflow-y-auto space-y-4 px-2 custom-scrollbar">
                
-               {/* --- NEU: AVATAR UPLOAD --- */}
                <div className="bg-white/5 p-4 rounded-2xl border border-white/5">
                   <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3">
-                          {/* Vorschau des aktuellen Bildes */}
                           <div className="w-12 h-12 rounded-full overflow-hidden border-2 border-orange-500/50 shadow-[0_0_10px_rgba(249,115,22,0.2)]">
-                              <img 
-                                src={user.avatar || getRobotAvatar(user.name)} 
-                                alt="Avatar" 
-                                className="w-full h-full object-cover" 
-                              />
+                              <img src={user.avatar || getRobotAvatar(user.name)} alt="Avatar" className="w-full h-full object-cover" />
                           </div>
                           <div className="flex flex-col">
                               <span className="text-sm font-bold text-white uppercase">Profilbild</span>
                               <span className="text-[10px] text-neutral-500">Max. 2MB (JPG/PNG)</span>
                           </div>
                       </div>
-                      
-                      {/* Der Upload Button (verstecktes Input Feld) */}
                       <label className="bg-neutral-800 hover:bg-orange-500/20 text-white hover:text-orange-500 p-3 rounded-xl cursor-pointer transition-all border border-white/10 hover:border-orange-500 flex items-center justify-center">
                           {isLoginLoading ? <Loader2 size={18} className="animate-spin text-orange-500"/> : <Upload size={18} />}
-                          <input 
-                              type="file" 
-                              accept="image/*" 
-                              onChange={handleAvatarUpload} 
-                              disabled={isLoginLoading}
-                              className="hidden" 
-                          />
+                          <input type="file" accept="image/*" onChange={handleAvatarUpload} disabled={isLoginLoading} className="hidden" />
                       </label>
                   </div>
                </div>
 
-               {/* --- BENACHRICHTIGUNGEN --- */}
                <div className="bg-white/5 p-4 rounded-2xl border border-white/5">
                   <div className="flex items-center gap-3 mb-4 text-orange-500"><Bell size={20}/><span className="text-sm font-bold uppercase">{txt('settings_notifications')}</span></div>
                   <div className="flex justify-between items-center">
                       <p className="text-neutral-400 text-xs">{txt('settings_notifications_desc')}</p>
                       <button onClick={toggleNotifications} className={`w-12 h-6 rounded-full p-1 transition-colors ${notificationsEnabled ? 'bg-green-500' : 'bg-neutral-700'}`}>
-                         <div className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform ${notificationsEnabled ? 'translate-x-6' : 'translate-x-0'}`}></div>
+                          <div className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform ${notificationsEnabled ? 'translate-x-6' : 'translate-x-0'}`}></div>
                       </button>
                   </div>
                   {!notificationsEnabled && <p className="text-[10px] text-neutral-600 mt-2 italic">{txt('perm_request')}</p>}
                </div>
 
-               {/* --- SICHERHEIT (PIN) --- */}
                <div className="bg-white/5 p-4 rounded-2xl border border-white/5">
                   <div className="flex items-center gap-3 mb-4 text-blue-500"><Shield size={20}/><span className="text-sm font-bold uppercase">{txt('settings_security')}</span></div>
                   <p className="text-neutral-400 text-xs mb-3">{txt('settings_change_pin')}</p>
@@ -1924,25 +1903,21 @@ if (dashboardView === 'settings') {
                   {settingsMsg && <p className={`text-xs font-bold mt-2 ${settingsMsg.includes('!') ? 'text-green-500' : 'text-red-500'}`}>{settingsMsg}</p>}
                </div>
 
-               {/* BUTTON FÜR FRAGE EINREICHEN */}
                <button onClick={() => setView('submit_question')} className="w-full bg-purple-900/50 border border-purple-500/50 p-4 rounded-2xl flex items-center justify-center gap-2 text-purple-300 font-bold uppercase text-xs hover:bg-purple-900 hover:text-white transition-all">
                  <Plus size={16}/> Eigene Frage einreichen
                </button>
 
-               {/* ADMIN BUTTON */}
                {user.isAdmin && (
                  <button onClick={() => { fetchAdminData(); setDashboardView('admin'); }} className="w-full bg-red-900/50 border border-red-500/50 p-4 rounded-2xl flex items-center justify-center gap-2 text-red-300 font-bold uppercase text-xs hover:bg-red-900 hover:text-white transition-all mt-4">
                    <Shield size={16}/> {txt('admin_title')}
                  </button>
                )}
-
             </div>
           </div>
         </Background>
       );
     }
 
-    // --- NEU: ADMIN VIEW MIT FILTER & SUCHE ---
     if (dashboardView === 'admin') {
       const totalGames = adminDuels.length;
       const openGames = adminDuels.filter(d => d.status === 'open').length;
@@ -1963,28 +1938,20 @@ if (dashboardView === 'settings') {
       return (
         <Background>
           <div className="w-full max-w-md flex flex-col h-[95vh] gap-4 px-2">
-            
-            {/* Header */}
             <div className="flex items-center gap-4 py-4"><button onClick={() => setDashboardView('settings')} className="bg-white/10 p-2 rounded-xl hover:bg-white/20 transition-colors"><ArrowLeft className="text-white"/></button><h2 className="text-xl font-black text-red-500 uppercase tracking-widest">{txt('admin_title')}</h2></div>
             
-            {/* Stats Dashboard */}
             <div className="grid grid-cols-3 gap-2 mb-2">
                <div className="bg-white/5 p-2 rounded-xl text-center border border-white/5"><div className="text-neutral-500 text-[8px] uppercase font-bold mb-1">{txt('admin_stats_total')}</div><div className="text-white font-mono font-bold text-lg">{totalGames}</div></div>
                <div className="bg-white/5 p-2 rounded-xl text-center border border-white/5"><div className="text-neutral-500 text-[8px] uppercase font-bold mb-1">{txt('admin_stats_open')}</div><div className="text-orange-500 font-mono font-bold text-lg">{openGames}</div></div>
                <div className="bg-white/5 p-2 rounded-xl text-center border border-white/5"><div className="text-neutral-500 text-[8px] uppercase font-bold mb-1">{txt('admin_stats_volume')}</div><div className="text-green-500 font-mono font-bold text-xs mt-1">{totalVolume.toLocaleString()}</div></div>
             </div>
 
-            {/* BUTTON ZUM FRAGEN MANAGER */}
             <div className="mb-2">
-              <button 
-                onClick={() => setView('admin_questions')}
-                className="w-full bg-orange-500/10 border border-orange-500/50 p-3 rounded-xl flex items-center justify-center gap-2 text-orange-500 font-bold uppercase text-xs hover:bg-orange-500 hover:text-black transition-all"
-              >
+              <button onClick={() => setView('admin_questions')} className="w-full bg-orange-500/10 border border-orange-500/50 p-3 rounded-xl flex items-center justify-center gap-2 text-orange-500 font-bold uppercase text-xs hover:bg-orange-500 hover:text-black transition-all">
                 <Edit2 size={16}/> Fragen bearbeiten / hinzufügen
               </button>
             </div>
 
-            {/* Suche & Filter */}
             <div className="flex gap-2 mb-2">
                <div className="relative flex-1">
                   <Search size={14} className="absolute left-3 top-3 text-neutral-500"/>
@@ -1997,31 +1964,30 @@ if (dashboardView === 'settings') {
                </div>
             </div>
 
-            {/* Liste */}
             <div className="flex-1 overflow-y-auto space-y-2 custom-scrollbar pr-1">
               {filteredDuels.length === 0 && <p className="text-center text-neutral-600 text-xs italic py-10">Keine Ergebnisse</p>}
               {filteredDuels.map(d => {
                  return (
                    <div key={d.id} className="bg-neutral-900/80 border border-white/5 p-3 rounded-xl flex flex-col gap-2">
                       <div className="flex justify-between items-center border-b border-white/5 pb-2">
-                         <span className="font-mono text-[10px] text-neutral-500">ID: {d.id}</span>
-                         <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${d.status === 'open' ? 'bg-orange-500/20 text-orange-500' : d.status === 'finished' ? 'bg-green-500/20 text-green-500' : 'bg-red-500/20 text-red-500'}`}>{d.status.toUpperCase()}</span>
+                          <span className="font-mono text-[10px] text-neutral-500">ID: {d.id}</span>
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${d.status === 'open' ? 'bg-orange-500/20 text-orange-500' : d.status === 'finished' ? 'bg-green-500/20 text-green-500' : 'bg-red-500/20 text-red-500'}`}>{d.status.toUpperCase()}</span>
                       </div>
                       <div className="flex justify-between items-center">
-                         <div className="flex flex-col">
-                            <div className="text-xs font-bold text-white flex items-center gap-2">
-                               {d.creator} <span className="text-neutral-600 text-[10px] font-normal">vs</span> {d.challenger || '?'}
-                            </div>
-                            <div className="text-[10px] text-neutral-400 mt-1">
-                               Score: <span className="font-mono text-white">{d.creator_score ?? '-'}</span> : <span className="font-mono text-white">{d.challenger_score ?? '-'}</span>
-                            </div>
-                         </div>
-                         <div className="flex flex-col items-end">
-                            <span className="font-mono text-xs text-white font-bold">{d.amount} sats</span>
-                            {d.status === 'finished' && (
-                               d.claimed ? <span className="text-[8px] text-yellow-500 font-bold mt-1">PAID OUT</span> : <span className="text-[8px] text-neutral-500 mt-1">UNCLAIMED</span>
-                            )}
-                         </div>
+                          <div className="flex flex-col">
+                             <div className="text-xs font-bold text-white flex items-center gap-2">
+                                {d.creator} <span className="text-neutral-600 text-[10px] font-normal">vs</span> {d.challenger || '?'}
+                             </div>
+                             <div className="text-[10px] text-neutral-400 mt-1">
+                                Score: <span className="font-mono text-white">{d.creator_score ?? '-'}</span> : <span className="font-mono text-white">{d.challenger_score ?? '-'}</span>
+                             </div>
+                          </div>
+                          <div className="flex flex-col items-end">
+                             <span className="font-mono text-xs text-white font-bold">{d.amount} sats</span>
+                             {d.status === 'finished' && (
+                                d.claimed ? <span className="text-[8px] text-yellow-500 font-bold mt-1">PAID OUT</span> : <span className="text-[8px] text-neutral-500 mt-1">UNCLAIMED</span>
+                             )}
+                          </div>
                       </div>
                    </div>
                  );
@@ -2033,7 +1999,6 @@ if (dashboardView === 'settings') {
     }
   }
 
-  // --- ADMIN QUESTIONS MANAGER VIEW ---
   if (view === 'admin_questions') {
     return (
       <Background>
@@ -2044,7 +2009,6 @@ if (dashboardView === 'settings') {
     );
   }
 
-  // --- SUBMIT QUESTION VIEW ---
   if (view === 'submit_question') {
     return (
       <Background>
@@ -2055,16 +2019,15 @@ if (dashboardView === 'settings') {
     );
   }
 
-  // --- PRE_GAME VIEW ---
   if (view === 'pre_game') {
      if (!checkingPayment) { confetti({ particleCount: 150, spread: 100, origin: { y: 0.6 } }); }
      return (
        <Background>
-          <div className="w-full max-w-sm flex flex-col gap-6 text-center px-4 items-center justify-center min-h-[60vh]">
+         <div className="w-full max-w-sm flex flex-col gap-6 text-center px-4 items-center justify-center min-h-[60vh]">
              <div className="relative"><div className="absolute inset-0 bg-green-500 blur-[50px] opacity-40 rounded-full animate-pulse"></div><CheckCircle size={100} className="text-green-500 relative animate-bounce" /></div>
              <div className="space-y-2"><h2 className="text-3xl font-black text-white uppercase drop-shadow-lg">{txt('pre_game_title')}</h2><p className="text-neutral-400 text-sm font-bold uppercase tracking-widest">{txt('pre_game_text')}</p></div>
              <Button variant="primary" onClick={startGame} className="animate-neon mt-8"><Rocket size={20} className="mr-2" />{txt('btn_ready')}</Button>
-          </div>
+         </div>
        </Background>
      );
   }
@@ -2108,9 +2071,8 @@ if (dashboardView === 'settings') {
     const roundConfig = gameData[currentQ];
     const questionID = roundConfig.id;
     const shuffledOrder = roundConfig.order;
-    const questionData = allQuestions[questionID]?.[lang]; // Safe Access
+    const questionData = allQuestions[questionID]?.[lang]; 
     
-    // SAFE GUARD 1: Fehlende Frage
     if (!questionData) {
        return (
          <Background>
@@ -2130,12 +2092,11 @@ if (dashboardView === 'settings') {
     return (
       <Background>
         <div className="w-full max-w-sm mx-auto flex flex-col justify-center min-h-[60vh] px-4">
-          <div className="flex justify-between items-end mb-4 px-1"><span className="text-xs font-bold text-neutral-500 uppercase">{txt('game_q')} {currentQ + 1}/5</span><span className={`text-4xl font-black font-mono ${timeLeft < 5 ? 'text-red-500 drop-shadow-[0_0_10px_red]' : 'text-white'}`}>{timeLeft.toFixed(1)}</span></div>
+          <div className="flex justify-between items-end mb-4 px-1"><span className="text-xs font-bold text-neutral-500 uppercase">{txt('game_q')} {currentQ + 1}/{gameData.length}</span><span className={`text-4xl font-black font-mono ${timeLeft < 5 ? 'text-red-500 drop-shadow-[0_0_10px_red]' : 'text-white'}`}>{timeLeft.toFixed(1)}</span></div>
           <div className="w-full h-2 bg-neutral-900 rounded-full mb-10 overflow-hidden"><div className="h-full bg-orange-500 transition-all duration-1000 ease-linear" style={{ width: `${(timeLeft / 15) * 100}%` }}></div></div>
           <h3 className="text-2xl font-bold text-white text-center mb-10 min-h-[100px]">"{questionData.q}"</h3>
           <div className="grid gap-3">{[0,1,2,3].map((displayIndex) => { const originalOptionIndex = shuffledOrder[displayIndex]; const optionText = originalOptions[originalOptionIndex]; let btnClass = "bg-neutral-900/50 hover:bg-orange-500 border-white/10"; const isCorrect = originalOptionIndex === correctIndex; const isSelected = selectedAnswer === displayIndex; if (selectedAnswer !== null) { if (isCorrect) btnClass = "bg-green-500 text-black border-green-500 shadow-[0_0_15px_rgba(34,197,94,0.6)]"; else if (isSelected) btnClass = "bg-red-500 text-white border-red-500"; else btnClass = "opacity-30 border-transparent"; } return (<button key={`${currentQ}-${displayIndex}`} onClick={() => handleAnswer(displayIndex)} disabled={selectedAnswer !== null} className={`border p-5 rounded-2xl text-left transition-all active:scale-[0.95] flex items-center gap-4 ${btnClass}`}><span className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-sm ${selectedAnswer !== null && isCorrect ? 'bg-black text-green-500' : 'bg-neutral-800 text-neutral-400'}`}>{String.fromCharCode(65 + displayIndex)}</span><span className="font-bold text-lg text-neutral-200">{optionText}</span></button>); })}</div>
           
-          {/* LADE-OVERLAY BEIM SPEICHERN */}
           {isProcessingGame && (
             <div className="absolute inset-0 bg-black/80 flex flex-col items-center justify-center z-50 animate-in fade-in">
                 <Loader2 size={64} className="text-orange-500 animate-spin mb-4"/>
@@ -2147,16 +2108,13 @@ if (dashboardView === 'settings') {
     );
   }
 
-if (view === 'result_final') { 
-    // --- FALL 1: REFUND (RÜCKERSTATTUNG) ---
+  if (view === 'result_final') { 
     if (activeDuel && activeDuel.status === 'refunded') {
-       // FIX: Link aus State ODER Datenbank holen
        const finalLink = withdrawLink || activeDuel.withdraw_link;
 
        return (
          <Background>
            <div className="w-full max-w-sm text-center mt-10 px-4">
-             {/* Gelbes Icon */}
              <div className="mx-auto w-20 h-20 bg-yellow-500/20 rounded-full flex items-center justify-center mb-6 ring-2 ring-yellow-500 animate-pulse">
                 <RefreshCcw size={40} className="text-yellow-500"/>
              </div>
@@ -2166,19 +2124,16 @@ if (view === 'result_final') {
                 {txt('refund_info')}
              </p>
 
-             {/* ANZEIGE LOGIK: Schon ausgezahlt? Link da? Oder Fehler? */}
              {activeDuel.claimed ? (
-                /* FALL A: GELD WURDE SCHON ABGEHOLT */
                 <div className="p-8 bg-green-500/10 border border-green-500/50 rounded-2xl animate-in zoom-in mb-6">
                     <CheckCircle size={64} className="text-green-500 mx-auto mb-4"/>
                     <h3 className="text-xl font-black text-white uppercase">Erfolgreich Erstattet!</h3>
                     <p className="text-green-400 text-xs mt-2">Die Sats sind zurück in deiner Wallet.</p>
                 </div>
              ) : finalLink ? (
-                /* FALL B: LINK IST DA -> QR CODE ZEIGEN */
                 <div className="animate-in slide-in-from-bottom-5">
                   <div className="bg-white p-4 rounded-3xl inline-block mb-6 shadow-2xl shadow-yellow-500/20">
-                     <QRCodeCanvas value={`lightning:${finalLink.toUpperCase()}`} size={200} includeMargin={true}/>
+                      <QRCodeCanvas value={`lightning:${finalLink.toUpperCase()}`} size={200} includeMargin={true}/>
                   </div>
                   
                   <div className="my-4 flex justify-center">
@@ -2188,11 +2143,10 @@ if (view === 'result_final') {
                   </div>
                   
                   <Button variant="primary" onClick={() => window.location.href = `lightning:${finalLink}`} className="mb-2">
-                     GELD IN WALLET ÖFFNEN
+                      GELD IN WALLET ÖFFNEN
                   </Button>
                 </div>
              ) : (
-                /* FALL C: KEIN LINK GEFUNDEN */
                 <div className="p-4 bg-red-500/10 border border-red-500/50 rounded-xl">
                     <p className="text-red-400 text-xs font-bold">Fehler: Kein Refund-Link gefunden.</p>
                     <p className="text-[10px] text-red-300 mt-1">Bitte kontaktiere den Admin mit Spiel-ID: {activeDuel.id}</p>
@@ -2206,8 +2160,6 @@ if (view === 'result_final') {
          </Background>
        )
     }
-
-    // --- FALL 2: NORMALES SPIELERGEBNIS (WIN/LOSS) ---
 
     // SAFE GUARD
     if (!activeDuel) return <Background><div className="text-white text-center mt-20">Lade Ergebnisse...</div></Background>;
@@ -2232,9 +2184,6 @@ if (view === 'result_final') {
               <Card className="p-4 bg-white/5 opacity-50"><p className="text-[10px] font-bold text-neutral-500 uppercase">Gegner</p><p className="text-4xl font-black text-white font-mono">{duel.status === 'finished' ? opS : '?'}</p><p className="text-[10px] text-neutral-500 italic">{duel.status === 'finished' ? (typeof opT === 'number' ? opT.toFixed(1) + 's' : opT) : 'läuft...'}</p></Card>
             </div>
             
-            {/* ANZEIGE LOGIK FÜR GEWINNE */}
-
-            {/* FALL A: SCHON AUSGEZAHLT (Claimed) */}
             {duel.claimed ? (
                 <div className="p-8 bg-green-500/10 border border-green-500/50 rounded-2xl animate-in zoom-in mb-6">
                     <CheckCircle size={64} className="text-green-500 mx-auto mb-4"/>
@@ -2242,7 +2191,6 @@ if (view === 'result_final') {
                     <p className="text-green-400 text-xs mt-2">Die Sats sind in deiner Wallet.</p>
                 </div>
             ) : withdrawLink ? (
-              /* FALL B: LINK GENEIRIERT -> QR ZEIGEN */
               <div className="animate-in slide-in-from-bottom-5 duration-700">
                 <div className="bg-white p-4 rounded-3xl inline-block mb-6 shadow-2xl"><QRCodeCanvas value={`lightning:${withdrawLink.toUpperCase()}`} size={180}/></div>
                 <div className="my-4 flex justify-center">
@@ -2254,7 +2202,6 @@ if (view === 'result_final') {
                 <p className="text-orange-400 text-[10px] mt-4 font-mono animate-pulse uppercase tracking-widest italic">App springt nach Einlösung automatisch zurück</p>
               </div>
             ) : isFinished && won ? (
-              /* FALL C: GEWONNEN ABER NOCH NICHT GECLAIMED -> BUTTON ZEIGEN */
              <div className="flex flex-col gap-2">
                 <div className="bg-orange-500/10 border border-orange-500/50 p-2 rounded-xl mb-2 text-orange-400 text-[10px] font-black uppercase tracking-widest">JACKPOT: {duel.amount * 2} SATS</div>
                 <Button onClick={handleClaimReward} disabled={isClaiming} className="bg-green-500 text-black animate-pulse">
@@ -2263,7 +2210,6 @@ if (view === 'result_final') {
              </div>
             ) : null}
 
-            {/* ZURÜCK BUTTON (Nur wenn kein QR Code da ist, damit es nicht zu voll wird) */}
             {!withdrawLink && (
                <button onClick={() => setView('dashboard')} className="text-neutral-500 font-black uppercase text-xs tracking-widest mt-6">{txt('btn_lobby')}</button>
             )}
@@ -2272,13 +2218,10 @@ if (view === 'result_final') {
     ); 
   }
   
-  // Falls kein View matched (Fallback)
   return <Background><div>Loading...</div></Background>;
 }
 
-// Schutz gegen "ChunkLoadError" nach Deployment
 window.addEventListener('error', (e) => {
-  // Prüfen ob es ein Fehler beim Laden von Ressourcen ist (Script/Link)
   const isLoadingError = e.message?.includes('Loading chunk') || 
                          e.message?.includes('Importing a module script failed') ||
                          e.target?.tagName === 'SCRIPT' || 
@@ -2286,11 +2229,10 @@ window.addEventListener('error', (e) => {
 
   if (isLoadingError) {
     console.log('Alte Version erkannt, lade neu...');
-    // Verhindert Endlos-Reload-Schleifen (nur reloaden wenn der letzte reload > 10 sek her ist)
     const lastReload = sessionStorage.getItem('last_reload');
     if (!lastReload || Date.now() - parseInt(lastReload) > 10000) {
         sessionStorage.setItem('last_reload', Date.now());
         window.location.reload(true);
     }
   }
-}, true); // "true" für Capturing Phase ist wichtig bei Script-Fehlern
+}, true);
