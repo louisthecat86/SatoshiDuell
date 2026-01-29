@@ -959,38 +959,53 @@ const handleAnswer = (displayIndex) => {
     }, 1500);
   };
 
-  const finishGameLogic = async (finalScore = score) => {
+// 1. Wir nehmen 'finalTime' als zweites Argument an!
+  const finishGameLogic = async (finalScore, finalTime) => {
     if (isProcessingGame) return; 
     setIsProcessingGame(true);
 
-    // FIX: Runden auf 1 Nachkommastelle, damit DB nicht meckert (Integer Error)
-    const cleanTime = parseFloat((totalTime || 0).toFixed(1));
+    // 2. FIX: Nimm die übergebene Zeit (finalTime). Falls die fehlt (Fallback), nimm totalTime.
+    // Das löst das Problem, dass die letzte Frage fehlte.
+    const rawTime = finalTime !== undefined ? finalTime : totalTime;
+    const cleanTime = parseFloat((rawTime || 0).toFixed(1));
 
     try {
       if (role === 'creator') {
+        // --- CREATOR LOGIK ---
         const { error } = await supabase.from('duels').insert([{ 
           creator: user.name, 
           creator_score: finalScore, 
-          creator_time: cleanTime, 
+          creator_time: cleanTime, // Hier die korrekte Zeit nutzen
           questions: gameData, 
           status: 'open', 
           amount: invoice.amount, 
-          target_player: challengePlayer 
+          target_player: challengePlayer,
+          // WICHTIG: Avatare mitspeichern, damit wir sie in der Lobby sehen!
+          creator_avatar: user.avatar 
         }]);
+        
         if (error) throw error;
+        
+        // Nach Erstellen zurück zum Dashboard
         setView('dashboard');
+
       } else {
+        // --- CHALLENGER LOGIK ---
         const { data, error } = await supabase.from('duels').update({ 
             challenger: user.name, 
             challenger_score: finalScore, 
-            challenger_time: cleanTime, 
-            status: 'finished' 
+            challenger_time: cleanTime, // Hier die korrekte Zeit nutzen
+            status: 'finished',
+            // Auch hier Avatar speichern
+            challenger_avatar: user.avatar
         }).eq('id', activeDuel.id).select();
         
         if (error) throw error;
         
         if (data && data.length > 0) {
-            setActiveDuel(data[0]); 
+            // OPTIONALER FIX: Sofort manuell setzen für schnellere UI
+            const updatedDuel = data[0];
+            setActiveDuel(updatedDuel); 
             setView('result_final'); 
         } else {
             throw new Error("Fehler beim Laden des Spielstatus");
