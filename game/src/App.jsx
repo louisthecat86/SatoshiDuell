@@ -1430,7 +1430,7 @@ if (dashboardView === 'home') {
       );
     }
     
-    if (dashboardView === 'history') {
+  if (dashboardView === 'history') {
       // Wir sortieren: Neueste zuerst
       const historyList = myDuels.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
 
@@ -1453,21 +1453,25 @@ if (dashboardView === 'home') {
               )}
               
               {historyList.map(d => {
-                 // Logik: Hab ich gewonnen?
+                 // 1. Rollen klären
                  const isCreator = d.creator === user.name;
+                 
+                 // 2. Meine Daten (User)
+                 const myName = user.name;
+                 const myAvatar = user.avatar;
                  const myScore = isCreator ? d.creator_score : d.challenger_score;
+                 
+                 // 3. Gegner Daten
+                 const opName = isCreator ? (d.challenger || '?') : d.creator;
+                 const opAvatar = isCreator ? d.challenger_avatar : d.creator_avatar;
                  const opScore = isCreator ? d.challenger_score : d.creator_score;
-                 const opponent = isCreator ? (d.challenger || '?') : d.creator;
                  
-                 // NEU: Avatar des Gegners bestimmen
-                 const opponentAvatar = isCreator ? d.challenger_avatar : d.creator_avatar;
-                 
-                 let resultStatus = 'running'; // Standard: läuft noch
+                 // 4. Status ermitteln
+                 let resultStatus = 'running'; 
                  let resultColor = 'text-neutral-500';
                  let borderColor = 'border-white/5';
                  
                  if (d.status === 'finished') {
-                    // Win Condition: Mehr Punkte ODER gleiche Punkte und weniger Zeit
                     const iWon = myScore > opScore || (myScore === opScore && (isCreator ? d.creator_time < d.challenger_time : d.challenger_time < d.creator_time));
                     resultStatus = iWon ? 'WON' : 'LOST';
                     resultColor = iWon ? 'text-green-500' : 'text-red-500';
@@ -1478,35 +1482,41 @@ if (dashboardView === 'home') {
                  }
 
                  return (
-                   <button key={d.id} onClick={() => openPastDuel(d)} className={`w-full bg-neutral-900/80 border ${borderColor} p-3 rounded-xl flex flex-col gap-2 hover:bg-neutral-800 transition-all group`}>
+                   <button key={d.id} onClick={() => openPastDuel(d)} className={`w-full bg-neutral-900/80 border ${borderColor} p-3 rounded-xl flex items-center justify-between hover:bg-neutral-800 transition-all group`}>
                       
-                      {/* OBERE REIHE: Avatar + Status/Name + Betrag */}
-                      <div className="flex justify-between items-center w-full">
-                         
-                         <div className="flex items-center gap-3">
-                            {/* NEU: AVATAR */}
-                            <div className="w-10 h-10 rounded-lg overflow-hidden border border-white/10 bg-black shrink-0 group-hover:scale-105 transition-transform">
-                               <img 
-                                 src={opponentAvatar || getRobotAvatar(opponent)} 
-                                 alt={opponent} 
-                                 className="w-full h-full object-cover"
-                               />
-                            </div>
-
-                            {/* TEXT INFO */}
-                            <div className="flex flex-col items-start">
-                               <span className={`font-black text-sm ${resultColor}`}>{resultStatus}</span>
-                               <span className="text-neutral-400 text-xs">vs {formatName(opponent)}</span>
-                            </div>
+                      {/* LINKE SEITE: Avatare & Namen */}
+                      <div className="flex flex-col items-start gap-2">
+                         {/* Avatar Gruppe (Überlappend) */}
+                         <div className="flex items-center pl-1">
+                             {/* Mein Avatar (Vordergrund) */}
+                             <div className="w-10 h-10 rounded-full border-2 border-neutral-900 bg-neutral-800 z-20 shadow-lg relative group-hover:scale-105 transition-transform">
+                                 <img src={myAvatar || getRobotAvatar(myName)} alt="Me" className="w-full h-full object-cover rounded-full"/>
+                             </div>
+                             {/* Gegner Avatar (Hintergrund, leicht versetzt) */}
+                             <div className="w-10 h-10 rounded-full border-2 border-neutral-900 bg-neutral-800 z-10 -ml-4 opacity-80 group-hover:opacity-100 group-hover:translate-x-1 transition-all">
+                                 <img src={opAvatar || getRobotAvatar(opName)} alt="Opponent" className="w-full h-full object-cover rounded-full"/>
+                             </div>
                          </div>
-
-                         <span className="font-mono text-xs text-white font-bold">{d.amount} sats</span>
+                         
+                         {/* Namen darunter */}
+                         <div className="text-[10px] text-neutral-400 font-bold ml-1">
+                             <span className="text-white">{formatName(myName)}</span>
+                             <span className="mx-1 text-neutral-600 font-normal">vs</span>
+                             <span>{formatName(opName)}</span>
+                         </div>
                       </div>
-                      
-                      {/* UNTERE REIHE: Datum + Score */}
-                      <div className="flex justify-between w-full text-[10px] text-neutral-500 pl-1">
-                         <span>{new Date(d.created_at).toLocaleDateString()}</span>
-                         <span>Score: {myScore ?? '-'} : {opScore ?? '-'}</span>
+
+                      {/* RECHTE SEITE: Infos & Stats */}
+                      <div className="flex flex-col items-end gap-1">
+                         <span className={`font-black text-sm uppercase ${resultColor}`}>{resultStatus}</span>
+                         <span className="font-mono text-xs text-white">{d.amount} sats</span>
+                         
+                         {/* Ergebnis Score Box */}
+                         <div className="bg-black/40 border border-white/10 px-2 py-0.5 rounded text-[10px] font-mono text-neutral-300 mt-1">
+                            {myScore ?? '-'} : {opScore ?? '-'}
+                         </div>
+                         
+                         <span className="text-[9px] text-neutral-600 mt-0.5">{new Date(d.created_at).toLocaleDateString()}</span>
                       </div>
                    </button>
                  );
