@@ -1259,145 +1259,160 @@ if (dashboardView === 'badges') {
       return <HallOfFame user={user} myDuels={myDuels} onBack={() => setDashboardView('home')} />;
 }
 
-if (dashboardView === 'home') {
+// ---------------------------------------------------------
+    // VIEW: HOME (Hauptmenü)
+    // ---------------------------------------------------------
+    if (dashboardView === 'home') {
       return (
         <Background>
-          <div className="w-full max-w-md flex flex-col h-[95vh] gap-4 px-2 relative">
+          <div className="w-full max-w-md flex flex-col h-[95vh] justify-between">
             
-            {/* 1. WASSERZEICHEN (Hintergrund) */}
-            <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-0">
-               <img src="/logo.png" className="w-[90%] opacity-15" alt="Background" />
-            </div>
-
-            {/* 2. USER CARD (Avatar, Name, Mute, Logout) */}
-            <Card className="flex justify-between items-center py-3 border-orange-500/20 bg-black/40 backdrop-blur-md relative z-10">
-              {/* LINKE SEITE: Avatar & Name */}
+            {/* 1. Header (Oben) */}
+            <div className="flex justify-between items-center p-4 bg-black/20 rounded-b-2xl border-b border-white/5 backdrop-blur-sm">
               <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-xl overflow-hidden border-2 border-orange-500/50 shadow-[0_0_15px_rgba(249,115,22,0.3)] bg-black">
-                   <img 
-                     src={user.avatar || getRobotAvatar(user.name)} 
-                     alt="Avatar" 
-                     className="w-full h-full object-cover"
-                   />
+                {/* Avatar */}
+                <div className="w-12 h-12 rounded-xl overflow-hidden border-2 border-white/10 shadow-lg">
+                   <img src={user.avatar || getRobotAvatar(user.name)} alt="Avatar" className="w-full h-full object-cover" />
                 </div>
-                <div className="text-left">
-                  <p className="font-black text-white text-xl uppercase tracking-wider">{formatName(user.name)}</p>
-                  <p className="text-[10px] text-orange-400 font-mono">{stats.satsWon.toLocaleString()} {txt('sats_won')}</p>
+                {/* Name & Stats */}
+                <div>
+                   <h2 className="font-black text-xl text-white tracking-wider uppercase">{formatName(user.name)}</h2>
+                   <p className="text-xs text-orange-500 font-mono font-bold flex items-center gap-1">
+                      {stats.satsWon || 0} Sats gewonnen
+                   </p>
                 </div>
               </div>
 
-              {/* RECHTE SEITE: Buttons */}
-              <div className="flex gap-2">
-                {/* MUTE BUTTON */}
-                <button onClick={toggleMute} className="p-2 text-neutral-500 hover:text-white transition-colors">
-                  {isMuted ? <VolumeX size={18}/> : <Volume2 size={18}/>}
-                </button>
-                
-                {/* LOGOUT BUTTON */}
-                <button onClick={handleLogout} className="p-2 text-neutral-500 hover:text-white"><LogOut size={18}/></button>
+              {/* Icons oben rechts: Lautsprecher, Settings, Logout */}
+              <div className="flex items-center gap-4">
+                  <button onClick={toggleMute} className="text-neutral-400 hover:text-white transition-colors">
+                      {isMuted ? <VolumeX size={20}/> : <Volume2 size={20}/>}
+                  </button>
+                  
+                  {/* NEU: EINSTELLUNGEN HIER OBEN */}
+                  <button onClick={() => setView('settings')} className="text-neutral-400 hover:text-white transition-colors">
+                      <Settings size={20}/>
+                  </button>
+
+                  <button onClick={logout} className="text-neutral-400 hover:text-red-500 transition-colors">
+                      <LogOut size={20}/>
+                  </button>
               </div>
-            </Card>
-
-            {/* Unclaimed Win Button (Falls vorhanden) */}
-            {unclaimedWin && (
-              <button onClick={() => openPastDuel(unclaimedWin)} className="w-full bg-green-500 text-black p-4 rounded-2xl flex items-center justify-between font-black uppercase animate-bounce shadow-[0_0_20px_rgba(34,197,94,0.6)] relative z-10">
-                 <div className="flex items-center gap-3"><Trophy size={24}/> <div className="text-left"><p className="text-sm leading-none">{txt('dash_unclaimed_title')}</p><p className="text-[10px] opacity-75 font-normal normal-case">{txt('dash_unclaimed_text')}</p></div></div>
-                 <div className="bg-black/20 p-2 rounded-lg"><ArrowLeft className="rotate-180" size={16}/></div>
-              </button>
-            )}
-
-            {/* NEW DUEL BUTTON */}
-            <Button onClick={() => { playSound('click', isMuted); openCreateSetup(); }} className="py-5 text-lg animate-neon shadow-lg mb-2 relative z-10">
-              <Plus size={24}/> {txt('dashboard_new_duel')}
-            </Button>
-            
-            {/* 3. DAS GRID MIT DEN NEUEN KACHELN (Farbiger Text, Große Schrift) */}
-            <div className="grid grid-cols-2 gap-2 flex-1 overflow-y-auto pb-4 relative z-10 custom-scrollbar">
-              
-              {/* LOBBY (Orange) */}
-              <button onClick={() => setDashboardView('lobby')} className="bg-neutral-900/60 border border-white/5 hover:border-orange-500/50 hover:bg-neutral-800 p-4 rounded-2xl flex flex-col items-center justify-center gap-3 aspect-[4/3] relative group">
-                <Users size={32} className="text-orange-500 group-hover:scale-110 transition-transform"/>
-                <span className="text-sm font-black text-orange-500 uppercase tracking-widest shadow-black drop-shadow-md">{txt('tile_lobby')}</span>
-                {publicCount > 0 && <span className="absolute top-2 right-2 bg-orange-500 text-black text-[10px] font-black w-6 h-6 rounded-full flex items-center justify-center shadow-lg border border-white/20">{publicCount}</span>}
-              </button>
-
-              {/* CHALLENGES (Purple) */}
-              <button onClick={() => setDashboardView('challenges')} className="bg-neutral-900/60 border border-white/5 hover:border-purple-500/50 hover:bg-neutral-800 p-4 rounded-2xl flex flex-col items-center justify-center gap-3 aspect-[4/3] relative group">
-                <Swords size={32} className="text-purple-500 group-hover:scale-110 transition-transform"/>
-                <span className="text-sm font-black text-purple-500 uppercase tracking-widest shadow-black drop-shadow-md">{txt('tile_challenges')}</span>
-                {challengeCount > 0 && <span className="absolute top-2 right-2 bg-purple-500 text-white text-[10px] font-black w-6 h-6 rounded-full flex items-center justify-center shadow-lg border border-white/20">{challengeCount}</span>}
-              </button>
-
-              {/* ACTIVE GAMES (Green) */}
-              <button onClick={() => setDashboardView('active_games')} className="bg-neutral-900/60 border border-white/5 hover:border-green-500/50 hover:bg-neutral-800 p-4 rounded-2xl flex flex-col items-center justify-center gap-3 aspect-[4/3] relative group">
-                <PlayCircle size={32} className="text-green-500 group-hover:scale-110 transition-transform"/>
-                <span className="text-sm font-black text-green-500 uppercase tracking-widest shadow-black drop-shadow-md">{txt('tile_active_games')}</span>
-                {myOpenDuels.length > 0 && <span className="absolute top-2 right-2 bg-green-500 text-black text-[10px] font-black w-6 h-6 rounded-full flex items-center justify-center shadow-lg border border-white/20">{myOpenDuels.length}</span>}
-              </button>
-
-              {/* HISTORY (Blue) */}
-              <button onClick={() => setDashboardView('history')} className="bg-neutral-900/60 border border-white/5 hover:border-blue-500/50 hover:bg-neutral-800 p-4 rounded-2xl flex flex-col items-center justify-center gap-3 aspect-[4/3] transition-all group">
-                <History size={32} className="text-blue-500 group-hover:scale-110 transition-transform"/>
-                <span className="text-sm font-black text-blue-500 uppercase tracking-widest shadow-black drop-shadow-md">{txt('tile_history')}</span>
-              </button>
-              
-              {/* LEADERBOARD (Top 3 Liste) */}
-              <button onClick={() => setDashboardView('leaderboard')} className="bg-neutral-900/60 border border-white/5 hover:border-yellow-500/50 hover:bg-neutral-800 p-3 rounded-2xl flex flex-col items-center justify-start gap-1 aspect-[4/3] relative overflow-hidden group">
-                
-                {/* HEADER: Titel Oben */}
-                <div className="flex items-center gap-2 mb-1 z-10">
-                  <Trophy size={14} className="text-yellow-500" />
-                  <span className="text-xs font-black text-yellow-500 uppercase tracking-widest shadow-black drop-shadow-md">{txt('tile_leaderboard')}</span>
-                </div>
-
-                {/* BODY: Top 3 Liste */}
-                <div className="w-full flex flex-col gap-1 z-10">
-                   {leaderboard.length > 0 ? (
-                      leaderboard.slice(0, 3).map((p, i) => {
-                         const rankColor = i === 0 ? "text-yellow-400" : i === 1 ? "text-gray-300" : "text-orange-600";
-                         const rowBg = i === 0 ? "bg-yellow-500/10 border border-yellow-500/20" : "bg-black/20";
-                         
-                         return (
-                           <div key={i} className={`flex justify-between items-center w-full px-2 py-1 rounded ${rowBg}`}>
-                              <div className="flex items-center gap-1.5 overflow-hidden">
-                                 <span className={`text-[10px] font-black ${rankColor}`}>{i+1}.</span>
-                                 <span className="text-[10px] font-bold text-white truncate max-w-[65px]">{formatName(p.name)}</span>
-                              </div>
-                              <span className={`text-[9px] font-mono ${rankColor}`}>{p.satsWon}</span>
-                           </div>
-                         )
-                      })
-                   ) : (
-                      <span className="text-[10px] text-neutral-500 text-center mt-4">Lade...</span>
-                   )}
-                </div>
-              </button>
-
-              <button onClick={() => setDashboardView('badges')} className="bg-neutral-800 p-4 rounded-2xl flex flex-col items-center gap-2 hover:bg-neutral-700 transition-all border border-white/5 group">
-                <div className="bg-yellow-500/20 p-3 rounded-xl group-hover:scale-110 transition-transform"><Medal className="text-yellow-500" size={24}/></div>
-                <span className="text-xs font-bold text-neutral-400 uppercase tracking-wider">Erfolge</span>
-              </button>
-
-              {/* SETTINGS (Neutral) */}
-              <button onClick={() => setDashboardView('settings')} className="bg-neutral-900/60 border border-white/5 hover:border-neutral-500 hover:bg-neutral-800 p-4 rounded-2xl flex flex-col items-center justify-center gap-3 aspect-[4/3] transition-all group">
-                <Settings size={32} className="text-neutral-400 group-hover:rotate-45 transition-transform"/>
-                <span className="text-sm font-black text-neutral-400 uppercase tracking-widest shadow-black drop-shadow-md">{txt('tile_settings')}</span>
-              </button>
             </div>
 
-            {/* 4. SPENDEN BUTTON (Neu, Orange Herzen, größer) */}
-            <button 
-              onClick={openDonation} 
-              className="w-full py-3 mt-2 mb-2 bg-neutral-900 border border-white/10 hover:border-orange-500/50 rounded-xl text-white text-xs font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all group shadow-lg relative z-10"
-            >
-              <Heart size={16} className="text-orange-500 fill-orange-500 group-hover:scale-110 transition-transform"/> 
-              {txt('dashboard_donate')}
-            </button>
+            {/* 2. Content Grid (Mitte) */}
+            <div className="flex-1 overflow-y-auto px-4 pb-20 custom-scrollbar pt-4">
+               
+               {/* Gewinn Banner (falls vorhanden) */}
+               {unclaimedWin && (
+                 <button onClick={() => { setActiveDuel(unclaimedWin); setView('result_final'); }} className="w-full mb-6 bg-gradient-to-r from-green-500 to-emerald-600 p-4 rounded-2xl shadow-[0_0_20px_rgba(34,197,94,0.4)] animate-pulse flex items-center justify-between group hover:scale-[1.02] transition-transform">
+                    <div className="flex items-center gap-3">
+                       <div className="bg-black/20 p-2 rounded-full"><Trophy className="text-white" size={24}/></div>
+                       <div className="text-left">
+                          <p className="font-black text-white uppercase text-sm">Gewinn abholen!</p>
+                          <p className="text-xs text-green-100 font-mono">Du hast {unclaimedWin.amount} sats gewonnen</p>
+                       </div>
+                    </div>
+                    <ArrowLeft className="rotate-180 text-white group-hover:translate-x-1 transition-transform"/>
+                 </button>
+               )}
+
+               {/* Button Grid */}
+               <div className="grid grid-cols-2 gap-3 mb-6">
+                  
+                  {/* Start New Game (Groß) */}
+                  <button onClick={startNewGame} className="col-span-2 bg-gradient-to-r from-orange-500 to-orange-600 p-5 rounded-2xl flex items-center justify-center gap-3 shadow-[0_0_20px_rgba(249,115,22,0.3)] hover:scale-[1.02] transition-transform group relative overflow-hidden border border-white/10">
+                      <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-20"></div>
+                      <Plus size={24} className="text-white relative z-10"/>
+                      <span className="font-black text-lg text-white uppercase tracking-widest relative z-10">NEUES DUELL</span>
+                  </button>
+
+                  {/* Lobby */}
+                  <button onClick={() => setDashboardView('lobby')} className="bg-neutral-900/50 p-4 rounded-2xl flex flex-col items-center gap-2 hover:bg-neutral-800 transition-all border border-white/5 group relative backdrop-blur-sm">
+                      {publicCount > 0 && <div className="absolute top-2 right-2 bg-orange-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full animate-bounce">{publicCount}</div>}
+                      <div className="p-2 rounded-xl group-hover:scale-110 transition-transform"><Users className="text-orange-500" size={28}/></div>
+                      <span className="text-xs font-black text-orange-500 uppercase tracking-wider">LOBBY</span>
+                  </button>
+                  
+                  {/* Challenges */}
+                  <button onClick={() => setDashboardView('challenges')} className="bg-neutral-900/50 p-4 rounded-2xl flex flex-col items-center gap-2 hover:bg-neutral-800 transition-all border border-white/5 group relative backdrop-blur-sm">
+                      {challengeCount > 0 && <div className="absolute top-2 right-2 bg-purple-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full animate-pulse">{challengeCount}</div>}
+                      <div className="p-2 rounded-xl group-hover:scale-110 transition-transform"><Swords className="text-purple-500" size={28}/></div>
+                      <span className="text-xs font-black text-purple-500 uppercase tracking-wider">CHALLENGES</span>
+                  </button>
+
+                  {/* Laufende Spiele (Placeholder für Bestenliste oder Running) */}
+                  {/* Falls du Bestenliste hier haben willst, icon/text anpassen */}
+                  <button className="bg-neutral-900/50 p-4 rounded-2xl flex flex-col items-center gap-2 hover:bg-neutral-800 transition-all border border-white/5 group backdrop-blur-sm">
+                      <div className="absolute top-2 right-2 bg-green-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">1</div>
+                      <div className="p-2 rounded-xl group-hover:scale-110 transition-transform"><PlayCircle className="text-green-500" size={28}/></div>
+                      <span className="text-xs font-black text-green-500 uppercase tracking-wider">LAUFENDE</span>
+                  </button>
+
+                  {/* History */}
+                  <button onClick={() => setDashboardView('history')} className="bg-neutral-900/50 p-4 rounded-2xl flex flex-col items-center gap-2 hover:bg-neutral-800 transition-all border border-white/5 group backdrop-blur-sm">
+                      <div className="p-2 rounded-xl group-hover:scale-110 transition-transform"><History className="text-blue-500" size={28}/></div>
+                      <span className="text-xs font-black text-blue-500 uppercase tracking-wider">HISTORIE</span>
+                  </button>
+
+                  {/* Bestenliste (Platzhalter falls gewünscht) */}
+                  <button className="bg-neutral-900/50 p-4 rounded-2xl flex flex-col items-center justify-start gap-1 hover:bg-neutral-800 transition-all border border-white/5 group backdrop-blur-sm">
+                      <div className="flex items-center gap-2 mb-1">
+                          <Trophy size={14} className="text-yellow-500"/>
+                          <span className="text-xs font-black text-yellow-500 uppercase">BESTENLISTE</span>
+                      </div>
+                      {/* Kleines Fake-Leaderboard für den Look */}
+                      <div className="w-full text-[9px] space-y-1 font-mono text-neutral-400">
+                          <div className="flex justify-between text-yellow-100 font-bold"><span>1. DRAGSUGG</span><span>38922</span></div>
+                          <div className="flex justify-between"><span>2. LBUG</span><span>38779</span></div>
+                          <div className="flex justify-between"><span>3. JOHNNY</span><span>14772</span></div>
+                      </div>
+                  </button>
+
+                  {/* ERFOLGE BUTTON - JETZT TRANSPARENT (angepasst an die anderen) */}
+                  <button onClick={() => setDashboardView('badges')} className="bg-neutral-900/50 p-4 rounded-2xl flex flex-col items-center justify-center gap-2 hover:bg-neutral-800 transition-all border border-white/5 group backdrop-blur-sm">
+                      <div className="bg-yellow-500/10 p-2 rounded-xl group-hover:scale-110 transition-transform border border-yellow-500/20">
+                          <Medal className="text-yellow-500" size={24}/>
+                      </div>
+                      <span className="text-xs font-bold text-neutral-400 uppercase tracking-wider group-hover:text-yellow-500 transition-colors">ERFOLGE</span>
+                  </button>
+                  
+               </div>
+
+               {/* Eigene Offene Spiele */}
+               {myOpenDuels.length > 0 && (
+                 <div className="mb-6">
+                    <h3 className="text-neutral-500 text-xs font-bold uppercase tracking-widest mb-3 pl-1">Deine offenen Spiele</h3>
+                    <div className="space-y-2">
+                       {myOpenDuels.map(d => (
+                          <div key={d.id} className="bg-neutral-900/50 border border-white/5 p-3 rounded-xl flex items-center justify-between backdrop-blur-sm">
+                             <div className="flex items-center gap-3">
+                                <div className="w-8 h-8 rounded bg-neutral-800 flex items-center justify-center animate-pulse"><Clock size={14} className="text-neutral-500"/></div>
+                                <div>
+                                   <p className="text-xs font-bold text-white">Warten auf Gegner...</p>
+                                   <p className="text-[10px] text-neutral-500 font-mono">{d.amount} sats • {new Date(d.created_at).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</p>
+                                </div>
+                             </div>
+                             <button onClick={() => copyLink(d.id)} className="p-2 bg-white/5 rounded hover:bg-white/10 text-neutral-400 hover:text-white transition-colors"><Share2 size={14}/></button>
+                          </div>
+                       ))}
+                    </div>
+                 </div>
+               )}
+            </div>
+            
+            {/* Spenden Button (ganz unten) */}
+            <div className="p-4 pt-0">
+               <button onClick={() => setView('donate')} className="w-full py-3 rounded-xl bg-neutral-900/80 border border-white/5 text-neutral-400 hover:text-white hover:bg-neutral-800 flex items-center justify-center gap-2 text-xs font-black uppercase tracking-widest transition-all">
+                  <Heart size={14} className="text-orange-500 fill-orange-500"/> SPENDEN
+               </button>
+            </div>
+
           </div>
         </Background>
       );
     }
-
+    
     // --- NEUE VIEW: ACTIVE GAMES LIST ---
     if (dashboardView === 'active_games') {
       return (
